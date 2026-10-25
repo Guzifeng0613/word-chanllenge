@@ -1,1 +1,8 @@
 doc-fetch-resources/
+.build/
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+server/word_dungeon.db
+node_modules/
