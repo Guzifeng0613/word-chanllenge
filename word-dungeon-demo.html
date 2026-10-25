@@ -55,6 +55,8 @@
   .wbmean{flex:1; color:var(--mut); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .wbcnt{font-weight:700; white-space:nowrap;}
   .seg-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;}
+  .seg-grid5{grid-template-columns:repeat(5,1fr);}
+  .seg-grid5 .seg{font-size:12.5px; padding:9px 2px;}
   .seg{padding:9px 4px; border-radius:8px; border:1px solid var(--line);
     background:#0e2238; color:var(--mut); font-size:14px; font-weight:600;}
   .seg.on{background:linear-gradient(180deg,#1d4ed8,#2563eb); color:#fff; border-color:#3b82f6;}
@@ -517,6 +519,7 @@ const BOOKS=[
   {id:'kaoyan',name:'考研'}
 ];
 const DIFFS=[
+  {id:'auto',name:'自适应'},
   {id:0,name:'全部'},
   {id:1,name:'简单'},
   {id:2,name:'中等'},
@@ -524,14 +527,15 @@ const DIFFS=[
 ];
 let SETTINGS=loadSettings();
 function loadSettings(){
-  try{ return Object.assign({book:'gaokao',difficulty:0},
+  try{ return Object.assign({book:'gaokao',difficulty:'auto'},
     JSON.parse(localStorage.getItem(SETTING_KEY))||{}); }
-  catch(e){ return {book:'gaokao',difficulty:0}; }
+  catch(e){ return {book:'gaokao',difficulty:'auto'}; }
 }
 function saveSettings(){ try{localStorage.setItem(SETTING_KEY,JSON.stringify(SETTINGS));}catch(e){} }
+function isAdaptive(){ return SETTINGS.difficulty==='auto'; }
 function bookWords(){
   return WORDS.filter(o=>o.b.includes(SETTINGS.book)
-    && (!SETTINGS.difficulty||o.t===SETTINGS.difficulty)).map(o=>o.w);
+    && (isAdaptive()||!SETTINGS.difficulty||o.t===SETTINGS.difficulty)).map(o=>o.w);
 }
 
 /* ============================================================
@@ -541,6 +545,7 @@ const SAVE_KEY='word_dungeon_progress_v1';
 function defaultMeta(){
   return {
     level:1, xp:0,
+    theta:1.5,
     streak:0, lastActive:'',
     daily:{date:'', questions:0, newWords:0, run:0},
     ach:{}
@@ -554,6 +559,7 @@ const Save = {
       p.meta=Object.assign(defaultMeta(),p.meta||{});
       if(!p.meta.daily) p.meta.daily=defaultMeta().daily;
       if(!p.meta.ach) p.meta.ach={};
+      if(typeof p.meta.theta!=='number') p.meta.theta=1.5;
       return p;
     }catch(e){ return {words:{},meta:defaultMeta()}; }
   },
@@ -561,8 +567,64 @@ const Save = {
   reset(){ localStorage.removeItem(SAVE_KEY); }
 };
 let P = Save.load();
-function recOf(w){ return P.words[w] || {state:'NEW',idx:-1,due:0}; }
+function recOf(w){ return P.words[w] || {state:'NEW',stage:0,lapses:0,streak:0,due:0}; }
 function wState(w){ return recOf(w).state; }
+
+/* ============================================================
+ * V4.2 自适应难度 θ + SM-2 间隔重复
+ * ============================================================ */
+const SRS_LADDER=[10,1440,4320,10080,23040,43200];   // 分钟
+function updateTheta(theta,correct,fast){
+  if(correct) theta += fast?0.10:0.05;
+  else theta -= 0.10;
+  return Math.max(1,Math.min(3,Math.round(theta*1000)/1000));
+}
+function adaptiveTier(theta){
+  const r=rnd(), base=Math.max(1,Math.min(3,Math.round(theta)));
+  if(r<0.70) return {tier:base,bucket:'match'};
+  if(r<0.85) return {tier:Math.min(3,base+1),bucket:'stretch'};
+  return {tier:Math.max(1,base-1),bucket:'consolidate'};
+}
+function srsSchedule(rec,correct,fast,now){
+  rec=Object.assign({stage:0,lapses:0,streak:0,state:'NEW'},rec);
+  if(!correct){
+    rec.stage=0; rec.streak=0; rec.lapses++; rec.state='LEARNING';
+  } else {
+    if(fast){ rec.stage=Math.min(rec.stage+1,SRS_LADDER.length-1); rec.streak=0; }
+    else {
+      rec.streak++;
+      if(rec.streak>=2){ rec.stage=Math.min(rec.stage+1,SRS_LADDER.length-1); rec.streak=0; }
+    }
+    rec.state = rec.stage===SRS_LADDER.length-1?'MASTERED' : rec.stage>=1?'FAMILIAR':'LEARNING';
+  }
+  rec.due=now+SRS_LADDER[rec.stage]*60*1000;
+  return rec;
+}
+function dueWordsNow(){
+  const now=Date.now();
+  return Object.keys(P.words).filter(w=>{
+    const d=P.words[w].due; return d&&d<=now;
+  });
+}
+function gradeOf(wrongCount){ return wrongCount>=3?3:wrongCount===2?2:1; }
+function reviewQtype(grade){
+  if(grade>=3) return 'spell';
+  if(grade===2) return rpick(['en2cn','cn2en']);
+  return 'judge';
+}
+function isFastAnswer(q,elapsed,remainFrac){
+  if(q.qtype==='spell') return remainFrac>=0.60;
+  return elapsed<=C.speed.fastT;
+}
+function applySrs(word,correct,fast){
+  const now=Date.now();
+  const old=P.words[word]?Object.assign({},P.words[word]):null;
+  const rec=srsSchedule(old,correct,fast,now);
+  P.words[word]=rec;
+  P.meta.theta=updateTheta(P.meta.theta,correct,fast);
+  Save.write(P);
+  return rec;
+}
 
 /* ============================================================
  * 游戏状态
@@ -763,30 +825,46 @@ function speedMultFor(q,elapsed){
   }
   return elapsed<=C.speed.fastT?C.speed.fastM:elapsed<=C.speed.normalT?C.speed.normalM:1;
 }
-function drawWord(opts){
-  opts=opts||{};
-  const maxLen=opts.maxLen;
-  // 错词（本层未再答对）优先，按错误次数加权反复出现：错1次权重1 / 错2次权重2 / 错3次+权重3
-  const pend=Object.keys(G.wrongWords).filter(w=>G.wrongWords[w]&&(!maxLen||w.length<=maxLen));
+function pickWordAndType(forceType){
+  const maxLen=8;
+  // 目标桶与难度
+  let bucket='normal', targetTier=null;
+  if(isAdaptive()){
+    const t=adaptiveTier(P.meta.theta); targetTier=t.tier; bucket=t.bucket;
+  } else if(SETTINGS.difficulty){
+    targetTier=SETTINGS.difficulty;
+  }
+  // 1) 本层错词：按分级加权反复，题型按顽固度强制
+  const pend=Object.keys(G.wrongWords).filter(w=>G.wrongWords[w]&&G.layerWords.includes(w));
   if(pend.length){
     const hasHard=pend.some(w=>(G.wrongCount[w]||0)>=2);
-    const wr=rnd()<(hasHard?0.75:0.6);
-    if(wr){
+    const rate=hasHard?0.75:0.6;
+    if(rnd()<rate){
       const w=wpick(pend,pend.map(w=>Math.min(3,G.wrongCount[w]||1)));
-      G.queue=G.queue.filter(x=>x!==w);
-      return w;
+      let qt=forceType||reviewQtype(gradeOf(G.wrongCount[w]||1));
+      if(qt==='spell'&&w.length>maxLen) qt='en2cn';
+      return {word:w,qtype:qt,review:true,bucket};
     }
   }
-  if(G.queue.length===0) G.queue=rshuffle(G.layerWords.slice());
-  if(maxLen){
-    const short=G.queue.filter(w=>w.length<=maxLen);
-    if(short.length){
-      const w=rpick(short);
-      G.queue=G.queue.filter(x=>x!==w);
-      return w;
+  // 2) 巩固桶：到期词（快速判断）
+  if(bucket==='consolidate'){
+    const due=dueWordsNow().filter(w=>G.layerWords.includes(w)&&!G.wrongWords[w]);
+    if(due.length){
+      const w=rpick(due);
+      return {word:w,qtype:forceType||'judge',review:true,bucket};
     }
   }
-  return G.queue.shift();
+  // 3) 常规：随机题型（或 force），按目标难度抽词
+  let qtype=forceType;
+  if(!qtype){
+    const r=rnd(); let acc=0;
+    qtype = r<(acc+=C.question.pool.en2cn)?'en2cn' : r<(acc+=C.question.pool.cn2en)?'cn2en' : r<(acc+=C.question.pool.spell)?'spell' : 'judge';
+  }
+  const ok=w=>(qtype!=='spell'||w.length<=maxLen);
+  let cand=G.layerWords.filter(w=>ok(w)&&(!targetTier||WMAP[w].t===targetTier));
+  if(!cand.length) cand=G.layerWords.filter(ok);
+  if(!cand.length) cand=G.layerWords;
+  return {word:rpick(cand),qtype,review:false,bucket};
 }
 function nextQuestion(){
   const b=G.battle;
@@ -799,25 +877,18 @@ function nextQuestion(){
     if(t.mech==='fog' && b.answered>0 && b.answered%t.every===0) b.fog=true;
     if(t.mech==='blur' && b.answered>0 && b.answered%t.every===0) b.blur=true;
   }
-  // 题型
-  let qtype;
-  if(enemy.tpl.force) qtype=enemy.tpl.force;
-  else {
-    const r=rnd(); let acc=0;
-    qtype = r<(acc+=C.question.pool.en2cn)?'en2cn' : r<(acc+=C.question.pool.cn2en)?'cn2en' : r<(acc+=C.question.pool.spell)?'spell' : 'judge';
-  }
-  // 拼写题：单词不超过 8 个字母，避免长词
-  const word=drawWord(qtype==='spell'?{maxLen:8}:null);
+  const forceType=enemy.tpl.force||null;
+  let pick=null;
   // 易混敌人：优先用能配组的词
   if(enemy.tpl.confuse){
     const candidates=G.layerWords.filter(w=>groupOf(w));
     if(candidates.length){
-      const cw=rpick(candidates);
-      G.queue=G.queue.filter(x=>x!==cw);
-      return buildQuestion(cw,qtype);
+      pick={word:rpick(candidates),qtype:forceType||'en2cn',review:false,bucket:'match'};
     }
   }
-  buildQuestion(word,qtype);
+  if(!pick) pick=pickWordAndType(forceType);
+  G.curBucket=pick.bucket;
+  buildQuestion(pick.word,pick.qtype);
 }
 function buildQuestion(word,qtype){
   const b=G.battle, o=WMAP[word];
@@ -932,6 +1003,8 @@ function resolve(choice,isTimeout,forceCorrect){
     });
     if(G.blessForLayer===G.layer) cardMult*=1.25;
     const sm=speedMultFor(q,elapsed);
+    const remainFrac=(q.start+q.limit*1000-performance.now())/(q.limit*1000);
+    const fast=isFastAnswer(q,elapsed,remainFrac);
     const cm=Math.min(1+C.combo.step*G.combo,1+C.combo.cap);
     const pm=C.proficiency[mstate];
     let rv=1;
@@ -952,7 +1025,7 @@ function resolve(choice,isTimeout,forceCorrect){
     if(!G.flow && G.combo>=C.flow.threshold){ G.flow=true; floatText('fheal','心流开启',50); }
     if(G.flow){ G.gold+=C.flow.bonusGold; floatText('fdmg','+'+C.flow.bonusGold,72); }
     G.cards.forEach(id=>{ const c=CMAP[id]; if(c.onCorrect)c.onCorrect(ctx); });
-    reviewWord(word,true);
+    applySrs(word,true,fast);
     G.wrongWords[word]=false;
     markOptions(true,q.correct);
     // 微目标 + 掌握成就
@@ -979,7 +1052,7 @@ function resolve(choice,isTimeout,forceCorrect){
     // boss3 狂暴
     if(b.enemy.boss&&b.enemy.tpl.mech==='rage'&&b.enemy.hp<=b.enemy.maxHp*0.5) dmg+=4;
     hurtPlayer(dmg);
-    reviewWord(word,false);
+    applySrs(word,false,false);
     G.wrongWords[word]=true;
     G.wrongCount[word]=(G.wrongCount[word]||0)+1;
     if(choice!==null) markOptions(false,choice);
@@ -1282,8 +1355,8 @@ function startSpring(from){
 }
 function springAnswer(ok){
   const s=G.springData;
-  if(ok){ s.bonus+=C.spring.reviewHeal; G.hp=Math.min(C.player.maxHp,G.hp+C.spring.reviewHeal); reviewWord(s.list[s.idx],true); G.wrongWords[s.list[s.idx]]=false; }
-  else { reviewWord(s.list[s.idx],false); }
+  if(ok){ s.bonus+=C.spring.reviewHeal; G.hp=Math.min(C.player.maxHp,G.hp+C.spring.reviewHeal); applySrs(s.list[s.idx],true,false); G.wrongWords[s.list[s.idx]]=false; }
+  else { applySrs(s.list[s.idx],false,false); }
   s.idx++;
   if(s.idx>=s.list.length){ s.done=true; }
   render();
@@ -1318,26 +1391,6 @@ function buy(kind,id){
   else { G.cards.push(id); }
   d.sold[kind+id]=true;
   render();
-}
-
-/* ============================================================
- * 间隔重复（复习）
- * ============================================================ */
-function reviewWord(word,correct){
-  const now=Date.now();
-  let rec=P.words[word]?Object.assign({},P.words[word]):{state:'NEW',idx:-1,due:0};
-  if(!correct){
-    rec.state='LEARNING'; rec.idx=-1; rec.due=now+10*MIN;
-  } else {
-    if(rec.state==='NEW'){ rec.state='LEARNING'; rec.due=now+10*MIN; }
-    else if(rec.state==='LEARNING'){ rec.state='FAMILIAR'; rec.idx=0; rec.due=now+1*DAY; }
-    else if(rec.state==='FAMILIAR'){
-      if(rec.idx>=C.famIntervals.length){ rec.state='MASTERED'; rec.due=0; }
-      else { const days=C.famIntervals[rec.idx]; rec.idx++; rec.due=now+days*DAY; }
-    }
-  }
-  P.words[word]=rec;
-  Save.write(P);
 }
 
 /* ============================================================
@@ -1399,16 +1452,23 @@ function viewHome(){
      <div class="progress-row" style="margin-top:10px;"><span>已接触单词</span><span class="mut">${total}</span></div>
    </div>
    <div class="card" style="margin-top:12px;">
+     <div class="progress-row"><span>今日待复习（到期）</span><span class="mut" style="color:var(--gold,#fbbf24);font-weight:700;">${dueWordsNow().length} 词</span></div>
+     <div class="progress-row" style="margin-top:8px;"><span>当前能力 θ</span><span class="mut">${P.meta.theta.toFixed(2)}（目标成功率 85%）</span></div>
+     <div class="bar" style="margin-top:6px;"><i style="width:${(P.meta.theta-1)/2*100}%"></i></div>
+   </div>
+   <div class="card" style="margin-top:12px;">
      <div class="sec-h">选择词书</div>
      <div class="seg-grid">
        ${BOOKS.map(b=>`<button class="seg ${SETTINGS.book===b.id?'on':''}" data-book="${b.id}">${b.name}</button>`).join('')}
      </div>
      <div class="sec-h" style="margin-top:10px;">难度</div>
-     <div class="seg-grid">
+     <div class="seg-grid seg-grid5">
        ${DIFFS.map(d=>`<button class="seg ${SETTINGS.difficulty===d.id?'on':''}" data-diff="${d.id}">${d.name}</button>`).join('')}
      </div>
      <div class="center mut" style="margin-top:8px;font-size:12px;">
-       当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name}${DIFFS.find(d=>d.id===SETTINGS.difficulty).name!=='全部'?' · '+DIFFS.find(d=>d.id===SETTINGS.difficulty).name:''}，共 ${bookWords().length} 词
+       ${isAdaptive()
+         ? `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name} · 自适应（共 ${bookWords().length} 词，按 θ 自动配比）`
+         : `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name}${DIFFS.find(d=>d.id===SETTINGS.difficulty).name!=='全部'?' · '+DIFFS.find(d=>d.id===SETTINGS.difficulty).name:''}，共 ${bookWords().length} 词`}
      </div>
    </div>
    <button class="bigbtn" data-act="start">开始远征（3 层 · 约 11 分钟）</button>
@@ -1699,7 +1759,8 @@ function afterRender(){
       SETTINGS.book=el.getAttribute('data-book'); saveSettings(); render();
     }));
     document.querySelectorAll('[data-diff]').forEach(el=>el.addEventListener('click',()=>{
-      SETTINGS.difficulty=parseInt(el.getAttribute('data-diff')); saveSettings(); render();
+      const v=el.getAttribute('data-diff');
+      SETTINGS.difficulty=v==='auto'?'auto':parseInt(v); saveSettings(); render();
     }));
   }
   if(G.screen==='battle'){

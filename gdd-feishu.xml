@@ -1,7 +1,7 @@
 <title>《单词地下城 Word Dungeon》游戏设计文档（GDD）</title>
-<callout emoji="📘" background-color="light-blue"><p>版本 V4.1（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
-<callout emoji="📖" background-color="light-cyan"><p>V4.1 新增：开源 ECDICT 词库落地（7388 词：高考3674/四级3846/六级5406/考研4801，主释义取常用义），主页可指定词书 + 难度（全部/简单/中等/困难），抽题按词书与难度过滤，已重新打包 APK</p></callout>
-<callout emoji="📚" background-color="light-gray"><p>V4.0 新增：错词分级练习系统（L1 生疏 / L2 易错 / L3 顽固，战斗加权反复出现 + 分级复习 + 常驻错词本界面）；第 8 章词库规范、界面设计、后端架构与 Capacitor APK 打包方案</p></callout>
+<callout emoji="📘" background-color="light-blue"><p>版本 V4.2（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="🧠" background-color="light-cyan"><p>V4.2 新增：自适应难度引擎（θ，初始 1.5）+ SM-2 间隔重复（10 分→1 天→3 天→7 天→16 天→30 天）+ 今日到期复习队列。按 85% 目标成功率 70/15/15 三段配比抽题，主页新增今日待复习 + θ 卡片，默认自适应、保留手动难度；参数依据见研究文献章节</p></callout>
+<callout emoji="📖" background-color="light-gray"><p>V4.1 新增：开源 ECDICT 词库落地（7388 词：高考3674/四级3846/六级5406/考研4801，主释义取常用义），主页可指定词书 + 难度，抽题按词书与难度过滤，已重新打包 APK</p></callout>
 <callout emoji="💡" background-color="light-gray"><p>V3.5 新增：拼写题答错后显示正确答案——先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案逐格变绿并提示"正确答案"</p></callout>
 <callout emoji="⏱️" background-color="light-gray"><p>V3.4 新增：拼写题填满不再自动提交（回车确认或限时结束自动结算）；拼写限时按单词长度动态计算（4s 基础 + 每字母 2s，预留反应余量）；拼写题按提交快慢动态增加伤害（剩余 ≥60%×2.0 / ≥40%×1.6 / ≥25%×1.25 / 其余×1.0）</p></callout>
 <callout emoji="🔧" background-color="light-gray"><p>V3.3 修复：拼写输入改为键盘事件驱动 + 增量合并——彻底修复"输入自动反过来 / 丢字母"与手机删除键失效</p></callout>
@@ -223,22 +223,34 @@
 </table>
 <p><b>正反例校验：</b>连击流在连对 10 题时伤害可观（连击系数 1.5、连击大师 +50%），但一旦答错且没有《势如破竹》，连击清零、输出骤降——正确选择（持续速答）与错误选择（失误）有可观察的差距。</p>
 
-<h2>单词记忆与间隔重复（RULE-REVIEW）</h2>
-<p>每个单词有四级记忆状态：</p>
+<h2>单词记忆与自适应复习（RULE-REVIEW）</h2>
+<p>V4.2 用<b>自适应难度引擎 θ</b>决定出什么难度，用<b>SM-2 间隔重复</b>决定每个词何时再出现，替代旧的固定 60/40 配比与状态机。</p>
+
+<h3>自适应难度引擎（RULE-ADAPTIVE-DIFF）</h3>
+<ul>
+<li>玩家维护能力值 <b>θ（theta）</b>，初始 1.5、范围 1.0–3.0、持久化；θ 越大水平越高。</li>
+<li>每题结算更新：<b>快速答对 +0.10、正常答对 +0.05、答错 −0.10</b>（边界裁剪）。</li>
+<li>抽题以 θ 为基准，按 <b>85% 目标成功率</b>三段配比：<b>70% 匹配</b>（同档）、<b>15% 拉伸</b>（高 1 档）、<b>15% 巩固</b>（低 1 档，或优先出今日到期词）。</li>
+<li>自适应为默认；主页可切手动难度（全部/简单/中等/困难），手动按难度硬过滤；主页新增"今日待复习 N 词 + θ + 进度条"卡片。</li>
+</ul>
+
+<h3>SM-2 间隔重复（RULE-SM-2）</h3>
+<p>每词记录 stage / streak / lapses / due，记忆状态由 stage 派生：</p>
 <table>
-<colgroup><col width="130"/><col width="180"/><col width="220"/><col width="120"/></colgroup>
-<thead><tr><th background-color="light-gray"><p>状态</p></th><th background-color="light-gray"><p>含义</p></th><th background-color="light-gray"><p>到期间隔</p></th><th background-color="light-gray"><p>熟练度系数</p></th></tr></thead>
+<colgroup><col width="130"/><col width="320"/><col width="120"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>状态</p></th><th background-color="light-gray"><p>触发条件</p></th><th background-color="light-gray"><p>熟练度系数</p></th></tr></thead>
 <tbody>
-<tr><td><p>NEW</p></td><td><p>首次进入词卷</p></td><td><p>答对后 10 分钟</p></td><td><p>1.0</p></td></tr>
-<tr><td><p>LEARNING</p></td><td><p>已认对一次</p></td><td><p>答对后 1 天</p></td><td><p>1.05</p></td></tr>
-<tr><td><p>FAMILIAR</p></td><td><p>进入稳定复习</p></td><td><p>依次 2 / 4 / 7 / 15 天</p></td><td><p>1.2</p></td></tr>
-<tr><td><p>MASTERED</p></td><td><p>走完 15 天复习</p></td><td><p>不再主动出题</p></td><td><p>1.4</p></td></tr>
+<tr><td><p>NEW</p></td><td><p>从未作答</p></td><td><p>1.0</p></td></tr>
+<tr><td><p>LEARNING</p></td><td><p>stage 0（10 分钟内）</p></td><td><p>1.05</p></td></tr>
+<tr><td><p>FAMILIAR</p></td><td><p>stage 1–4（1 天至 16 天）</p></td><td><p>1.2</p></td></tr>
+<tr><td><p>MASTERED</p></td><td><p>stage 5（30 天）</p></td><td><p>1.4</p></td></tr>
 </tbody>
 </table>
 <ul>
-<li>答对：状态/间隔沿上表推进；答错：退回 LEARNING，间隔重置为 10 分钟。</li>
-<li>组卷规则：每局约 <b>60% 新词 + 40% 到期复习词</b>；一局 68 题对应约 31 个不同单词（新词 20–25 个），符合一次学习量。</li>
-<li>同层词池复用：新词在一层内平均出现约 2 次，错过的词加权再出现，保证"当层见到、当层记住"。</li>
+<li><b>间隔梯：</b>10 分钟 → 1 天 → 3 天 → 7 天 → 16 天 → 30 天。</li>
+<li><b>快速答对</b>直接升 1 阶段；<b>正常答对</b>需连续 2 次升 1 阶段；<b>答错</b>阶段重置为 0（10 分钟到期）、lapses +1。</li>
+<li>到期词进<b>今日到期复习队列</b>，在巩固桶以快速判断题优先抽到；每日新词上限 20。</li>
+<li>fast 判定：选择/判断题反应 ≤3 秒；拼写题提交时剩余时间 ≥60%。</li>
 </ul>
 
 <h3>错词分级练习（RULE-WRONG-BOOK）</h3>
@@ -247,18 +259,19 @@
 <colgroup><col width="120"/><col width="110"/><col width="180"/><col width="160"/><col width="100"/></colgroup>
 <thead><tr><th background-color="light-gray"><p>等级</p></th><th background-color="light-gray"><p>错误次数</p></th><th background-color="light-gray"><p>定位</p></th><th background-color="light-gray"><p>战斗内错词抽题权重</p></th><th background-color="light-gray"><p>复习顺序</p></th></tr></thead>
 <tbody>
-<tr><td><p><span text-color="red">L3 顽固</span></p></td><td><p>≥ 3 次</p></td><td><p>反复出错，优先消灭</p></td><td><p>×3</p></td><td><p>最先</p></td></tr>
-<tr><td><p><span text-color="orange">L2 易错</span></p></td><td><p>2 次</p></td><td><p>接近掌握</p></td><td><p>×2</p></td><td><p>其次</p></td></tr>
-<tr><td><p><span text-color="yellow">L1 生疏</span></p></td><td><p>1 次</p></td><td><p>初次受挫</p></td><td><p>×1</p></td><td><p>最后</p></td></tr>
+<tr><td><p><span text-color="red">L3 顽固</span></p></td><td><p>≥ 3 次</p></td><td><p>反复出错，强制拼写</p></td><td><p>×3</p></td><td><p>最先</p></td></tr>
+<tr><td><p><span text-color="orange">L2 易错</span></p></td><td><p>2 次</p></td><td><p>强制英→中/中→英</p></td><td><p>×2</p></td><td><p>其次</p></td></tr>
+<tr><td><p><span text-color="yellow">L1 生疏</span></p></td><td><p>1 次</p></td><td><p>快速判断</p></td><td><p>×1</p></td><td><p>最后</p></td></tr>
 </tbody>
 </table>
 <ul>
-<li><b>战斗内反复出现：</b>错词抽题在原有 60% 优先基础上按分级加权；存在 L2/L3 错词时错词出现率提升至 75%，并优先抽高等级错词（加权随机）。</li>
-<li><b>分级复习：</b>复习之泉与错词本一键复习都按"顽固 → 易错 → 生疏"排序出题（最多 3 个）；复习答对即移出错词本，复习答错错误次数继续累加、下次再出。</li>
-<li><b>常驻错词本界面：</b>主页可见入口（错词本 N 词 · 顽固 M）；内页三级分组展示单词、词性、常用释义与错误次数，底部"开始复习（顽固优先）"一键进入，复习完返回错词本。</li>
-<li>错词本与记忆状态联动：错词必为 LEARNING 及以下；答对降级直至移出，长期不再出错自然升入 FAMILIAR/MASTERED。</li>
+<li><b>战斗内反复出现：</b>本层无 L2/L3 时 60% 优先，存在 L2/L3 时提升至 75%，按分级加权随机、优先高等级。</li>
+<li><b>按顽固度强制题型：</b>L3 顽固强制拼写（能默写才算消灭）、L2 易错强制选择、L1 生疏用快速判断，避免"眼熟就放过"。</li>
+<li><b>分级复习：</b>复习之泉与错词本一键复习都按"顽固 → 易错 → 生疏"排序（最多 3 个）；答对移出，答错累加、下次再出。</li>
+<li><b>常驻错词本界面：</b>主页入口（错词本 N 词 · 顽固 M），三级分组展示词/词性/常用释义/错误次数，一键复习，完后返回。</li>
+<li>错词分级与 SM-2 共用错误计数（lapses）：答错阶段重置为 0、10 分钟到期，长期不再出错自然升入 FAMILIAR/MASTERED。</li>
 </ul>
-<callout emoji="⚔️" background-color="light-red"><p>边界例：award 已错 3 次（L3 顽固）、adapt 错 1 次（L1）。战斗抽题时 award 权重 3、adapt 权重 1，出现率高 2 倍；泉水分级复习先出 award，答对移出后，adapt 自动升级为下一轮优先复习对象。</p></callout>
+<callout emoji="⚔️" background-color="light-red"><p>边界例：award 已错 3 次（L3 顽固）、adapt 错 1 次（L1）。award 再出现时强制拼写、权重 3，adapt 用快速判断；泉水分级复习先出 award，答对移出后 adapt 升级为下一轮优先对象。</p></callout>
 
 <h2>敌人</h2>
 <p><b>普通敌人：</b></p>
@@ -487,3 +500,21 @@
 <li><b>离线优先：</b>词库随 APK 内置，错词本 / 复习离线可玩；联网后增量同步（服务端为权威源，冲突按"更高错误次数 / 更近时间戳"合并）。</li>
 <li><b>打包方案：</b>现有单文件 HTML 演进为 Capacitor 工程（www/ 静态资源 + capacitor.config.json），npx cap add android &amp;&amp; npx cap sync，Android Studio 出签 APK（AAB 上架）；词库作为 assets 内嵌，容量控制在 5MB 内。</li>
 </ul>
+
+<h1>设计的研究依据（V4.2）</h1>
+<p>自适应难度与间隔重复的参数参考以下认知科学与学习工程研究：</p>
+<table>
+<colgroup><col width="130"/><col width="330"/><col width="260"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>机制</p></th><th background-color="light-gray"><p>核心结论</p></th><th background-color="light-gray"><p>主要文献</p></th></tr></thead>
+<tbody>
+<tr><td><p>85% 规则</p></td><td><p>约 85% 成功率时学习效率与参与度最优</p></td><td><p>Wilson et al., 2019, Nature Communications</p></td></tr>
+<tr><td><p>心流自适应</p></td><td><p>难度随能力动态调整，维持挑战—技能平衡</p></td><td><p>Yazidi et al., 2020, Cognitive Neurodynamics</p></td></tr>
+<tr><td><p>自适应闪卡</p></td><td><p>按记忆状态动态排复习，优于固定时间表</p></td><td><p>Edge et al., 2012, MemReflex</p></td></tr>
+<tr><td><p>间隔效应</p></td><td><p>拉开间隔比集中重复更利于长期保持</p></td><td><p>Bahrick et al., 1993</p></td></tr>
+<tr><td><p>测试效应</p></td><td><p>主动检索比被动重读更增强记忆</p></td><td><p>Roediger &amp; Butler, 2011</p></td></tr>
+<tr><td><p>SM-2</p></td><td><p>经典间隔重复调度，Anki 等的基础</p></td><td><p>Wozniak</p></td></tr>
+<tr><td><p>KT + IRT</p></td><td><p>用能力—题目参数建模掌握度，支撑自适应</p></td><td><p>Khajah et al.；Nakata, 2011</p></td></tr>
+</tbody>
+</table>
+<callout emoji="⚠️" background-color="light-yellow"><p>诚实标注：85% 规则主要来自感知/分类任务，外推到词汇记忆属"合理迁移"，故保留手动难度作对照；间隔梯、θ 步长、70/15/15 配比、每日新词 20 均为工程初值，需上线用真实正确率、留存与到期重答数据校准，后续可做自适应 vs 固定难度 A/B。</p></callout>
+

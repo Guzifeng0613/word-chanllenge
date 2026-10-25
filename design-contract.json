@@ -94,16 +94,47 @@
       ]
     },
     {
-      "id": "RULE-REVIEW",
-      "title": "间隔重复",
-      "definition": "单词记忆状态 NEW/LEARNING/FAMILIAR/MASTERED。NEW 答对转 LEARNING，10 分钟后到期；LEARNING 答对转 FAMILIAR，1 天后到期；FAMILIAR 后每次在到期复习中答对，间隔按 2/4/7/15 天递进，走完 15 天转 MASTERED。任意状态答错退回 LEARNING 并重置 10 分钟。每局组卷由约 60% 新词与 40% 到期复习词组成。",
+      "id": "RULE-ADAPTIVE-DIFF",
+      "title": "自适应难度引擎",
+      "definition": "玩家维护能力值 theta（初始 1.5，范围 1.0-3.0，持久化）。每题结算后：快速答对 +0.10、正常答对 +0.05、答错 -0.10（边界裁剪）。抽题以 round(theta) 为基准，按 85% 目标成功率三段配比：70% 匹配（同档）、15% 拉伸（高 1 档）、15% 巩固（低 1 档，或优先出今日到期词）。自适应为默认模式；主页可切手动难度（全部/简单/中等/困难），手动按难度硬过滤。主页新增今日待复习 N 词 + theta + 进度条卡片。",
       "priority": "P0",
+      "parameter_ids": [
+        "PAR-THETA-INIT",
+        "PAR-THETA-GAIN-FAST",
+        "PAR-THETA-GAIN",
+        "PAR-THETA-PENALTY",
+        "PAR-MATCH",
+        "PAR-STRETCH",
+        "PAR-CONSOLIDATE",
+        "PAR-TARGET-RATE"
+      ],
       "state_machine_ids": [
         "SM-WORD-MEMORY"
       ],
       "authority_ids": [],
       "fields": [
-        "review.spaced_repetition"
+        "adaptive.theta",
+        "adaptive.bucket_mix",
+        "adaptive.home_card"
+      ]
+    },
+    {
+      "id": "RULE-SM-2",
+      "title": "SM-2 间隔重复",
+      "definition": "每词记录 stage/streak/lapses/due，记忆状态由 stage 派生（NEW/LEARNING=stage0/FAMILIAR=stage1-4/MASTERED=stage5）。间隔梯：10 分钟、1 天、3 天、7 天、16 天、30 天。快速答对直接升 1 阶段；正常答对需连续 2 次升 1 阶段；答错阶段重置为 0（10 分钟到期）、lapses+1。到期词进今日到期复习队列，在巩固桶以快速判断题优先抽到；每日新词上限 20。fast 判定：选择/判断反应<=3 秒，拼写剩余时间>=60%。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-NEW-CAP",
+        "PAR-SPEED-T1"
+      ],
+      "state_machine_ids": [
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "srs.ladder",
+        "srs.due_queue",
+        "srs.daily_new_cap"
       ]
     },
     {
@@ -274,6 +305,88 @@
       "source": "design_initial",
       "min": 60,
       "max": 160
+    },
+    {
+      "id": "PAR-THETA-INIT",
+      "name": "theta_initial",
+      "value": 1.5,
+      "unit": "ability",
+      "source": "design_initial",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "PAR-THETA-GAIN-FAST",
+      "name": "theta_gain_fast",
+      "value": 0.1,
+      "unit": "delta",
+      "source": "design_initial",
+      "min": 0.05,
+      "max": 0.2
+    },
+    {
+      "id": "PAR-THETA-GAIN",
+      "name": "theta_gain_normal",
+      "value": 0.05,
+      "unit": "delta",
+      "source": "design_initial",
+      "min": 0.02,
+      "max": 0.1
+    },
+    {
+      "id": "PAR-THETA-PENALTY",
+      "name": "theta_penalty",
+      "value": 0.1,
+      "unit": "delta",
+      "source": "design_initial",
+      "min": 0.05,
+      "max": 0.2
+    },
+    {
+      "id": "PAR-MATCH",
+      "name": "bucket_match",
+      "value": 0.7,
+      "unit": "ratio",
+      "source": "design_initial",
+      "min": 0.5,
+      "max": 0.8
+    },
+    {
+      "id": "PAR-STRETCH",
+      "name": "bucket_stretch",
+      "value": 0.15,
+      "unit": "ratio",
+      "source": "design_initial",
+      "min": 0.1,
+      "max": 0.25
+    },
+    {
+      "id": "PAR-CONSOLIDATE",
+      "name": "bucket_consolidate",
+      "value": 0.15,
+      "unit": "ratio",
+      "source": "design_initial",
+      "min": 0.1,
+      "max": 0.25
+    },
+    {
+      "id": "PAR-TARGET-RATE",
+      "name": "target_success_rate",
+      "value": 0.85,
+      "unit": "ratio",
+      "source": "external",
+      "source_ref": "url:https://www.nature.com/articles/s41467-019-12552-4",
+      "min": 0.75,
+      "max": 0.92
+    },
+    {
+      "id": "PAR-NEW-CAP",
+      "name": "daily_new_word_cap",
+      "value": 20,
+      "unit": "word",
+      "source": "design_initial",
+      "min": 10,
+      "max": 40
     },
     {
       "id": "PAR-BASE-DMG",
@@ -920,76 +1033,88 @@
         {
           "id": "NEW",
           "entry": "词首次进入组卷",
-          "exit": "首次答对"
+          "exit": "首次作答（fast 升 stage1，normal 记 streak）"
         },
         {
           "id": "LEARNING",
-          "entry": "10 分钟后到期复习",
-          "exit": "复习答对"
+          "entry": "stage 0，10 分钟后到期",
+          "exit": "fast 答对或连续 2 次 normal 答对升 stage1"
         },
         {
           "id": "FAMILIAR",
-          "entry": "按 1/2/4/7/15 天间隔复习",
-          "exit": "走完 15 天复习"
+          "entry": "stage 1-4，间隔 1/3/7/16 天",
+          "exit": "fast 答对或连续 2 次 normal 答对升下一阶段"
         },
         {
           "id": "MASTERED",
-          "entry": "已掌握，战斗中伤害 +40%，不再主动出题",
-          "exit": "终态"
+          "entry": "stage 5，30 天，伤害 +40%",
+          "exit": "终态；答错仍回退 stage0"
         }
       ],
       "event_order": [
         "answer",
-        "state_transition",
+        "theta_update",
+        "stage_transition",
         "next_due_schedule"
       ],
       "transitions": [
         {
           "id": "TRIG-NEW-LEARN",
           "from": "NEW",
-          "event": "答对",
+          "event": "fast 答对，或连续 2 次 normal 答对",
           "to": "LEARNING",
-          "effect": "安排 10 分钟后复习",
+          "effect": "fast 直接 stage1（1 天），normal 首次 streak1（10 分钟），theta +0.10/+0.05",
           "repeat_policy": "同一题只结算一次",
-          "cleanup": "记录答题时间戳"
+          "cleanup": "记录答题时间戳与 streak"
         },
         {
           "id": "TRIG-LEARN-FAM",
           "from": "LEARNING",
-          "event": "到期复习答对",
+          "event": "fast 答对，或连续 2 次 normal 答对",
           "to": "FAMILIAR",
-          "effect": "安排 1 天后复习",
-          "repeat_policy": "到期前不再出题",
-          "cleanup": "更新间隔索引"
+          "effect": "stage 升 1，按间隔梯安排 1/3/7/16 天",
+          "repeat_policy": "到期前不出新词",
+          "cleanup": "更新 stage/streak"
         },
         {
           "id": "TRIG-FAM-MASTER",
           "from": "FAMILIAR",
-          "event": "完成 15 天档复习",
+          "event": "stage4 时 fast 答对，或连续 2 次 normal 答对",
           "to": "MASTERED",
-          "effect": "标记掌握，计入词库进度",
+          "effect": "stage5，30 天，伤害 +40%，计入掌握",
           "repeat_policy": "不再主动出题",
           "cleanup": "更新掌握计数"
         },
         {
-          "id": "TRIG-REGRESS",
+          "id": "TRIG-FAM-REGRESS",
           "from": "FAMILIAR",
           "event": "答错",
           "to": "LEARNING",
-          "effect": "间隔重置为 10 分钟",
+          "effect": "stage 重置为 0，10 分钟到期，lapses+1，theta -0.10",
           "repeat_policy": "高概率本局再现",
-          "cleanup": "间隔索引归零"
+          "cleanup": "stage 归零、streak 清零"
+        },
+        {
+          "id": "TRIG-MASTER-REGRESS",
+          "from": "MASTERED",
+          "event": "答错",
+          "to": "LEARNING",
+          "effect": "stage 重置为 0，10 分钟到期，lapses+1",
+          "repeat_policy": "高概率本局再现",
+          "cleanup": "stage 归零"
         }
       ],
       "persistence": {
         "required": true,
         "write_trigger": "每次答题结算后与单局结束时写入 localStorage",
-        "restore_rule": "启动时读取 word_dungeon_progress_v1，重建单词记忆状态与到期复习队列",
+        "restore_rule": "启动时读取 word_dungeon_progress_v1，重建 theta、stage、lapses 与到期复习队列",
         "abnormal_exit": "中途关闭页面时，已结算的答题结果保留，当前未结算题目作废",
         "fields": [
-          "wordStates",
+          "meta.theta",
+          "wordStages",
+          "wordStreaks",
+          "wordLapses",
           "dueTimestamps",
-          "intervalIndex",
           "masteredCount",
           "meta.level",
           "meta.xp",
@@ -1271,7 +1396,7 @@
       "type": "recovery",
       "rule_ids": [
         "RULE-WRONG",
-        "RULE-REVIEW"
+        "RULE-SM-2"
       ],
       "precondition": "玩家 HP 归零",
       "action": "在结算页点击再战",
@@ -1282,7 +1407,7 @@
       "id": "TEST-REVIEW-REPEAT",
       "type": "abuse",
       "rule_ids": [
-        "RULE-REVIEW"
+        "RULE-SM-2"
       ],
       "precondition": "某词在一层内连续答错",
       "action": "继续战斗",
@@ -1406,7 +1531,7 @@
       "type": "normal",
       "rule_ids": [
         "RULE-WRONG-BOOK",
-        "RULE-REVIEW"
+        "RULE-SM-2"
       ],
       "precondition": "战斗中制造多个错词（含重复答错同一词）",
       "action": "①检查 wrongBookData 分级与排序；②主页错词本入口；③错词本三级分组展示；④一键开始复习（spring from=wrongbook）；⑤复习答对移出错词本、复习完返回错词本",
@@ -1422,6 +1547,28 @@
       "precondition": "开源 ECDICT 7388 词已内嵌，主页有词书/难度选择卡片",
       "action": "①切换词书（高考/四级/六级/考研）；②切换难度（全部/简单/中等/困难）；③开始远征，检查连续出题是否都属于所选词书与难度",
       "expected": "词书词数：高考3674/四级3846/六级5406/考研4801；难度筛选正确（六级困难3404）；选择持久化；远征抽题全部属于所选词书与难度（六级困难抽到 modulate/dip/hence 等，均含 cet6 标签且 t=3）",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-ADAPTIVE",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-ADAPTIVE-DIFF"
+      ],
+      "precondition": "自适应模式，theta 初始 1.5",
+      "action": "连续 6 次快速答对；再连续答错；统计抽题桶配比与难度分布",
+      "expected": "fast 答对 theta 1.5→2.0（每次 +0.10），出题随 theta 升档；答错 theta 下降；大样本桶配比 70/15/15，普通题难度约 69% 同档、16% 拉伸、16% 巩固；手动困难硬过滤全部 t=3",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-SM2",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-SM-2"
+      ],
+      "precondition": "对全新词分别 fast/normal/答错",
+      "action": "applySrs 测试：fast 1 次、normal 2 次、答错；模拟到期后查巩固桶",
+      "expected": "fast 直接 stage1（1 天）；normal 第 1 次 streak1（10 分钟）、第 2 次 stage1；答错 stage0、lapses+1（10 分钟）；到期词进今日到期队列，在巩固桶以 judge 抽到（review=true）",
       "status": "passed"
     }
   ],

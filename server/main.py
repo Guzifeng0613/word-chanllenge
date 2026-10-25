@@ -33,6 +33,17 @@ def init_db():
           qtype TEXT, correct INTEGER, damage INTEGER, ts INTEGER);
         """
         )
+        # V4.2 迁移：用户能力 θ；词条 SRS 字段
+        for stmt in (
+            "ALTER TABLE users ADD COLUMN theta REAL DEFAULT 1.5",
+            "ALTER TABLE progress ADD COLUMN stage INTEGER DEFAULT 0",
+            "ALTER TABLE progress ADD COLUMN lapses INTEGER DEFAULT 0",
+            "ALTER TABLE progress ADD COLUMN streak INTEGER DEFAULT 0",
+        ):
+            try:
+                db.execute(stmt)
+            except sqlite3.OperationalError:
+                pass
 
 
 @contextmanager
@@ -47,7 +58,7 @@ def get_db():
 
 
 init_db()
-app = FastAPI(title="单词地下城 API", version="4.0")
+app = FastAPI(title="单词地下城 API", version="4.2")
 
 
 # ---------------- 认证（设备令牌） ----------------
@@ -114,6 +125,7 @@ class DrawReq(BaseModel):
     force: Optional[str] = None
     book: Optional[str] = None
     difficulty: Optional[int] = None
+    adaptive: bool = True
 
 
 def _progress_map(db, uid):
@@ -123,14 +135,31 @@ def _progress_map(db, uid):
 
 @app.post("/quiz/draw")
 def quiz_draw(req: DrawReq, user=Depends(current_user)):
-    """后端组卷：按词书/难度筛选，错词按分级加权反复出现。"""
+    """后端组卷：自适应（θ 配比）或手动难度；错词按分级反复，到期词进巩固桶。"""
     with get_db() as db:
         prog = _progress_map(db, user["id"])
     wrong = {w: p["wrong_count"] for w, p in prog.items()
              if p["wrong_count"] > 0}
+    now = int(time.time())
+    due = core.due_queue(prog, now, req.book)
+    theta = user["theta"] if req.adaptive else None
     q = core.draw_question(req.layer, wrong, req.force,
-                           req.book, req.difficulty)
+                          req.book, req.difficulty, theta, due)
     return q
+
+
+# ---------------- 到期复习 ----------------
+@app.get("/review/due")
+def review_due(book: Optional[str] = None, user=Depends(current_user)):
+    """今日到期复习队列与新词上限（客户端"今日待复习"卡片）。"""
+    with get_db() as db:
+        prog = _progress_map(db, user["id"])
+    now = int(time.time())
+    due = core.due_queue(prog, now, book)
+    return {"due": due, "due_count": len(due),
+            "theta": user["theta"],
+            "new_cap": core.CONFIG["daily"]["newCap"],
+            "target_rate": core.CONFIG["adaptive"]["targetRate"]}
 
 
 class AnswerReq(BaseModel):
@@ -142,29 +171,34 @@ class AnswerReq(BaseModel):
     combo: int = 0
     crit: bool = False
     card_mult: float = 1.0
+    shown: Optional[str] = None
 
 
 @app.post("/quiz/answer")
 def quiz_answer(req: AnswerReq, user=Depends(current_user)):
-    """后端结算：判定对错、伤害、复仇、错词分级与间隔重复。"""
+    """后端结算（V4.2）：判定对错、伤害、θ 更新、SM-2 调度、错词分级。"""
     entry = core.WMAP.get(req.word)
     if not entry:
         raise HTTPException(404, "词条不存在")
-    correct_val = (entry["m"] if req.qtype in ("en2cn",)
-                   else entry["w"] if req.qtype in ("cn2en", "spell")
-                   else None)
-    if req.qtype == "judge":
-        is_correct = req.answer == correct_judge(req.word)
-    else:
-        given = req.answer.strip().lower()
-        is_correct = (given == correct_val.strip().lower() if req.qtype != "spell"
-                      else given == entry["w"].lower())
 
+    if req.qtype == "judge":
+        truth = "yes" if req.shown == entry["m"] else "no"
+        is_correct = req.answer == truth
+    else:
+        correct_val = entry["m"] if req.qtype == "en2cn" else entry["w"]
+        is_correct = req.answer.strip().lower() == correct_val.strip().lower()
+
+    fast = is_correct and core.is_fast(req.qtype, req.time_limit, req.remain)
+    now_ms = int(time.time() * 1000)
     now = int(time.time())
+
     with get_db() as db:
         row = db.execute(
             "SELECT * FROM progress WHERE user_id=? AND word=?",
             (user["id"], req.word)).fetchone()
+        old_rec = ({"state": row["state"], "stage": row["stage"],
+                    "lapses": row["lapses"], "streak": row["streak"],
+                    "due": row["due"]} if row else None)
         state = row["state"] if row else "NEW"
         wrong_count = row["wrong_count"] if row else 0
 
@@ -173,36 +207,39 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
                 req.word, state, req.combo, req.qtype, req.time_limit,
                 req.remain, wrong_count if wrong_count else 0,
                 req.crit, req.card_mult)
-            new_state, interval = core.next_memory(state, True)
-            reset_wrong = 0 if wrong_count > 0 else wrong_count
         else:
             dmg, detail = 0, {}
-            wrong_count += 1
-            new_state, interval = "LEARNING", core.INTERVALS["LEARNING"]
-            reset_wrong = wrong_count
+
+        # SM-2 调度 + θ 更新
+        new_rec = core.srs_schedule(old_rec, is_correct, fast, now_ms)
+        new_theta = core.update_theta(user["theta"], is_correct, fast)
+        interval_min = max(1, (new_rec["due"] - now_ms) // 60000)
+        reset_wrong = new_rec["lapses"]
 
         db.execute(
             "INSERT INTO progress(user_id,word,state,interval_min,wrong_count,"
-            "last_review,due) VALUES(?,?,?,?,?,?,?) "
+            "last_review,due,stage,lapses,streak) VALUES(?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(user_id,word) DO UPDATE SET state=?,interval_min=?,"
-            "wrong_count=?,last_review=?,due=?",
-            (user["id"], req.word, new_state, interval, reset_wrong, now,
-             now + interval * 60, new_state, interval, reset_wrong, now,
-             now + interval * 60))
+            "wrong_count=?,last_review=?,due=?,stage=?,lapses=?,streak=?",
+            (user["id"], req.word, new_rec["state"], interval_min, reset_wrong,
+             now, new_rec["due"] // 1000, new_rec["stage"],
+             new_rec["lapses"], new_rec["streak"],
+             new_rec["state"], interval_min, reset_wrong, now,
+             new_rec["due"] // 1000, new_rec["stage"],
+             new_rec["lapses"], new_rec["streak"]))
+        db.execute("UPDATE users SET theta=? WHERE id=?",
+                   (new_theta, user["id"]))
         db.execute(
             "INSERT INTO answers(user_id,word,qtype,correct,damage,ts) "
             "VALUES(?,?,?,?,?,?)",
             (user["id"], req.word, req.qtype, int(is_correct), dmg, now))
 
-    return {"correct": is_correct, "damage": dmg, "detail": detail,
+    return {"correct": is_correct, "fast": fast, "damage": dmg, "detail": detail,
             "correct_answer": entry["w"] if req.qtype == "spell" else entry["m"],
-            "state": new_state, "wrong_count": reset_wrong,
-            "grade": core.grade_of(reset_wrong) if reset_wrong else 0}
-
-
-def correct_judge(word):
-    # judge 题的正确判定由出题时返回，这里兜底按主释义恒为真
-    return "yes"
+            "state": new_rec["state"], "wrong_count": reset_wrong,
+            "grade": core.grade_of(reset_wrong) if reset_wrong else 0,
+            "theta": new_theta, "due_min": interval_min,
+            "stage": new_rec["stage"]}
 
 
 # ---------------- 错词本 ----------------

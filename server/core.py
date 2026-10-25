@@ -35,7 +35,16 @@ CONFIG = {
     "revenge": {"base": 1.5, "perMiss": 0.25, "cap": 2.0},
     "review": {"count": 3, "springHeal": 2, "springHealTotal": 30},
     "wrongbook": {"hardRate": 0.75, "normalRate": 0.6},
+    # V4.2 自适应难度引擎
+    "adaptive": {"thetaInit": 1.5, "thetaMin": 1.0, "thetaMax": 3.0,
+                 "fastGain": 0.10, "gain": 0.05, "penalty": 0.10,
+                 "match": 0.70, "stretch": 0.15, "consolidate": 0.15,
+                 "targetRate": 0.85},
+    "daily": {"newCap": 20},
 }
+
+# V4.2 SM-2 间隔梯（分钟）：10分钟→1天→3天→7天→16天→30天
+SRS_LADDER = [10, 1440, 4320, 10080, 23040, 43200]
 
 # 记忆状态到期间隔（分钟）
 INTERVALS = {"NEW": 10, "LEARNING": 1440, "FAMILIAR": [2880, 5760, 10080, 21600]}
@@ -114,6 +123,82 @@ def weighted_pick(items, weights):
     return items[-1]
 
 
+# ---------------- V4.2 自适应难度 ----------------
+def update_theta(theta, correct, fast=False):
+    """按单题表现更新玩家能力 θ（范围 1.0–3.0）。"""
+    a = CONFIG["adaptive"]
+    if correct:
+        theta += a["fastGain"] if fast else a["gain"]
+    else:
+        theta -= a["penalty"]
+    return round(max(a["thetaMin"], min(a["thetaMax"], theta)), 3)
+
+
+def adaptive_tier(theta):
+    """抽题难度配比：70% 匹配 / 15% 拉伸 / 15% 巩固。返回 (难度档, 桶名)。"""
+    a = CONFIG["adaptive"]
+    r = random.random()
+    base = max(1, min(3, round(theta)))
+    if r < a["match"]:
+        return base, "match"
+    if r < a["match"] + a["stretch"]:
+        return min(3, base + 1), "stretch"
+    return max(1, base - 1), "consolidate"
+
+
+# ---------------- V4.2 SM-2 间隔重复 ----------------
+def srs_schedule(rec, correct, fast=False, now=None):
+    """简化 SM-2 调度。
+    rec: {stage,due,lapses,streak,state}；fast 答对直接升级，normal 需连续 2 次。
+    """
+    now = now if now is not None else int(time.time() * 1000)
+    rec = dict(rec or {})
+    rec.setdefault("stage", 0)
+    rec.setdefault("lapses", 0)
+    rec.setdefault("streak", 0)
+    if not correct:
+        rec["stage"] = 0
+        rec["streak"] = 0
+        rec["lapses"] += 1
+        rec["state"] = "LEARNING"
+    else:
+        if fast:
+            rec["stage"] = min(rec["stage"] + 1, len(SRS_LADDER) - 1)
+            rec["streak"] = 0
+        else:
+            rec["streak"] += 1
+            if rec["streak"] >= 2:
+                rec["stage"] = min(rec["stage"] + 1, len(SRS_LADDER) - 1)
+                rec["streak"] = 0
+        stage = rec["stage"]
+        rec["state"] = ("MASTERED" if stage == len(SRS_LADDER) - 1
+                        else "FAMILIAR" if stage >= 1 else "LEARNING")
+    rec["due"] = now + SRS_LADDER[rec["stage"]] * 60 * 1000
+    return rec
+
+
+def due_queue(progress, now=None, book=None):
+    """到期需复习的词；可按词书范围过滤。
+    时间单位与 progress 中 due 一致（DB 存秒；调用方传同单位 now）。
+    """
+    now = now if now is not None else int(time.time())
+    bookset = set(o["w"] for o in words_by_book(book)) if book else None
+    out = []
+    for word, rec in progress.items():
+        if rec.get("due") and rec["due"] <= now and (bookset is None or word in bookset):
+            out.append(word)
+    return out
+
+
+def review_qtype(grade):
+    """复习题型按顽固度：L3 拼写 / L2 英中或中英 / L1 判断。"""
+    if grade >= 3:
+        return "spell"
+    if grade == 2:
+        return random.choice(["en2cn", "cn2en"])
+    return "judge"
+
+
 # ---------------- 组卷 ----------------
 def _pick_qtype():
     r = random.random()
@@ -126,43 +211,73 @@ def _pick_qtype():
 
 
 def draw_question(layer=1, wrong_words=None, force=None,
-                  book=None, difficulty=None):
-    """出一道题。
-    - wrong_words: {word: wrong_count} 错词按分级加权反复出现。
-    - book: 词书（gaokao/cet4/cet6/kaoyan），difficulty: 1/2/3。
-    返回题目对象（含题型、选项、正确答案、词性、限时）。
+                  book=None, difficulty=None, theta=None, due_words=None):
+    """出一道题（V4.2）。
+    - wrong_words: {word: wrong_count} 错词按分级加权反复出现，题型按顽固度强制。
+    - book: 词书；difficulty: 1/2/3 手动硬过滤（0/None=全部）。
+    - theta: 自适应能力值（给定则按 70/15/15 配比，consolidate 桶优先到期词）。
+    - due_words: 到期复习词列表。
     """
     wrong_words = wrong_words or {}
-    qtype = force or _pick_qtype()
+    due_words = due_words or []
 
-    # 当前词书 + 难度的词池（无指定则按难度层 tier）
+    # 词书范围（全部难度）
     if book:
-        base = words_by_book(book, difficulty)
+        book_words = [o["w"] for o in words_by_book(book)]
     else:
-        base = words_by_tier(difficulty or min(layer, 3))
-    pool_words = [o["w"] for o in base]
+        book_words = [o["w"] for o in BANK_WORDS]
 
-    # 拼写题抽词长度 ≤8
-    def ok(word):
-        return len(word) <= 8 if qtype == "spell" else True
+    # 目标难度档与桶
+    bucket = "normal"
+    if force:
+        tier = None
+    elif theta is not None:
+        tier, bucket = adaptive_tier(theta)
+    elif difficulty:
+        tier = difficulty
+    else:
+        tier = min(layer, 3) if not book else None
 
-    word = None
-    # 错词只在属于当前词书时反复出现
-    pending = [w for w in wrong_words if ok(w) and (not book or w in pool_words)]
+    word, qtype, from_review = None, None, False
+
+    # 1) 错词优先（只在当前词书内），题型按顽固度
+    pending = [w for w in wrong_words if w in book_words]
     if pending:
         has_hard = any(wrong_words[w] >= 2 for w in pending)
         rate = (CONFIG["wrongbook"]["hardRate"] if has_hard
                 else CONFIG["wrongbook"]["normalRate"])
         if random.random() < rate:
-            word = weighted_pick(
-                pending, [min(3, wrong_words[w]) for w in pending])
+            w = weighted_pick(pending, [min(3, wrong_words[w]) for w in pending])
+            qt = force or review_qtype(grade_of(wrong_words[w]))
+            if qt != "spell" or len(w) <= 8:
+                word, qtype, from_review = w, qt, True
+
+    # 2) 自适应巩固桶：到期词（快速判断）
+    if word is None and bucket == "consolidate":
+        due = [w for w in due_words if w in book_words]
+        if due:
+            w = random.choice(due)
+            qt = force or "judge"
+            if qt != "spell" or len(w) <= 8:
+                word, qtype, from_review = w, qt, True
+
+    # 3) 常规：按目标难度抽词
     if word is None:
-        cand = [w for w in pool_words if ok(w)]
-        word = random.choice(cand) if cand else random.choice(
-            [o["w"] for o in BANK_WORDS if ok(o["w"])])
+        qtype = force or _pick_qtype()
+        def ok(w):
+            return len(w) <= 8 if qtype == "spell" else True
+        if tier is not None:
+            cand = [w for w in book_words if ok(w) and WMAP[w]["t"] == tier]
+        else:
+            cand = [w for w in book_words if ok(w)]
+        if not cand:
+            cand = [w for w in book_words if ok(w)] or \
+                   [o["w"] for o in BANK_WORDS if ok(o["w"])]
+        word = random.choice(cand)
 
     entry = WMAP[word]
-    q = {"qtype": qtype, "word": word, "pos": entry.get("p", ""), "mean": entry["m"]}
+    q = {"qtype": qtype, "word": word, "pos": entry.get("p", ""),
+         "mean": entry["m"], "bucket": bucket, "review": from_review}
 
     if qtype == "en2cn":
         opts = make_distractors(word) + [entry["m"]]
@@ -214,6 +329,14 @@ def speed_mult(qtype, time_limit, remain):
     if remain >= time_limit - CONFIG["speed"]["fastT"]:
         return CONFIG["speed"]["fastM"]
     return CONFIG["speed"]["normalM"]
+
+
+def is_fast(qtype, time_limit, remain):
+    """是否属于"快速答对"（拼写剩余≥60%，其余在 fastT 窗口内）。"""
+    if qtype == "spell":
+        pct = remain / time_limit * 100 if time_limit else 0
+        return pct >= 60
+    return remain >= time_limit - CONFIG["speed"]["fastT"]
 
 
 def combo_mult(combo):

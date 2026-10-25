@@ -55,6 +55,8 @@
   .wbmean{flex:1; color:var(--mut); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .wbcnt{font-weight:700; white-space:nowrap;}
   .seg-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;}
+  .seg-grid5{grid-template-columns:repeat(5,1fr);}
+  .seg-grid5 .seg{font-size:12.5px; padding:9px 2px;}
   .seg{padding:9px 4px; border-radius:8px; border:1px solid var(--line);
     background:#0e2238; color:var(--mut); font-size:14px; font-weight:600;}
   .seg.on{background:linear-gradient(180deg,#1d4ed8,#2563eb); color:#fff; border-color:#3b82f6;}
@@ -401,6 +403,7 @@ const C = {
  * 词库：60 个四级核心词，分 3 档（tier 1-3）
  * ============================================================ */
 const WORDS = [{"w":"the","p":"art.","m":"那","t":1,"b":["gaokao"],"f":1},{"w":"be","p":"v.","m":"是, 表示","t":1,"b":["gaokao"],"f":2},{"w":"and","p":"conj.","m":"和, 与","t":1,"b":["gaokao"],"f":3},{"w":"of","p":"prep.","m":"的, 属于","t":1,"b":["gaokao"],"f":4},{"w":"a","p":"","m":"第一个字母 A, 一个","t":1,"b":["gaokao"],"f":5},{"w":"in","p":"prep.","m":"在...期间, 在...之内","t":3,"b":["gaokao"],"f":6},{"w":"to","p":"prep.","m":"到, 向","t":1,"b":["gaokao"],"f":7},{"w":"have","p":"v.","m":"有, 怀有","t":1,"b":["gaokao"],"f":8},{"w":"it","p":"pron.","m":"它","t":1,"b":["gaokao"],"f":10},{"w":"I","p":"pron.","m":"我","t":1,"b":["gaokao"],"f":11},{"w":"that","p":"adj.","m":"那, 那个","t":1,"b":["gaokao"],"f":12},{"w":"for","p":"prep.","m":"为, 因为","t":1,"b":["gaokao"],"f":13},{"w":"you","p":"pron.","m":"你, 你们","t":1,"b":["gaokao"],"f":14},{"w":"he","p":"pron.","m":"他","t":1,"b":["gaokao"],"f":15},{"w":"with","p":"prep.","m":"和...在一起, 以","t":1,"b":["gaokao"],"f":16},{"w":"on","p":"prep.","m":"在...之上","t":1,"b":["gaokao"],"f":17},{"w":"do","p":"v.","m":"做, 进行","t":1,"b":["gaokao"],"f":18},{"w":"say","p":"v.","m":"说, 讲","t":1,"b":["gaokao"],"f":19},{"w":"this","p":"pron.","m":"这, 本","t":1,"b":["gaokao"],"f":20},{"w":"they","p":"pron.","m":"他们, 它们","t":1,"b":["gaokao"],"f":21},{"w":"at","p":"prep.","m":"在, 向","t":1,"b":["gaokao"],"f":22},{"w":"but","p":"prep.","m":"除了","t":1,"b":["gaokao"],"f":23},{"w":"we","p":"pron.","m":"我们","t":1,"b":["gaokao"],"f":24},{"w":"his","p":"pron.","m":"他的","t":1,"b":["gaokao"],"f":25},{"w":"from","p":"prep.","m":"从, 来自","t":1,"b":["gaokao"],"f":26},{"w":"not","p":"adv.","m":"不, 非","t":1,"b":["gaokao"],"f":28},{"w":"by","p":"prep.","m":"被, 经","t":1,"b":["gaokao"],"f":30},{"w":"she","p":"pron.","m":"她","t":1,"b":["gaokao"],"f":31},{"w":"or","p":"conj.","m":"或, 或者","t":1,"b":["gaokao"],"f":32},{"w":"as","p":"adv.","m":"同样地, 例如","t":1,"b":["gaokao"],"f":33},{"w":"what","p":"pron.","m":"什么","t":1,"b":["gaokao"],"f":34},{"w":"go","p":"v.","m":"去, 走","t":1,"b":["gaokao"],"f":35},{"w":"their","p":"pron.","m":"他们的","t":1,"b":["gaokao"],"f":36},{"w":"can","p":"v.","m":"装罐","t":3,"b":["gaokao"],"f":37},{"w":"who","p":"pron.","m":"谁","t":1,"b":["gaokao"],"f":38},{"w":"get","p":"v.","m":"得到, 获得","t":1,"b":["gaokao"],"f":39},{"w":"if","p":"conj.","m":"如果, 是否","t":1,"b":["gaokao"],"f":40},{"w":"would","p":"v.","m":"将, 愿意","t":1,"b":["gaokao"],"f":41},{"w":"her","p":"pron.","m":"她的, 她","t":1,"b":["gaokao"],"f":42},{"w":"all","p":"adj.","m":"所有的, 全部的","t":1,"b":["gaokao"],"f":43},{"w":"my","p":"pron.","m":"我的","t":1,"b":["gaokao"],"f":44},{"w":"make","p":"v.","m":"制造, 安排","t":2,"b":["gaokao"],"f":45},{"w":"about","p":"prep.","m":"在...周围, 大约","t":1,"b":["gaokao"],"f":46},{"w":"know","p":"v.","m":"知道, 了解","t":2,"b":["gaokao"],"f":47},{"w":"will","p":"n.","m":"意志, 决心","t":1,"b":["gaokao"],"f":48},{"w":"up","p":"adj.","m":"向上的, 起床的","t":3,"b":["gaokao"],"f":50},{"w":"one","p":"n.","m":"一(个)","t":1,"b":["gaokao"],"f":51},{"w":"time","p":"n.","m":"时间, 时侯","t":1,"b":["gaokao"],"f":52},{"w":"there","p":"adv.","m":"在那里","t":1,"b":["gaokao"],"f":53},{"w":"year","p":"n.","m":"年, 年度","t":1,"b":["gaokao"],"f":54},{"w":"so","p":"adv.","m":"如此, 如是","t":2,"b":["gaokao"],"f":55},{"w":"think","p":"v.","m":"想, 考虑","t":1,"b":["gaokao"],"f":56},{"w":"when","p":"conj.","m":"当...的时候","t":1,"b":["gaokao"],"f":57},{"w":"which","p":"pron.","m":"哪一个, 那一个","t":1,"b":["gaokao"],"f":58},{"w":"them","p":"pron.","m":"他们, 她们","t":1,"b":["gaokao"],"f":59},{"w":"some","p":"pron.","m":"一些, 一部分","t":1,"b":["gaokao"],"f":60},{"w":"me","p":"pron.","m":"我","t":1,"b":["gaokao"],"f":61},{"w":"people","p":"n.","m":"人, 人民","t":1,"b":["gaokao"],"f":62},{"w":"take","p":"v.","m":"拿, 取","t":3,"b":["gaokao"],"f":63},{"w":"out","p":"adj.","m":"外面的, 熄灭的","t":1,"b":["gaokao"],"f":64},{"w":"into","p":"prep.","m":"进入...之内, 朝...","t":1,"b":["gaokao"],"f":65},{"w":"just","p":"adj.","m":"正直的, 合理的","t":3,"b":["gaokao"],"f":66},{"w":"see","p":"v.","m":"看见, 查看","t":1,"b":["gaokao"],"f":67},{"w":"him","p":"pron.","m":"他","t":1,"b":["gaokao"],"f":68},{"w":"your","p":"pron.","m":"你的, 你们的","t":1,"b":["gaokao"],"f":69},{"w":"come","p":"v.","m":"过来, 来","t":1,"b":["gaokao"],"f":70},{"w":"now","p":"adv.","m":"现在, 刚才","t":1,"b":["gaokao"],"f":72},{"w":"than","p":"conj.","m":"比, 除...外","t":1,"b":["gaokao"],"f":73},{"w":"like","p":"adj.","m":"相似的, 同样的","t":1,"b":["gaokao"],"f":74},{"w":"other","p":"adj.","m":"其他的, 另外的","t":1,"b":["gaokao"],"f":75},{"w":"how","p":"adv.","m":"如何, 怎样","t":1,"b":["gaokao"],"f":76},{"w":"then","p":"adv.","m":"然后, 当时","t":1,"b":["gaokao"],"f":77},{"w":"its","p":"pron.","m":"它的","t":1,"b":["gaokao"],"f":78},{"w":"our","p":"pron.","m":"我们的","t":1,"b":["gaokao"],"f":79},{"w":"two","p":"num.","m":"二, 二个","t":1,"b":["gaokao"],"f":80},{"w":"these","p":"pron.","m":"这些","t":1,"b":["gaokao"],"f":82},{"w":"want","p":"n.","m":"需要的东西, 缺乏","t":1,"b":["gaokao"],"f":83},{"w":"way","p":"n.","m":"路, 路线","t":1,"b":["gaokao"],"f":84},{"w":"look","p":"n.","m":"一看, 神色","t":1,"b":["gaokao"],"f":85},{"w":"first","p":"adv.","m":"首先, 第一","t":1,"b":["gaokao"],"f":86},{"w":"also","p":"adv.","m":"也, 并且","t":1,"b":["gaokao"],"f":87},{"w":"new","p":"adj.","m":"新的, 陌生的","t":1,"b":["gaokao"],"f":88},{"w":"because","p":"conj.","m":"因为","t":1,"b":["gaokao"],"f":89},{"w":"day","p":"n.","m":"天, 日子","t":1,"b":["gaokao"],"f":90},{"w":"use","p":"n.","m":"使用, 习惯","t":1,"b":["gaokao"],"f":92},{"w":"no","p":"n.","m":"不, 拒绝","t":1,"b":["gaokao"],"f":93},{"w":"man","p":"n.","m":"男人, 人类","t":1,"b":["gaokao"],"f":94},{"w":"find","p":"v.","m":"发现, 感到","t":1,"b":["gaokao"],"f":95},{"w":"here","p":"adv.","m":"在这里, 此时","t":1,"b":["gaokao"],"f":96},{"w":"thing","p":"n.","m":"事物, 东西","t":1,"b":["gaokao"],"f":97},{"w":"give","p":"n.","m":"弹性, 适应性","t":1,"b":["gaokao"],"f":98},{"w":"many","p":"n.","m":"多数, 多数人","t":1,"b":["gaokao"],"f":99},{"w":"well","p":"n.","m":"井, 泉水","t":3,"b":["gaokao"],"f":100},{"w":"only","p":"adj.","m":"唯一的, 仅有的","t":1,"b":["gaokao"],"f":101},{"w":"those","p":"pron.","m":"那些","t":1,"b":["gaokao"],"f":102},{"w":"tell","p":"v.","m":"告诉, 说","t":1,"b":["gaokao"],"f":103},{"w":"very","p":"adj.","m":"真正的, 恰好的","t":1,"b":["gaokao"],"f":105},{"w":"even","p":"adj.","m":"平坦的, 相等的","t":3,"b":["gaokao"],"f":107},{"w":"back","p":"adj.","m":"后面的","t":1,"b":["gaokao"],"f":108},{"w":"any","p":"adj.","m":"任何的","t":1,"b":["gaokao"],"f":109},{"w":"good","p":"n.","m":"善行, 好处","t":1,"b":["gaokao"],"f":110},{"w":"woman","p":"n.","m":"女人, 妇女","t":1,"b":["gaokao"],"f":111},{"w":"through","p":"adv.","m":"穿越, 从头至尾","t":1,"b":["gaokao"],"f":112},{"w":"life","p":"n.","m":"生活, 生命","t":1,"b":["gaokao"],"f":114},{"w":"child","p":"n.","m":"孩子, 产物","t":1,"b":["gaokao"],"f":115},{"w":"work","p":"n.","m":"工作, 劳动","t":1,"b":["gaokao"],"f":117},{"w":"down","p":"adj.","m":"向下的","t":3,"b":["gaokao"],"f":118},{"w":"may","p":"n.","m":"五月","t":1,"b":["gaokao"],"f":119},{"w":"after","p":"prep.","m":"在...之后, 由于","t":1,"b":["gaokao"],"f":120},{"w":"should","p":"v.","m":"应该, 将要","t":1,"b":["gaokao"],"f":121},{"w":"call","p":"n.","m":"呼叫, 访问","t":1,"b":["gaokao"],"f":122},{"w":"world","p":"n.","m":"世界, 地球","t":1,"b":["gaokao"],"f":123},{"w":"over","p":"adv.","m":"结束, 越过","t":1,"b":["gaokao"],"f":124},{"w":"school","p":"n.","m":"学校, 鱼群","t":1,"b":["gaokao"],"f":125},{"w":"still","p":"n.","m":"蒸馏室, 寂静","t":1,"b":["gaokao"],"f":126},{"w":"try","p":"n.","m":"尝试, 试验","t":1,"b":["gaokao"],"f":127},{"w":"last","p":"adj.","m":"最后的, 末尾的","t":3,"b":["gaokao"],"f":130},{"w":"ask","p":"v.","m":"问, 要求","t":1,"b":["gaokao"],"f":131},{"w":"need","p":"n.","m":"需要, 必须","t":1,"b":["gaokao"],"f":132},{"w":"too","p":"adv.","m":"也, 非常","t":1,"b":["gaokao"],"f":133},{"w":"feel","p":"v.","m":"感觉, 觉得","t":1,"b":["gaokao"],"f":134},{"w":"three","p":"num.","m":"三, 三个","t":1,"b":["gaokao"],"f":135},{"w":"state","p":"n.","m":"州, 状态","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":137},{"w":"never","p":"adv.","m":"从不, 决不","t":1,"b":["gaokao"],"f":138},{"w":"become","p":"v.","m":"变成, 变得","t":1,"b":["gaokao"],"f":139},{"w":"between","p":"prep.","m":"在...之间","t":1,"b":["gaokao"],"f":140},{"w":"high","p":"n.","m":"高度, 高处","t":1,"b":["gaokao"],"f":141},{"w":"something","p":"pron.","m":"某事, 某物","t":1,"b":["gaokao"],"f":142},{"w":"most","p":"n.","m":"最多, 最大","t":1,"b":["gaokao"],"f":144},{"w":"another","p":"adj.","m":"另外的, 再一的","t":1,"b":["gaokao"],"f":145},{"w":"much","p":"n.","m":"大量, 许多","t":1,"b":["gaokao"],"f":146},{"w":"family","p":"n.","m":"家庭, 家人","t":1,"b":["gaokao"],"f":147},{"w":"own","p":"n.","m":"自己的","t":1,"b":["gaokao"],"f":148},{"w":"leave","p":"n.","m":"许可, 告别","t":1,"b":["gaokao"],"f":150},{"w":"put","p":"v.","m":"放, 摆","t":1,"b":["gaokao"],"f":151},{"w":"old","p":"n.","m":"以前, 往昔","t":1,"b":["gaokao"],"f":152},{"w":"while","p":"n.","m":"一会儿, (一段)时间","t":1,"b":["gaokao"],"f":153},{"w":"mean","p":"adj.","m":"低劣的, 卑贱的","t":3,"b":["gaokao"],"f":154},{"w":"keep","p":"n.","m":"生计, 维持","t":1,"b":["gaokao"],"f":156},{"w":"student","p":"n.","m":"学生, 研究者","t":1,"b":["gaokao"],"f":157},{"w":"why","p":"adv.","m":"为什么","t":1,"b":["gaokao"],"f":158},{"w":"let","p":"v.","m":"让, 假设","t":1,"b":["gaokao"],"f":159},{"w":"great","p":"adj.","m":"大的, 非常的","t":1,"b":["gaokao"],"f":160},{"w":"same","p":"adj.","m":"相同的, 同样的","t":1,"b":["gaokao"],"f":161},{"w":"big","p":"adj.","m":"大的, 重要的","t":1,"b":["gaokao"],"f":162},{"w":"group","p":"n.","m":"团体, 组","t":1,"b":["gaokao"],"f":163},{"w":"begin","p":"v.","m":"开始","t":1,"b":["gaokao"],"f":164},{"w":"seem","p":"v.","m":"象是, 似乎","t":1,"b":["gaokao"],"f":165},{"w":"country","p":"n.","m":"国家, 乡村","t":1,"b":["gaokao"],"f":166},{"w":"help","p":"n.","m":"帮忙, 帮助者","t":1,"b":["gaokao"],"f":167},{"w":"talk","p":"n.","m":"谈话, 交谈","t":1,"b":["gaokao"],"f":168},{"w":"where","p":"adv.","m":"在哪里","t":1,"b":["gaokao"],"f":169},{"w":"turn","p":"n.","m":"转弯, 转动","t":1,"b":["gaokao"],"f":170},{"w":"problem","p":"n.","m":"问题, 难题","t":1,"b":["gaokao"],"f":171},{"w":"every","p":"adj.","m":"每一, 所有的","t":1,"b":["gaokao"],"f":172},{"w":"start","p":"n.","m":"惊起, 出发","t":1,"b":["gaokao"],"f":173},{"w":"hand","p":"n.","m":"手, 爪","t":1,"b":["gaokao"],"f":174},{"w":"might","p":"n.","m":"力量, 权力","t":3,"b":["gaokao","cet4","kaoyan"],"f":175},{"w":"American","p":"n.","m":"美国人","t":1,"b":["gaokao"],"f":176},{"w":"show","p":"n.","m":"显示, 表现","t":1,"b":["gaokao"],"f":177},{"w":"part","p":"n.","m":"部分, 局部","t":2,"b":["gaokao","cet4","kaoyan"],"f":178},{"w":"against","p":"prep.","m":"反对, 对着","t":1,"b":["gaokao","cet4","kaoyan"],"f":180},{"w":"place","p":"n.","m":"地方, 地点","t":3,"b":["gaokao"],"f":181},{"w":"such","p":"adj.","m":"如此的, 这样的","t":1,"b":["gaokao"],"f":183},{"w":"again","p":"adv.","m":"再一次, 又","t":1,"b":["gaokao"],"f":184},{"w":"few","p":"adj.","m":"很少的, 不多的","t":1,"b":["gaokao"],"f":185},{"w":"case","p":"n.","m":"情形, 情况","t":3,"b":["gaokao"],"f":186},{"w":"week","p":"n.","m":"星期, 周","t":1,"b":["gaokao"],"f":188},{"w":"company","p":"n.","m":"公司, 友伴","t":1,"b":["gaokao"],"f":189},{"w":"system","p":"n.","m":"系统, 体系","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":191},{"w":"each","p":"adj.","m":"每个, 每一","t":1,"b":["gaokao"],"f":192},{"w":"right","p":"n.","m":"权利, 右边","t":2,"b":["gaokao"],"f":193},{"w":"program","p":"n.","m":"节目, 节目单","t":1,"b":["cet4","cet6"],"f":194},{"w":"hear","p":"v.","m":"听到, 倾听","t":1,"b":["gaokao"],"f":195},{"w":"question","p":"n.","m":"问题, 询问","t":1,"b":["gaokao"],"f":197},{"w":"during","p":"prep.","m":"在...的时候","t":1,"b":["gaokao"],"f":198},{"w":"play","p":"n.","m":"游戏, 游玩","t":1,"b":["gaokao"],"f":200},{"w":"government","p":"n.","m":"政府, 内阁","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":201},{"w":"run","p":"n.","m":"跑, 赛跑","t":1,"b":["gaokao"],"f":202},{"w":"small","p":"adj.","m":"小的, 少的","t":1,"b":["gaokao"],"f":203},{"w":"number","p":"n.","m":"数, 数字","t":1,"b":["gaokao"],"f":204},{"w":"off","p":"adj.","m":"关着的, 不再生效的","t":1,"b":["gaokao"],"f":205},{"w":"always","p":"adv.","m":"总是, 始终","t":1,"b":["gaokao"],"f":206},{"w":"move","p":"n.","m":"移动, 迁居","t":1,"b":["gaokao"],"f":207},{"w":"night","p":"n.","m":"夜, 夜晚","t":1,"b":["gaokao"],"f":209},{"w":"live","p":"adj.","m":"活的, 生动的","t":2,"b":["gaokao"],"f":210},{"w":"point","p":"n.","m":"点, 小数点","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":211},{"w":"believe","p":"v.","m":"相信","t":1,"b":["gaokao"],"f":212},{"w":"hold","p":"n.","m":"把握, 把持力","t":1,"b":["gaokao"],"f":213},{"w":"today","p":"n.","m":"今天, 当今","t":1,"b":["gaokao"],"f":214},{"w":"bring","p":"v.","m":"带来, 产生","t":1,"b":["gaokao"],"f":215},{"w":"happen","p":"v.","m":"发生, 发生","t":1,"b":["gaokao","cet4","kaoyan"],"f":216},{"w":"next","p":"n.","m":"下一个","t":1,"b":["gaokao"],"f":217},{"w":"without","p":"prep.","m":"没有, 不","t":1,"b":["gaokao"],"f":218},{"w":"before","p":"prep.","m":"在...之前","t":1,"b":["gaokao"],"f":219},{"w":"large","p":"adj.","m":"大的, 大量的","t":1,"b":["gaokao"],"f":220},{"w":"million","p":"n.","m":"百万, 无数","t":1,"b":["gaokao"],"f":222},{"w":"home","p":"n.","m":"家, 避难所","t":3,"b":["gaokao"],"f":224},{"w":"under","p":"prep.","m":"在...之下, 低于","t":1,"b":["gaokao"],"f":225},{"w":"water","p":"n.","m":"水, 雨水","t":1,"b":["gaokao"],"f":226},{"w":"room","p":"n.","m":"房间, 空位","t":1,"b":["gaokao"],"f":227},{"w":"write","p":"v.","m":"书写, 著述","t":1,"b":["gaokao"],"f":228},{"w":"mother","p":"n.","m":"母亲, 修女院长","t":1,"b":["gaokao"],"f":229},{"w":"area","p":"n.","m":"区域, 面积","t":1,"b":["gaokao","cet4","kaoyan"],"f":230},{"w":"national","p":"adj.","m":"国家的, 国立的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":231},{"w":"money","p":"n.","m":"金钱, 一笔款","t":1,"b":["gaokao"],"f":232},{"w":"story","p":"n.","m":"故事, 小说","t":1,"b":["gaokao"],"f":233},{"w":"young","p":"adj.","m":"年轻的, 无经验的","t":1,"b":["gaokao"],"f":234},{"w":"fact","p":"n.","m":"事实, 真实性","t":1,"b":["gaokao","cet4","kaoyan"],"f":235},{"w":"month","p":"n.","m":"月","t":1,"b":["gaokao"],"f":236},{"w":"different","p":"adj.","m":"不同的","t":1,"b":["gaokao"],"f":237},{"w":"lot","p":"n.","m":"运气, 签","t":1,"b":["gaokao"],"f":238},{"w":"study","p":"n.","m":"学习, 研究","t":1,"b":["gaokao"],"f":240},{"w":"book","p":"n.","m":"书, 书籍","t":1,"b":["gaokao"],"f":241},{"w":"eye","p":"n.","m":"眼睛, 视力","t":1,"b":["gaokao"],"f":242},{"w":"job","p":"n.","m":"工作, 零活","t":1,"b":["gaokao"],"f":243},{"w":"word","p":"n.","m":"话, 消息","t":1,"b":["gaokao"],"f":244},{"w":"though","p":"adv.","m":"然而, 可是","t":1,"b":["gaokao"],"f":245},{"w":"business","p":"n.","m":"生意, 事情","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":246},{"w":"four","p":"num.","m":"四, 四个","t":1,"b":["gaokao"],"f":247},{"w":"issue","p":"n.","m":"发行, 问题","t":1,"b":["cet4","cet6","kaoyan"],"f":248},{"w":"side","p":"n.","m":"旁边, 侧","t":1,"b":["gaokao"],"f":249},{"w":"kind","p":"n.","m":"种类, 性质","t":3,"b":["gaokao"],"f":250},{"w":"head","p":"n.","m":"头, 头脑","t":1,"b":["gaokao"],"f":251},{"w":"far","p":"adj.","m":"远的, 久远的","t":1,"b":["gaokao"],"f":252},{"w":"black","p":"n.","m":"黑色, 黑颜料","t":1,"b":["gaokao"],"f":253},{"w":"long","p":"adj.","m":"长的, 长久的","t":3,"b":["gaokao"],"f":254},{"w":"both","p":"adj.","m":"两者的","t":1,"b":["gaokao"],"f":255},{"w":"little","p":"n.","m":"一点点, 少许","t":1,"b":["gaokao"],"f":256},{"w":"house","p":"n.","m":"房子, 住宅","t":1,"b":["gaokao"],"f":257},{"w":"yes","p":"adv.","m":"是","t":1,"b":["gaokao"],"f":258},{"w":"since","p":"prep.","m":"自...以后, 自...以来","t":1,"b":["gaokao"],"f":260},{"w":"provide","p":"v.","m":"提供, 供应","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":262},{"w":"service","p":"n.","m":"服务, 贡献","t":1,"b":["gaokao"],"f":263},{"w":"around","p":"prep.","m":"包围, 在...周围","t":1,"b":["gaokao"],"f":264},{"w":"friend","p":"n.","m":"朋友, 支持者","t":1,"b":["gaokao"],"f":265},{"w":"important","p":"adj.","m":"重要的, 有地位的","t":1,"b":["gaokao"],"f":266},{"w":"father","p":"n.","m":"父亲, 祖先","t":1,"b":["gaokao"],"f":267},{"w":"sit","p":"v.","m":"坐, 就座","t":1,"b":["gaokao"],"f":268},{"w":"away","p":"adv.","m":"离去","t":1,"b":["gaokao"],"f":269},{"w":"until","p":"prep.","m":"直到, 在...以前","t":1,"b":["gaokao"],"f":270},{"w":"power","p":"n.","m":"力, 体力","t":1,"b":["gaokao","cet4","kaoyan"],"f":271},{"w":"hour","p":"n.","m":"小时, 钟头","t":1,"b":["gaokao"],"f":272},{"w":"game","p":"n.","m":"比赛, 玩耍","t":1,"b":["gaokao"],"f":273},{"w":"often","p":"adv.","m":"时常, 常常","t":1,"b":["gaokao"],"f":274},{"w":"yet","p":"adv.","m":"还, 尚","t":1,"b":["gaokao"],"f":275},{"w":"line","p":"n.","m":"列, 线","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":276},{"w":"political","p":"adj.","m":"政治的, 政治上的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":277},{"w":"end","p":"n.","m":"结束, 终点","t":1,"b":["gaokao"],"f":278},{"w":"among","p":"prep.","m":"在...之中","t":1,"b":["gaokao"],"f":279},{"w":"ever","p":"adv.","m":"曾经, 究竟","t":1,"b":["gaokao"],"f":280},{"w":"stand","p":"n.","m":"站立, 站住","t":1,"b":["gaokao"],"f":281},{"w":"lose","p":"v.","m":"遗失, 损失","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":283},{"w":"however","p":"adv.","m":"然而, 无论如何","t":1,"b":["gaokao","cet4","kaoyan"],"f":284},{"w":"law","p":"n.","m":"法律, 法则","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":287},{"w":"include","p":"v.","m":"包括, 把...算入","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":292},{"w":"continue","p":"v.","m":"继续, 延续","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":293},{"w":"later","p":"adv.","m":"以后, 随后","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":295},{"w":"community","p":"n.","m":"社区, 公众","t":1,"b":["cet4","cet6","kaoyan"],"f":296},{"w":"least","p":"n.","m":"最少, 最小","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":302},{"w":"president","p":"n.","m":"总统, 总裁","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":303},{"w":"real","p":"adj.","m":"真的, 真实的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":305},{"w":"team","p":"n.","m":"队, 组","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":307},{"w":"kid","p":"n.","m":"小山羊, 小山羊肉","t":1,"b":["gaokao","cet4","kaoyan"],"f":312},{"w":"lead","p":"n.","m":"铅, 铅条","t":3,"b":["gaokao","cet4","kaoyan"],"f":318},{"w":"social","p":"adj.","m":"社会的, 群居的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":319},{"w":"follow","p":"v.","m":"跟随, 沿行","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":325},{"w":"create","p":"v.","m":"创造, 建造","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":332},{"w":"public","p":"n.","m":"公众, 民众","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":333},{"w":"level","p":"n.","m":"水平, 水准","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":338},{"w":"allow","p":"v.","m":"允许, 同意给予","t":1,"b":["gaokao","cet4","kaoyan"],"f":339},{"w":"add","p":"v.","m":"增加, 添加","t":1,"b":["gaokao","cet4","kaoyan"],"f":340},{"w":"art","p":"n.","m":"艺术, 人文科学","t":1,"b":["gaokao","cet4","kaoyan"],"f":346},{"w":"war","p":"n.","m":"战争, 战争状态","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":349},{"w":"history","p":"n.","m":"历史, 过去","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":350},{"w":"within","p":"n.","m":"内部, 里头","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":352},{"w":"result","p":"n.","m":"结果, 成绩","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":354},{"w":"win","p":"v.","m":"赢得, 打胜","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":361},{"w":"research","p":"n.","m":"研究, 调查","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":362},{"w":"guy","p":"n.","m":"家伙, 支索","t":1,"b":["cet4","kaoyan"],"f":364},{"w":"force","p":"n.","m":"力量, 武力","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":372},{"w":"offer","p":"n.","m":"给予(物), 出价","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":373},{"w":"education","p":"n.","m":"教育, 训练","t":1,"b":["gaokao","cet4","kaoyan"],"f":376},{"w":"although","p":"conj.","m":"虽然, 尽管","t":1,"b":["gaokao","cet4","kaoyan"],"f":378},{"w":"toward","p":"prep.","m":"向, 对于","t":1,"b":["gaokao","cet4","kaoyan"],"f":384},{"w":"policy","p":"n.","m":"政策, 方针","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":388},{"w":"process","p":"n.","m":"程序, 进行","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":391},{"w":"consider","p":"v.","m":"考虑, 思考","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":394},{"w":"appear","p":"v.","m":"出现, 显得","t":1,"b":["gaokao","cet4","kaoyan"],"f":395},{"w":"actually","p":"adv.","m":"事实上, 竟然","t":1,"b":["cet4","cet6"],"f":396},{"w":"probably","p":"adv.","m":"大概, 或许","t":1,"b":["gaokao","cet4","cet6"],"f":398},{"w":"human","p":"n.","m":"人, 人类","t":1,"b":["gaokao","cet4","kaoyan"],"f":399},{"w":"sense","p":"n.","m":"感应, 感觉","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":407},{"w":"nation","p":"n.","m":"国家, 民族","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":412},{"w":"interest","p":"n.","m":"兴趣, 嗜好","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":416},{"w":"death","p":"n.","m":"死亡","t":1,"b":["gaokao","cet4","kaoyan"],"f":417},{"w":"course","p":"n.","m":"课程, 路线","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":418},{"w":"experience","p":"n.","m":"经历, 经验","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":420},{"w":"reach","p":"n.","m":"伸出, 延伸","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":422},{"w":"local","p":"adj.","m":"地方性的, 当地的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":423},{"w":"kill","p":"n.","m":"杀, 杀戮","t":1,"b":["gaokao","cet4","kaoyan"],"f":425},{"w":"remain","p":"v.","m":"保持, 逗留","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":426},{"w":"effect","p":"n.","m":"结果, 影响","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":427},{"w":"control","p":"n.","m":"控制, 管理","t":1,"b":["gaokao","cet4","kaoyan"],"f":432},{"w":"perhaps","p":"adv.","m":"也许, 大概","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":435},{"w":"former","p":"adj.","m":"从前的, 前者的","t":1,"b":["gaokao","cet4","kaoyan"],"f":442},{"w":"major","p":"n.","m":"主修课, 成年人","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":444},{"w":"require","p":"v.","m":"需要, 命令","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":446},{"w":"role","p":"n.","m":"角色, 职责","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":451},{"w":"economic","p":"adj.","m":"经济上的, 实用的","t":1,"b":["cet4","cet6","kaoyan"],"f":453},{"w":"effort","p":"n.","m":"努力, 成就","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":454},{"w":"rate","p":"n.","m":"比率, 率","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":457},{"w":"drug","p":"n.","m":"药, 麻药","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":461},{"w":"leader","p":"n.","m":"领导者, 社论","t":1,"b":["gaokao","cet4","cet6"],"f":463},{"w":"voice","p":"n.","m":"声音, 嗓音","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":465},{"w":"whole","p":"n.","m":"全部, 全体","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":467},{"w":"police","p":"n.","m":"警察, 警察当局","t":1,"b":["gaokao","cet4","kaoyan"],"f":468},{"w":"finally","p":"adv.","m":"最后, 终于","t":1,"b":["cet4","kaoyan"],"f":470},{"w":"military","p":"n.","m":"军队","t":1,"b":["cet4","cet6","kaoyan"],"f":474},{"w":"less","p":"n.","m":"较少, 较小","t":1,"b":["gaokao","cet4","kaoyan"],"f":477},{"w":"decision","p":"n.","m":"决定, 决心","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":479},{"w":"explain","p":"v.","m":"解释, 说明","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":480},{"w":"view","p":"n.","m":"视野, 风景","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":485},{"w":"relationship","p":"n.","m":"关系, 关联","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":486},{"w":"federal","p":"adj.","m":"联邦的, 联合的","t":1,"b":["cet4","cet6","kaoyan"],"f":493},{"w":"difference","p":"n.","m":"不同, 差异","t":1,"b":["gaokao","cet4","kaoyan"],"f":496},{"w":"value","p":"n.","m":"价值, 价格","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":499},{"w":"international","p":"adj.","m":"国际的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":500},{"w":"action","p":"n.","m":"行动, 活动","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":502},{"w":"model","p":"n.","m":"模型, 模范","t":1,"b":["gaokao","cet4","kaoyan"],"f":504},{"w":"society","p":"n.","m":"社会, 社交界","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":507},{"w":"tax","p":"n.","m":"税, 税款","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":509},{"w":"director","p":"n.","m":"主管, 导演","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":510},{"w":"position","p":"n.","m":"位置, 地位","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":512},{"w":"player","p":"n.","m":"竞赛者, 上场队员","t":1,"b":["gaokao","cet4","cet6"],"f":513},{"w":"especially","p":"adv.","m":"尤其, 特别","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":515},{"w":"record","p":"n.","m":"记录, 履历","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":516},{"w":"special","p":"n.","m":"专辑, 专车","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":520},{"w":"space","p":"n.","m":"位置, 空间","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":521},{"w":"support","p":"n.","m":"支持, 支撑","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":524},{"w":"event","p":"n.","m":"事件, 结果","t":1,"b":["gaokao","cet4","kaoyan"],"f":525},{"w":"official","p":"n.","m":"官员, 公务员","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":526},{"w":"couple","p":"n.","m":"对, 夫妇","t":1,"b":["gaokao","cet4","kaoyan"],"f":531},{"w":"site","p":"n.","m":"位置, 场所","t":1,"b":["cet4","cet6","kaoyan"],"f":532},{"w":"project","p":"n.","m":"计划, 设计","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":534},{"w":"hit","p":"n.","m":"打击, 打","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":535},{"w":"base","p":"n.","m":"底部, 垒","t":1,"b":["gaokao","cet4","kaoyan"],"f":536},{"w":"activity","p":"n.","m":"活动, 行动","t":1,"b":["gaokao","cet4","kaoyan"],"f":537},{"w":"court","p":"n.","m":"法院, 庭院","t":3,"b":["gaokao","cet4","cet6","kaoyan"],"f":541},{"w":"produce","p":"n.","m":"生产品, 物产","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":542},{"w":"oil","p":"n.","m":"油, 石油","t":1,"b":["gaokao","cet4","kaoyan"],"f":546},{"w":"situation","p":"n.","m":"情形, 境遇","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":548},{"w":"industry","p":"n.","m":"勤劳, 工业","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":551},{"w":"figure","p":"n.","m":"数字, 价格","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":552},{"w":"image","p":"n.","m":"影像, 肖像","t":1,"b":["cet4","cet6","kaoyan"],"f":555},{"w":"phone","p":"n.","m":"电话, 受话器","t":1,"b":["cet4","kaoyan"],"f":557},{"w":"data","p":"pl.","m":"资料, 数据","t":1,"b":["gaokao","cet4","kaoyan"],"f":559},{"w":"recent","p":"adj.","m":"最近的, 近代的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":567},{"w":"describe","p":"v.","m":"描述, 描绘","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":568},{"w":"product","p":"n.","m":"产品, 结果","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":569},{"w":"patient","p":"n.","m":"病人, 承受者","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":572},{"w":"test","p":"n.","m":"测试, 试验","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":575},{"w":"movie","p":"n.","m":"电影","t":1,"b":["gaokao","cet4","kaoyan"],"f":576},{"w":"certain","p":"adj.","m":"确定的, 某一个的","t":2,"b":["gaokao","cet4","kaoyan"],"f":577},{"w":"personal","p":"adj.","m":"私人的, 涉及隐私的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":580},{"w":"technology","p":"n.","m":"技术, 工业技术","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":585},{"w":"step","p":"n.","m":"步骤, 步","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":587},{"w":"type","p":"n.","m":"类型, 样式","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":590},{"w":"attention","p":"n.","m":"注意, 注意力","t":1,"b":["gaokao","cet4","kaoyan"],"f":591},{"w":"republican","p":"n.","m":"共和主义者, 共和党员","t":1,"b":["cet4","cet6","kaoyan"],"f":594},{"w":"organization","p":"n.","m":"组织, 结构","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":595},{"w":"source","p":"n.","m":"来源, 水源","t":1,"b":["cet4","cet6","kaoyan"],"f":597},{"w":"choose","p":"v.","m":"选择, 宁愿","t":1,"b":["gaokao","cet4","kaoyan"],"f":600},{"w":"cause","p":"n.","m":"原因, 目标","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":601},{"w":"century","p":"n.","m":"世纪, 百年","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":605},{"w":"evidence","p":"n.","m":"根据, 证据","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":606},{"w":"culture","p":"n.","m":"文化, 修养","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":611},{"w":"billion","p":"num.","m":"十亿, 十亿个","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":612},{"w":"chance","p":"n.","m":"机会, 意外","t":1,"b":["gaokao","cet4","kaoyan"],"f":613},{"w":"energy","p":"n.","m":"精力, 精神","t":1,"b":["cet4","cet6","kaoyan"],"f":615},{"w":"realize","p":"v.","m":"了解, 实现","t":1,"b":["cet4","cet6"],"f":616},{"w":"period","p":"n.","m":"时期, 节段","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":617},{"w":"available","p":"adj.","m":"可利用的, 可获得的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":622},{"w":"likely","p":"adj.","m":"有可能的, 合适的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":624},{"w":"opportunity","p":"n.","m":"机会, 时机","t":1,"b":["cet4","cet6","kaoyan"],"f":625},{"w":"term","p":"n.","m":"术语, 专有名词","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":626},{"w":"condition","p":"n.","m":"情况, 条件","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":629},{"w":"choice","p":"n.","m":"选择, 精选品","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":630},{"w":"rule","p":"n.","m":"规则, 统治","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":633},{"w":"administration","p":"n.","m":"行政, 管理","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":635},{"w":"congress","p":"n.","m":"国会, 会议","t":3,"b":["cet4","cet6","kaoyan"],"f":638},{"w":"campaign","p":"n.","m":"战役, 运动","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":640},{"w":"material","p":"n.","m":"材料, 物资","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":641},{"w":"population","p":"n.","m":"人口, 人口数","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":642},{"w":"economy","p":"n.","m":"经济, 理财","t":1,"b":["cet4","cet6","kaoyan"],"f":645},{"w":"medical","p":"n.","m":"医生, 体格检查","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":646},{"w":"church","p":"n.","m":"教堂, 礼拜","t":1,"b":["gaokao","cet4","kaoyan"],"f":648},{"w":"risk","p":"n.","m":"冒险, 危险","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":650},{"w":"current","p":"n.","m":"涌流, 趋势","t":1,"b":["cet4","cet6","kaoyan"],"f":652},{"w":"involve","p":"v.","m":"包括, 使陷于","t":1,"b":["cet4","cet6","kaoyan"],"f":656},{"w":"behavior","p":"n.","m":"行为, 举止","t":1,"b":["cet4","cet6","kaoyan"],"f":658},{"w":"anyone","p":"pron.","m":"任何人","t":1,"b":["gaokao","cet4","kaoyan"],"f":659},{"w":"increase","p":"n.","m":"增加, 增进","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":660},{"w":"security","p":"n.","m":"安全, 安全性","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":661},{"w":"board","p":"n.","m":"木板, 甲板","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":667},{"w":"seek","p":"v.","m":"寻求, 寻找","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":668},{"w":"officer","p":"n.","m":"军官, 主管","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":671},{"w":"private","p":"adj.","m":"私人的, 秘密的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":672},{"w":"deal","p":"n.","m":"交易, 协定","t":2,"b":["gaokao","cet4","cet6","kaoyan"],"f":674},{"w":"performance","p":"n.","m":"施行, 工作情况","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":675},{"w":"fight","p":"n.","m":"打架, 争吵","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":676},{"w":"top","p":"n.","m":"顶部, 顶端","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":678},{"w":"goal","p":"n.","m":"目标, 终点","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":681},{"w":"author","p":"n.","m":"作家, 作家的著作","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":685},{"w":"represent","p":"v.","m":"表现, 表示","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":687},{"w":"focus","p":"n.","m":"焦点, 焦距","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":688},{"w":"drop","p":"n.","m":"滴, 微量","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":690},{"w":"blood","p":"n.","m":"血, 血统","t":1,"b":["gaokao","cet4","kaoyan"],"f":692},{"w":"upon","p":"prep.","m":"在...之上, 迫近","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":693},{"w":"agency","p":"n.","m":"代理机构, 经销商","t":1,"b":["gaokao","cet4","kaoyan"],"f":694},{"w":"nature","p":"n.","m":"自然, 大自然","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":696},{"w":"color","p":"n.","m":"颜色, 面色","t":1,"b":["cet4","kaoyan"],"f":697},{"w":"recently","p":"adv.","m":"最近","t":1,"b":["cet4","cet6"],"f":699},{"w":"reduce","p":"v.","m":"减少, 分解","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":701},{"w":"movement","p":"n.","m":"运动, 动作","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":707},{"w":"enter","p":"v.","m":"进入, 参加","t":1,"b":["gaokao","cet4","kaoyan"],"f":709},{"w":"common","p":"adj.","m":"通常的, 共同的","t":3,"b":["gaokao","cet4","cet6","kaoyan"],"f":710},{"w":"share","p":"n.","m":"部分, 参与","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":711},{"w":"natural","p":"n.","m":"白痴","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":715},{"w":"race","p":"n.","m":"种族, 人种","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":716},{"w":"concern","p":"n.","m":"关心, 忧虑","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":717},{"w":"series","p":"n.","m":"串联, 序列","t":1,"b":["cet4","cet6","kaoyan"],"f":718},{"w":"significant","p":"adj.","m":"重要的, 有效的","t":1,"b":["cet4","cet6","kaoyan"],"f":719},{"w":"response","p":"n.","m":"反应, 回答","t":1,"b":["cet4","cet6","kaoyan"],"f":725},{"w":"rise","p":"n.","m":"上升, 增加","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":727},{"w":"factor","p":"n.","m":"因素, 因数","t":1,"b":["cet4","kaoyan"],"f":729},{"w":"decade","p":"n.","m":"十年, 十","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":730},{"w":"TV","p":"","m":"电视","t":1,"b":["gaokao","kaoyan"],"f":730},{"w":"article","p":"n.","m":"文章, 冠词","t":1,"b":["gaokao","cet4","kaoyan"],"f":731},{"w":"shoot","p":"n.","m":"射击, 狩猎","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":732},{"w":"save","p":"n.","m":"救球","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":735},{"w":"artist","p":"n.","m":"艺术家, 画家","t":1,"b":["gaokao","cet4","kaoyan"],"f":736},{"w":"scene","p":"n.","m":"场, 情景","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":738},{"w":"stock","p":"n.","m":"树干, 祖先","t":1,"b":["cet4","cet6","kaoyan"],"f":740},{"w":"career","p":"n.","m":"事业, 生涯","t":1,"b":["cet4","kaoyan"],"f":741},{"w":"despite","p":"n.","m":"轻视, 憎恨","t":1,"b":["cet4","cet6","kaoyan"],"f":742},{"w":"central","p":"adj.","m":"中央的, 重要的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":743},{"w":"thus","p":"adv.","m":"如此, 因此","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":744},{"w":"treatment","p":"n.","m":"治疗, 待遇","t":1,"b":["gaokao","cet4","cet6"],"f":745},{"w":"beyond","p":"prep.","m":"超过, 在那一边","t":1,"b":["gaokao","cet4","kaoyan"],"f":746},{"w":"exactly","p":"adv.","m":"确切地, 精确地","t":2,"b":["gaokao","cet4"],"f":748},{"w":"protect","p":"v.","m":"防卫, 保护","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":749},{"w":"approach","p":"n.","m":"接近, 入门","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":750},{"w":"fund","p":"n.","m":"基金, 资金","t":1,"b":["cet4","cet6","kaoyan"],"f":754},{"w":"serious","p":"adj.","m":"严肃的, 认真的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":755},{"w":"occur","p":"v.","m":"发生, 被想到","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":756},{"w":"media","p":"n.","m":"媒体","t":1,"b":["gaokao","cet4","cet6"],"f":757},{"w":"sign","p":"n.","m":"符号, 招牌","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":759},{"w":"thought","p":"n.","m":"想法, 思想","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":760},{"w":"list","p":"n.","m":"目录, 名单","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":761},{"w":"individual","p":"n.","m":"人, 个人","t":1,"b":["cet4","cet6","kaoyan"],"f":762},{"w":"quality","p":"n.","m":"品质, 特性","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":764},{"w":"pressure","p":"n.","m":"压, 榨","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":765},{"w":"accept","p":"v.","m":"接受, 承认","t":1,"b":["gaokao","cet4","kaoyan"],"f":766},{"w":"resource","p":"n.","m":"资源, 财力","t":1,"b":["cet4","cet6","kaoyan"],"f":769},{"w":"identify","p":"v.","m":"识别, 认为...等同于","t":1,"b":["cet4","cet6","kaoyan"],"f":770},{"w":"determine","p":"v.","m":"决定, 决心","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":773},{"w":"prepare","p":"v.","m":"准备, 筹备","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":774},{"w":"disease","p":"n.","m":"疾病, 弊病","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":775},{"w":"whatever","p":"pron.","m":"无论什么","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":776},{"w":"success","p":"n.","m":"成功, 成就","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":777},{"w":"argue","p":"v.","m":"提出理由, 争论","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":778},{"w":"recognize","p":"v.","m":"认出, 认可","t":1,"b":["cet4","cet6","kaoyan"],"f":779},{"w":"particularly","p":"adv.","m":"特别, 格外","t":1,"b":["cet4","cet6"],"f":781},{"w":"amount","p":"n.","m":"总数, 总额","t":1,"b":["gaokao","cet4","kaoyan"],"f":782},{"w":"ability","p":"n.","m":"能力, 才干","t":1,"b":["gaokao","cet4","kaoyan"],"f":783},{"w":"staff","p":"n.","m":"全体人员, 工作班子","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":784},{"w":"indicate","p":"v.","m":"显示, 象征","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":785},{"w":"character","p":"n.","m":"个性, 字符","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":786},{"w":"growth","p":"n.","m":"生长, 栽培","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":787},{"w":"loss","p":"n.","m":"损失, 遗失","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":788},{"w":"degree","p":"n.","m":"程度, 度数","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":789},{"w":"wonder","p":"n.","m":"奇迹, 惊奇","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":790},{"w":"attack","p":"n.","m":"攻击, 抨击","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":791},{"w":"region","p":"n.","m":"区域, 地带","t":1,"b":["cet4","cet6","kaoyan"],"f":793},{"w":"training","p":"n.","m":"训练, 培养","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":796},{"w":"pretty","p":"adj.","m":"漂亮的, 优美的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":797},{"w":"trade","p":"n.","m":"贸易, 商业","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":800},{"w":"election","p":"n.","m":"选举, 当选","t":1,"b":["cet4","cet6"],"f":801},{"w":"physical","p":"adj.","m":"身体的, 物质的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":802},{"w":"lay","p":"v.","m":"放置, 产","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":803},{"w":"general","p":"n.","m":"一般, 将军","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":804},{"w":"feeling","p":"n.","m":"摸, 触觉","t":1,"b":["gaokao","cet4","kaoyan"],"f":805},{"w":"standard","p":"n.","m":"标准, 规格","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":806},{"w":"message","p":"n.","m":"消息, 通讯","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":807},{"w":"analysis","p":"n.","m":"分析","t":2,"b":["gaokao","cet4","cet6","kaoyan"],"f":811},{"w":"benefit","p":"n.","m":"利益","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":812},{"w":"sex","p":"n.","m":"性别, 性欲","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":814},{"w":"lawyer","p":"n.","m":"律师","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":816},{"w":"section","p":"n.","m":"区段, 部分","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":818},{"w":"environmental","p":"adj.","m":"周围的, 环境的","t":1,"b":["cet6"],"f":819},{"w":"skill","p":"n.","m":"技术, 技巧","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":821},{"w":"professor","p":"n.","m":"教授","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":825},{"w":"operation","p":"n.","m":"操作, 动作","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":826},{"w":"financial","p":"adj.","m":"财政的, 金融的","t":1,"b":["cet4","cet6","kaoyan"],"f":827},{"w":"crime","p":"n.","m":"犯罪, 罪行","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":828},{"w":"stage","p":"n.","m":"阶段, 舞台","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":829},{"w":"compare","p":"v.","m":"比较, 比喻","t":2,"b":["gaokao","cet4","cet6","kaoyan"],"f":831},{"w":"authority","p":"n.","m":"权力, 当权者","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":832},{"w":"design","p":"n.","m":"设计, 图样","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":834},{"w":"sort","p":"n.","m":"种类, 方式","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":835},{"w":"knowledge","p":"n.","m":"知识, 学问","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":839},{"w":"gun","p":"n.","m":"枪","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":840},{"w":"strategy","p":"n.","m":"战略, 策略","t":1,"b":["cet4","cet6","kaoyan"],"f":844},{"w":"indeed","p":"adv.","m":"的确, 实在","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":848},{"w":"truth","p":"n.","m":"事实, 实情","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":850},{"w":"democratic","p":"adj.","m":"民主的","t":1,"b":["cet4","cet6","kaoyan"],"f":853},{"w":"environment","p":"n.","m":"环境, 外界","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":855},{"w":"various","p":"adj.","m":"不同的, 各种的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":859},{"w":"rather","p":"adv.","m":"宁可, 稍微","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":860},{"w":"executive","p":"n.","m":"执行部门, 执行委员会","t":1,"b":["cet4","cet6","kaoyan"],"f":863},{"w":"prove","p":"v.","m":"证明, 查验","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":866},{"w":"hang","p":"n.","m":"悬挂, 诀窍","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":867},{"w":"entire","p":"n.","m":"整个, 全部","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":868},{"w":"rock","p":"n.","m":"岩石, 岩礁","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":869},{"w":"claim","p":"n.","m":"要求, 要求权","t":1,"b":["cet4","cet6","kaoyan"],"f":874},{"w":"remove","p":"v.","m":"移动, 调动","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":876},{"w":"network","p":"n.","m":"网络, 广播网","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":882},{"w":"legal","p":"adj.","m":"法律的, 法定的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":883},{"w":"religious","p":"adj.","m":"宗教性的, 虔诚的","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":884},{"w":"main","p":"n.","m":"主要部分, 干线","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":888},{"w":"memory","p":"n.","m":"记忆, 记忆力","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":891},{"w":"cell","p":"n.","m":"单元, 细胞","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":895},{"w":"establish","p":"v.","m":"建立, 确立","t":1,"b":["cet4","cet6","kaoyan"],"f":896},{"w":"trial","p":"n.","m":"审判, 试验","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":898},{"w":"firm","p":"n.","m":"公司, 商号","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":902},{"w":"management","p":"n.","m":"经营, 支配","t":1,"b":["cet4","cet6","kaoyan"],"f":906},{"w":"imagine","p":"v.","m":"想像, 设想","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":909},{"w":"theory","p":"n.","m":"理论, 学说","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":918},{"w":"impact","p":"n.","m":"冲击, 冲突","t":1,"b":["cet4","cet6","kaoyan"],"f":919},{"w":"respond","p":"v.","m":"以...回答","t":1,"b":["gaokao","cet4","cet6","kaoyan"],"f":920}];
+// 经典易混词组（易混词妖/多义词魔优先）
 const GROUPS = [
  ['adapt','adopt'],['advice','advise'],['affect','effect'],['abroad','aboard'],['accept','except'],
  ['reserve','preserve','conserve','deserve'],['quiet','quite'],['sensible','sensitive'],
@@ -516,6 +519,7 @@ const BOOKS=[
   {id:'kaoyan',name:'考研'}
 ];
 const DIFFS=[
+  {id:'auto',name:'自适应'},
   {id:0,name:'全部'},
   {id:1,name:'简单'},
   {id:2,name:'中等'},
@@ -523,14 +527,15 @@ const DIFFS=[
 ];
 let SETTINGS=loadSettings();
 function loadSettings(){
-  try{ return Object.assign({book:'gaokao',difficulty:0},
+  try{ return Object.assign({book:'gaokao',difficulty:'auto'},
     JSON.parse(localStorage.getItem(SETTING_KEY))||{}); }
-  catch(e){ return {book:'gaokao',difficulty:0}; }
+  catch(e){ return {book:'gaokao',difficulty:'auto'}; }
 }
 function saveSettings(){ try{localStorage.setItem(SETTING_KEY,JSON.stringify(SETTINGS));}catch(e){} }
+function isAdaptive(){ return SETTINGS.difficulty==='auto'; }
 function bookWords(){
   return WORDS.filter(o=>o.b.includes(SETTINGS.book)
-    && (!SETTINGS.difficulty||o.t===SETTINGS.difficulty)).map(o=>o.w);
+    && (isAdaptive()||!SETTINGS.difficulty||o.t===SETTINGS.difficulty)).map(o=>o.w);
 }
 
 /* ============================================================
@@ -540,6 +545,7 @@ const SAVE_KEY='word_dungeon_progress_v1';
 function defaultMeta(){
   return {
     level:1, xp:0,
+    theta:1.5,
     streak:0, lastActive:'',
     daily:{date:'', questions:0, newWords:0, run:0},
     ach:{}
@@ -553,6 +559,7 @@ const Save = {
       p.meta=Object.assign(defaultMeta(),p.meta||{});
       if(!p.meta.daily) p.meta.daily=defaultMeta().daily;
       if(!p.meta.ach) p.meta.ach={};
+      if(typeof p.meta.theta!=='number') p.meta.theta=1.5;
       return p;
     }catch(e){ return {words:{},meta:defaultMeta()}; }
   },
@@ -560,8 +567,64 @@ const Save = {
   reset(){ localStorage.removeItem(SAVE_KEY); }
 };
 let P = Save.load();
-function recOf(w){ return P.words[w] || {state:'NEW',idx:-1,due:0}; }
+function recOf(w){ return P.words[w] || {state:'NEW',stage:0,lapses:0,streak:0,due:0}; }
 function wState(w){ return recOf(w).state; }
+
+/* ============================================================
+ * V4.2 自适应难度 θ + SM-2 间隔重复
+ * ============================================================ */
+const SRS_LADDER=[10,1440,4320,10080,23040,43200];   // 分钟
+function updateTheta(theta,correct,fast){
+  if(correct) theta += fast?0.10:0.05;
+  else theta -= 0.10;
+  return Math.max(1,Math.min(3,Math.round(theta*1000)/1000));
+}
+function adaptiveTier(theta){
+  const r=rnd(), base=Math.max(1,Math.min(3,Math.round(theta)));
+  if(r<0.70) return {tier:base,bucket:'match'};
+  if(r<0.85) return {tier:Math.min(3,base+1),bucket:'stretch'};
+  return {tier:Math.max(1,base-1),bucket:'consolidate'};
+}
+function srsSchedule(rec,correct,fast,now){
+  rec=Object.assign({stage:0,lapses:0,streak:0,state:'NEW'},rec);
+  if(!correct){
+    rec.stage=0; rec.streak=0; rec.lapses++; rec.state='LEARNING';
+  } else {
+    if(fast){ rec.stage=Math.min(rec.stage+1,SRS_LADDER.length-1); rec.streak=0; }
+    else {
+      rec.streak++;
+      if(rec.streak>=2){ rec.stage=Math.min(rec.stage+1,SRS_LADDER.length-1); rec.streak=0; }
+    }
+    rec.state = rec.stage===SRS_LADDER.length-1?'MASTERED' : rec.stage>=1?'FAMILIAR':'LEARNING';
+  }
+  rec.due=now+SRS_LADDER[rec.stage]*60*1000;
+  return rec;
+}
+function dueWordsNow(){
+  const now=Date.now();
+  return Object.keys(P.words).filter(w=>{
+    const d=P.words[w].due; return d&&d<=now;
+  });
+}
+function gradeOf(wrongCount){ return wrongCount>=3?3:wrongCount===2?2:1; }
+function reviewQtype(grade){
+  if(grade>=3) return 'spell';
+  if(grade===2) return rpick(['en2cn','cn2en']);
+  return 'judge';
+}
+function isFastAnswer(q,elapsed,remainFrac){
+  if(q.qtype==='spell') return remainFrac>=0.60;
+  return elapsed<=C.speed.fastT;
+}
+function applySrs(word,correct,fast){
+  const now=Date.now();
+  const old=P.words[word]?Object.assign({},P.words[word]):null;
+  const rec=srsSchedule(old,correct,fast,now);
+  P.words[word]=rec;
+  P.meta.theta=updateTheta(P.meta.theta,correct,fast);
+  Save.write(P);
+  return rec;
+}
 
 /* ============================================================
  * 游戏状态
@@ -762,30 +825,46 @@ function speedMultFor(q,elapsed){
   }
   return elapsed<=C.speed.fastT?C.speed.fastM:elapsed<=C.speed.normalT?C.speed.normalM:1;
 }
-function drawWord(opts){
-  opts=opts||{};
-  const maxLen=opts.maxLen;
-  // 错词（本层未再答对）优先，按错误次数加权反复出现：错1次权重1 / 错2次权重2 / 错3次+权重3
-  const pend=Object.keys(G.wrongWords).filter(w=>G.wrongWords[w]&&(!maxLen||w.length<=maxLen));
+function pickWordAndType(forceType){
+  const maxLen=8;
+  // 目标桶与难度
+  let bucket='normal', targetTier=null;
+  if(isAdaptive()){
+    const t=adaptiveTier(P.meta.theta); targetTier=t.tier; bucket=t.bucket;
+  } else if(SETTINGS.difficulty){
+    targetTier=SETTINGS.difficulty;
+  }
+  // 1) 本层错词：按分级加权反复，题型按顽固度强制
+  const pend=Object.keys(G.wrongWords).filter(w=>G.wrongWords[w]&&G.layerWords.includes(w));
   if(pend.length){
     const hasHard=pend.some(w=>(G.wrongCount[w]||0)>=2);
-    const wr=rnd()<(hasHard?0.75:0.6);
-    if(wr){
+    const rate=hasHard?0.75:0.6;
+    if(rnd()<rate){
       const w=wpick(pend,pend.map(w=>Math.min(3,G.wrongCount[w]||1)));
-      G.queue=G.queue.filter(x=>x!==w);
-      return w;
+      let qt=forceType||reviewQtype(gradeOf(G.wrongCount[w]||1));
+      if(qt==='spell'&&w.length>maxLen) qt='en2cn';
+      return {word:w,qtype:qt,review:true,bucket};
     }
   }
-  if(G.queue.length===0) G.queue=rshuffle(G.layerWords.slice());
-  if(maxLen){
-    const short=G.queue.filter(w=>w.length<=maxLen);
-    if(short.length){
-      const w=rpick(short);
-      G.queue=G.queue.filter(x=>x!==w);
-      return w;
+  // 2) 巩固桶：到期词（快速判断）
+  if(bucket==='consolidate'){
+    const due=dueWordsNow().filter(w=>G.layerWords.includes(w)&&!G.wrongWords[w]);
+    if(due.length){
+      const w=rpick(due);
+      return {word:w,qtype:forceType||'judge',review:true,bucket};
     }
   }
-  return G.queue.shift();
+  // 3) 常规：随机题型（或 force），按目标难度抽词
+  let qtype=forceType;
+  if(!qtype){
+    const r=rnd(); let acc=0;
+    qtype = r<(acc+=C.question.pool.en2cn)?'en2cn' : r<(acc+=C.question.pool.cn2en)?'cn2en' : r<(acc+=C.question.pool.spell)?'spell' : 'judge';
+  }
+  const ok=w=>(qtype!=='spell'||w.length<=maxLen);
+  let cand=G.layerWords.filter(w=>ok(w)&&(!targetTier||WMAP[w].t===targetTier));
+  if(!cand.length) cand=G.layerWords.filter(ok);
+  if(!cand.length) cand=G.layerWords;
+  return {word:rpick(cand),qtype,review:false,bucket};
 }
 function nextQuestion(){
   const b=G.battle;
@@ -798,25 +877,18 @@ function nextQuestion(){
     if(t.mech==='fog' && b.answered>0 && b.answered%t.every===0) b.fog=true;
     if(t.mech==='blur' && b.answered>0 && b.answered%t.every===0) b.blur=true;
   }
-  // 题型
-  let qtype;
-  if(enemy.tpl.force) qtype=enemy.tpl.force;
-  else {
-    const r=rnd(); let acc=0;
-    qtype = r<(acc+=C.question.pool.en2cn)?'en2cn' : r<(acc+=C.question.pool.cn2en)?'cn2en' : r<(acc+=C.question.pool.spell)?'spell' : 'judge';
-  }
-  // 拼写题：单词不超过 8 个字母，避免长词
-  const word=drawWord(qtype==='spell'?{maxLen:8}:null);
+  const forceType=enemy.tpl.force||null;
+  let pick=null;
   // 易混敌人：优先用能配组的词
   if(enemy.tpl.confuse){
     const candidates=G.layerWords.filter(w=>groupOf(w));
     if(candidates.length){
-      const cw=rpick(candidates);
-      G.queue=G.queue.filter(x=>x!==cw);
-      return buildQuestion(cw,qtype);
+      pick={word:rpick(candidates),qtype:forceType||'en2cn',review:false,bucket:'match'};
     }
   }
-  buildQuestion(word,qtype);
+  if(!pick) pick=pickWordAndType(forceType);
+  G.curBucket=pick.bucket;
+  buildQuestion(pick.word,pick.qtype);
 }
 function buildQuestion(word,qtype){
   const b=G.battle, o=WMAP[word];
@@ -931,6 +1003,8 @@ function resolve(choice,isTimeout,forceCorrect){
     });
     if(G.blessForLayer===G.layer) cardMult*=1.25;
     const sm=speedMultFor(q,elapsed);
+    const remainFrac=(q.start+q.limit*1000-performance.now())/(q.limit*1000);
+    const fast=isFastAnswer(q,elapsed,remainFrac);
     const cm=Math.min(1+C.combo.step*G.combo,1+C.combo.cap);
     const pm=C.proficiency[mstate];
     let rv=1;
@@ -951,7 +1025,7 @@ function resolve(choice,isTimeout,forceCorrect){
     if(!G.flow && G.combo>=C.flow.threshold){ G.flow=true; floatText('fheal','心流开启',50); }
     if(G.flow){ G.gold+=C.flow.bonusGold; floatText('fdmg','+'+C.flow.bonusGold,72); }
     G.cards.forEach(id=>{ const c=CMAP[id]; if(c.onCorrect)c.onCorrect(ctx); });
-    reviewWord(word,true);
+    applySrs(word,true,fast);
     G.wrongWords[word]=false;
     markOptions(true,q.correct);
     // 微目标 + 掌握成就
@@ -978,7 +1052,7 @@ function resolve(choice,isTimeout,forceCorrect){
     // boss3 狂暴
     if(b.enemy.boss&&b.enemy.tpl.mech==='rage'&&b.enemy.hp<=b.enemy.maxHp*0.5) dmg+=4;
     hurtPlayer(dmg);
-    reviewWord(word,false);
+    applySrs(word,false,false);
     G.wrongWords[word]=true;
     G.wrongCount[word]=(G.wrongCount[word]||0)+1;
     if(choice!==null) markOptions(false,choice);
@@ -1281,8 +1355,8 @@ function startSpring(from){
 }
 function springAnswer(ok){
   const s=G.springData;
-  if(ok){ s.bonus+=C.spring.reviewHeal; G.hp=Math.min(C.player.maxHp,G.hp+C.spring.reviewHeal); reviewWord(s.list[s.idx],true); G.wrongWords[s.list[s.idx]]=false; }
-  else { reviewWord(s.list[s.idx],false); }
+  if(ok){ s.bonus+=C.spring.reviewHeal; G.hp=Math.min(C.player.maxHp,G.hp+C.spring.reviewHeal); applySrs(s.list[s.idx],true,false); G.wrongWords[s.list[s.idx]]=false; }
+  else { applySrs(s.list[s.idx],false,false); }
   s.idx++;
   if(s.idx>=s.list.length){ s.done=true; }
   render();
@@ -1317,26 +1391,6 @@ function buy(kind,id){
   else { G.cards.push(id); }
   d.sold[kind+id]=true;
   render();
-}
-
-/* ============================================================
- * 间隔重复（复习）
- * ============================================================ */
-function reviewWord(word,correct){
-  const now=Date.now();
-  let rec=P.words[word]?Object.assign({},P.words[word]):{state:'NEW',idx:-1,due:0};
-  if(!correct){
-    rec.state='LEARNING'; rec.idx=-1; rec.due=now+10*MIN;
-  } else {
-    if(rec.state==='NEW'){ rec.state='LEARNING'; rec.due=now+10*MIN; }
-    else if(rec.state==='LEARNING'){ rec.state='FAMILIAR'; rec.idx=0; rec.due=now+1*DAY; }
-    else if(rec.state==='FAMILIAR'){
-      if(rec.idx>=C.famIntervals.length){ rec.state='MASTERED'; rec.due=0; }
-      else { const days=C.famIntervals[rec.idx]; rec.idx++; rec.due=now+days*DAY; }
-    }
-  }
-  P.words[word]=rec;
-  Save.write(P);
 }
 
 /* ============================================================
@@ -1398,16 +1452,23 @@ function viewHome(){
      <div class="progress-row" style="margin-top:10px;"><span>已接触单词</span><span class="mut">${total}</span></div>
    </div>
    <div class="card" style="margin-top:12px;">
+     <div class="progress-row"><span>今日待复习（到期）</span><span class="mut" style="color:var(--gold,#fbbf24);font-weight:700;">${dueWordsNow().length} 词</span></div>
+     <div class="progress-row" style="margin-top:8px;"><span>当前能力 θ</span><span class="mut">${P.meta.theta.toFixed(2)}（目标成功率 85%）</span></div>
+     <div class="bar" style="margin-top:6px;"><i style="width:${(P.meta.theta-1)/2*100}%"></i></div>
+   </div>
+   <div class="card" style="margin-top:12px;">
      <div class="sec-h">选择词书</div>
      <div class="seg-grid">
        ${BOOKS.map(b=>`<button class="seg ${SETTINGS.book===b.id?'on':''}" data-book="${b.id}">${b.name}</button>`).join('')}
      </div>
      <div class="sec-h" style="margin-top:10px;">难度</div>
-     <div class="seg-grid">
+     <div class="seg-grid seg-grid5">
        ${DIFFS.map(d=>`<button class="seg ${SETTINGS.difficulty===d.id?'on':''}" data-diff="${d.id}">${d.name}</button>`).join('')}
      </div>
      <div class="center mut" style="margin-top:8px;font-size:12px;">
-       当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name}${DIFFS.find(d=>d.id===SETTINGS.difficulty).name!=='全部'?' · '+DIFFS.find(d=>d.id===SETTINGS.difficulty).name:''}，共 ${bookWords().length} 词
+       ${isAdaptive()
+         ? `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name} · 自适应（共 ${bookWords().length} 词，按 θ 自动配比）`
+         : `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name}${DIFFS.find(d=>d.id===SETTINGS.difficulty).name!=='全部'?' · '+DIFFS.find(d=>d.id===SETTINGS.difficulty).name:''}，共 ${bookWords().length} 词`}
      </div>
    </div>
    <button class="bigbtn" data-act="start">开始远征（3 层 · 约 11 分钟）</button>
@@ -1698,7 +1759,8 @@ function afterRender(){
       SETTINGS.book=el.getAttribute('data-book'); saveSettings(); render();
     }));
     document.querySelectorAll('[data-diff]').forEach(el=>el.addEventListener('click',()=>{
-      SETTINGS.difficulty=parseInt(el.getAttribute('data-diff')); saveSettings(); render();
+      const v=el.getAttribute('data-diff');
+      SETTINGS.difficulty=v==='auto'?'auto':parseInt(v); saveSettings(); render();
     }));
   }
   if(G.screen==='battle'){
