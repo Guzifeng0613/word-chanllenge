@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1020" viewBox="0 0 1320 1020" font-family="PingFang SC, Microsoft YaHei, Helvetica, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#456"></path>
+    </marker>
+    <marker id="arrowR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#E0574E"></path>
+    </marker>
+    <marker id="arrowG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2D9CA4"></path>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-size="21" font-weight="700" fill="#1E3A5F">《单词地下城》Game Flow：启动 → 远征 3 层 → 结算 → 错词复习回归</text>
+
+  <!-- ===== 主干中列 ===== -->
+  <g font-size="15" text-anchor="middle">
+    <rect x="490" y="55" width="300" height="52" rx="9" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.6"/>
+    <text x="640" y="87" fill="#1E3A5F">启动 · 主界面</text>
+
+    <rect x="490" y="140" width="300" height="52" rx="9" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.6"/>
+    <text x="640" y="172" fill="#1E3A5F">读取存档 · 重建到期复习队列</text>
+
+    <rect x="490" y="225" width="300" height="52" rx="9" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.6"/>
+    <text x="640" y="250" fill="#1E3A5F">组卷：新词 60% + 到期复习 40%</text>
+    <text x="640" y="269" font-size="12.5" fill="#5A6B7B">一局约 31 个不同词（新词 20–25）</text>
+
+    <rect x="490" y="310" width="300" height="52" rx="9" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.6"/>
+    <text x="640" y="342" fill="#1E3A5F">进入第 N 层（N=1）</text>
+  </g>
+  <g stroke="#456" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <line x1="640" y1="107" x2="640" y2="140"/>
+    <line x1="640" y1="192" x2="640" y2="225"/>
+    <line x1="640" y1="277" x2="640" y2="310"/>
+    <line x1="640" y1="362" x2="640" y2="400"/>
+  </g>
+
+  <!-- ===== 层内节点容器 ===== -->
+  <rect x="60" y="400" width="1160" height="105" rx="10" fill="#F7FAFD" stroke="#9DB6CE" stroke-width="1.4"/>
+  <text x="80" y="424" font-size="14" font-weight="700" fill="#456" text-anchor="start">层内节点（线性推进，每层固定）</text>
+  <g font-size="14.5" text-anchor="middle">
+    <rect x="80" y="440" width="150" height="52" rx="8" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.5"/>
+    <text x="155" y="471" fill="#1E3A5F">普通战 ①</text>
+
+    <rect x="274" y="440" width="150" height="52" rx="8" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.5"/>
+    <text x="349" y="471" fill="#1E3A5F">普通战 ②</text>
+
+    <rect x="468" y="440" width="150" height="52" rx="8" fill="#FCEBD9" stroke="#E08A3C" stroke-width="1.5"/>
+    <text x="543" y="471" fill="#8A4B12">精英战</text>
+
+    <rect x="662" y="440" width="150" height="52" rx="8" fill="#E7F7EF" stroke="#22A06B" stroke-width="1.5"/>
+    <text x="737" y="471" fill="#16603C">复习之泉 · 回 30 HP</text>
+
+    <rect x="856" y="440" width="150" height="52" rx="8" fill="#FFF6E5" stroke="#E8A33D" stroke-width="1.5"/>
+    <text x="931" y="471" fill="#8A5A12">商店</text>
+
+    <rect x="1050" y="440" width="150" height="52" rx="8" fill="#FDECEC" stroke="#E0574E" stroke-width="1.6"/>
+    <text x="1125" y="471" fill="#9B2C25">Boss 战</text>
+  </g>
+  <g stroke="#456" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
+    <line x1="230" y1="466" x2="274" y2="466"/>
+    <line x1="424" y1="466" x2="468" y2="466"/>
+    <line x1="618" y1="466" x2="662" y2="466"/>
+    <line x1="812" y1="466" x2="856" y2="466"/>
+    <line x1="1006" y1="466" x2="1050" y2="466"/>
+  </g>
+
+  <!-- ===== 左下：战斗内部 ===== -->
+  <rect x="60" y="540" width="540" height="300" rx="10" fill="#FBFDFE" stroke="#9DB6CE" stroke-width="1.4"/>
+  <text x="80" y="566" font-size="14.5" font-weight="700" fill="#456" text-anchor="start">战斗内部（每场战斗）</text>
+  <g font-size="13.5" text-anchor="middle">
+    <rect x="230" y="578" width="200" height="40" rx="8" fill="#E6F0F7" stroke="#4A7FA9" stroke-width="1.5"/>
+    <text x="330" y="603" fill="#23405c">出题 · 计时（12 秒）</text>
+
+    <rect x="80" y="648" width="240" height="62" rx="8" fill="#E7F7EF" stroke="#22A06B" stroke-width="1.5"/>
+    <text x="200" y="673" fill="#16603C">答对 → 伤害结算</text>
+    <text x="200" y="693" font-size="12" fill="#16603C">速度×连击×熟练度，连击+1</text>
+
+    <rect x="340" y="648" width="240" height="62" rx="8" fill="#FDECEC" stroke="#E0574E" stroke-width="1.5"/>
+    <text x="460" y="673" fill="#9B2C25">答错 / 超时 → 敌人反击</text>
+    <text x="460" y="693" font-size="12" fill="#9B2C25">护盾→HP，连击清零，入错词本</text>
+
+    <rect x="80" y="745" width="240" height="42" rx="8" fill="#E6F0F7" stroke="#4A7FA9" stroke-width="1.5"/>
+    <text x="200" y="771" fill="#23405c">敌人死亡？</text>
+
+    <rect x="340" y="745" width="240" height="42" rx="8" fill="#E6F0F7" stroke="#4A7FA9" stroke-width="1.5"/>
+    <text x="460" y="771" fill="#23405c">玩家死亡？</text>
+  </g>
+  <g stroke="#456" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
+    <path d="M330 618 L330 632 L200 632 L200 648"/>
+    <path d="M330 618 L330 632 L460 632 L460 648"/>
+    <line x1="200" y1="710" x2="200" y2="745"/>
+    <line x1="460" y1="710" x2="460" y2="745"/>
+  </g>
+  <!-- 下一题循环 -->
+  <path d="M120 766 L92 766 L92 598 L230 598" fill="none" stroke="#456" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="100" y="690" font-size="12" fill="#456" text-anchor="middle" transform="rotate(-90 100 690)">下一题（未死亡）</text>
+  <!-- 胜利 / 失败出口 -->
+  <path d="M200 745 L200 720 L596 720 L596 595" fill="none" stroke="#22A06B" stroke-width="1.6" marker-end="url(#arrowG)"/>
+  <path d="M460 787 L460 812 L596 812 L596 650" fill="none" stroke="#E0574E" stroke-width="1.6" marker-end="url(#arrowR)"/>
+
+  <!-- ===== 右下：层判定 ===== -->
+  <rect x="620" y="540" width="600" height="300" rx="10" fill="#FBFDFE" stroke="#9DB6CE" stroke-width="1.4"/>
+  <text x="640" y="566" font-size="14.5" font-weight="700" fill="#456" text-anchor="start">战斗结束与层判定</text>
+  <g font-size="13.5" text-anchor="middle">
+    <rect x="645" y="575" width="555" height="40" rx="8" fill="#E7F7EF" stroke="#22A06B" stroke-width="1.5"/>
+    <text x="922" y="600" fill="#16603C">胜利 → 三选一词典卡（Boss 后必含稀有卡）</text>
+
+    <rect x="645" y="630" width="555" height="40" rx="8" fill="#FDECEC" stroke="#E0574E" stroke-width="1.5"/>
+    <text x="922" y="655" fill="#9B2C25">HP 归零 → 失败结算（错词与进度全部保留）</text>
+
+    <polygon points="800,690 920,730 800,770 680,730" fill="#E6F0F7" stroke="#4A7FA9" stroke-width="1.5"/>
+    <text x="800" y="726" fill="#23405c">还有下一层？</text>
+    <text x="800" y="744" font-size="12" fill="#23405c">N &lt; 3</text>
+
+    <rect x="680" y="788" width="240" height="42" rx="8" fill="#E6F6F7" stroke="#2D9CA4" stroke-width="1.5"/>
+    <text x="800" y="814" fill="#155E63">通关结算</text>
+
+    <rect x="960" y="788" width="240" height="42" rx="8" fill="#E6F6F7" stroke="#2D9CA4" stroke-width="1.5"/>
+    <text x="1080" y="814" fill="#155E63">再战（重新组卷）</text>
+  </g>
+  <g fill="none" stroke-width="1.6">
+    <path d="M922 615 L922 622 L800 622 L800 690" stroke="#456" marker-end="url(#arrow)"/>
+    <line x1="1080" y1="670" x2="1080" y2="788" stroke="#E0574E" marker-end="url(#arrowR)"/>
+    <line x1="800" y1="770" x2="800" y2="788" stroke="#456" marker-end="url(#arrow)"/>
+  </g>
+  <text x="852" y="782" font-size="12" fill="#456" text-anchor="start">否</text>
+
+  <!-- 是：进入下一层（右侧通道） -->
+  <path d="M920 730 L1245 730 L1245 336 L790 336" fill="none" stroke="#456" stroke-width="1.7" marker-end="url(#arrow)"/>
+  <text x="1258" y="540" font-size="12.5" fill="#456" transform="rotate(90 1258 540)">是：进入 N+1 层</text>
+
+  <!-- 再战：重新组卷（右侧虚线通道） -->
+  <path d="M1200 809 L1272 809 L1272 251 L790 251" fill="none" stroke="#2D9CA4" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrowG)"/>
+
+  <!-- 通关 → 结算分发 -->
+  <line x1="800" y1="830" x2="800" y2="878" stroke="#456" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- ===== 底部：局后结算 ===== -->
+  <rect x="60" y="870" width="1160" height="120" rx="10" fill="#F7FAFD" stroke="#9DB6CE" stroke-width="1.4"/>
+  <text x="80" y="894" font-size="14" font-weight="700" fill="#456" text-anchor="start">局后结算与复习回归</text>
+  <g font-size="13" text-anchor="middle">
+    <rect x="80" y="904" width="260" height="62" rx="8" fill="#E6F6F7" stroke="#2D9CA4" stroke-width="1.5"/>
+    <text x="210" y="930" fill="#155E63">局后统计</text>
+    <text x="210" y="950" font-size="11.5" fill="#155E63">题数 · 正确率 · 最高连击</text>
+
+    <rect x="360" y="904" width="260" height="62" rx="8" fill="#E6F6F7" stroke="#2D9CA4" stroke-width="1.5"/>
+    <text x="490" y="930" fill="#155E63">词库进度 · 记忆状态更新</text>
+    <text x="490" y="950" font-size="11.5" fill="#155E63">已掌握 X / 2400</text>
+
+    <rect x="640" y="904" width="260" height="62" rx="8" fill="#E6F6F7" stroke="#2D9CA4" stroke-width="1.5"/>
+    <text x="770" y="930" fill="#155E63">错词安排到期</text>
+    <text x="770" y="950" font-size="11.5" fill="#155E63">10 分钟 / 1 / 2 / 4 / 7 / 15 天</text>
+
+    <rect x="920" y="904" width="280" height="62" rx="8" fill="#EAF2FF" stroke="#3B82F6" stroke-width="1.5"/>
+    <text x="1060" y="940" fill="#1E3A5F">返回主界面</text>
+  </g>
+  <!-- 错词到期 → 混入组卷（汇入再战虚线） -->
+  <path d="M900 935 L1272 935" fill="none" stroke="#2D9CA4" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="1080" y="928" font-size="12" fill="#155E63" text-anchor="middle">错词到期后混入未来组卷</text>
+</svg>

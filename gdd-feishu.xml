@@ -1,0 +1,413 @@
+<title>《单词地下城 Word Dungeon》游戏设计文档（GDD）</title>
+<callout emoji="📘" background-color="light-blue"><p>版本 V3.5（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="💡" background-color="light-cyan"><p>V3.5 新增：拼写题答错后显示正确答案——先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案逐格变绿并提示"正确答案"</p></callout>
+<callout emoji="⏱️" background-color="light-gray"><p>V3.4 新增：拼写题填满不再自动提交（回车确认或限时结束自动结算）；拼写限时按单词长度动态计算（4s 基础 + 每字母 2s，预留反应余量）；拼写题按提交快慢动态增加伤害（剩余 ≥60%×2.0 / ≥40%×1.6 / ≥25%×1.25 / 其余×1.0）</p></callout>
+<callout emoji="🔧" background-color="light-gray"><p>V3.3 修复：拼写输入改为键盘事件驱动 + 增量合并——彻底修复"输入自动反过来 / 丢字母"与手机删除键失效</p></callout>
+<callout emoji="⌨️" background-color="light-blue"><p>V3.2 新增：拼写输入保护（防自动纠错 / 中文输入法干扰）、战斗页一屏布局、答错停留 1 秒、错误脉冲等反馈优化</p></callout>
+<callout emoji="⚔" background-color="light-red"><p>V3.1 新增：复仇加成——错过的词答对伤害更高，按累计错过次数 1.5→1.75→2.0 递增，配红金复仇数字与"雪耻"特效</p></callout>
+<callout emoji="💥" background-color="light-orange"><p>V3 新增：战斗演出（斩击/命中顿帧/粒子/震动/受击暗角/死亡消散/升级光柱）、拼写字母格子与单词长度控制、快速判断题型</p></callout>
+<callout emoji="✨" background-color="light-green"><p>V2 新增：词性标注、心流与凝神、战斗微目标、账号等级（XP）、每日目标、连续打卡、成就系统</p></callout>
+
+<h1 seq="auto">设计首页</h1>
+
+<h2>一句话定位</h2>
+<p>你是深入"词境"的<b>词灵使</b>，靠快速认出单词作为攻击，一路击败词魔、构筑自己的词典，在生命耗尽前攻克三层地下城。</p>
+
+<h2>游玩条件</h2>
+<table>
+<colgroup><col width="130"/><col width="600"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>项目</p></th><th background-color="light-gray"><p>内容</p></th></tr></thead>
+<tbody>
+<tr><td><p>目标玩家</p></td><td><p>应试学生：大学英语四级首发，后续扩展中高考、六级、考研、雅思</p></td></tr>
+<tr><td><p>平台</p></td><td><p>移动端 H5（竖屏首发），兼容桌面浏览器，无需账号</p></td></tr>
+<tr><td><p>输入</p></td><td><p>点选（选项按钮）+ 拼写（虚拟/物理键盘）</p></td></tr>
+<tr><td><p>玩家关系</p></td><td><p>单人，离线可玩，本地存档（localStorage）</p></td></tr>
+<tr><td><p>单局时长</p></td><td><p>一次远征 3 层，约 11 分钟（68 题，熟练后 8–9 分钟）</p></td></tr>
+<tr><td><p>词库</p></td><td><p>首发四级核心词约 2400 个，按考纲词频分 4 个词境章节；原型内置 60 个样例词</p></td></tr>
+</tbody>
+</table>
+
+<h2>玩家承诺</h2>
+<p>每一次认出单词，都是一次带伤害数字的攻击；每一次迟疑或认错，都会被敌人当场反击。你背的不是题，是武器。</p>
+
+<h2>设计支柱</h2>
+<ol>
+<li><b>每道题都有即时、可读、可归因的后果。</b> 答对看到敌人掉血，答错看到自己挨打，结果能归因到自己的判断。反例：答完只弹一个对错 toast，与战斗无关。</li>
+<li><b>速度换伤害，准确率换生存。</b> 答得越快伤害越高，但匆忙答错会被反击。反例：答题不限时、快慢无差别，玩家可以无限思考。</li>
+<li><b>难度由词库分级驱动。</b> 敌人的 HP 与攻击随词境章节提升，题目从当前章节词库抽取。反例：从全部词库随机抽词，新手撞上考研难词。</li>
+<li><b>错词一定回来找你。</b> 答错的词进入错词本，按间隔重复回归，掌握后才转化为稳定强度。反例：答错只掉血，之后再也见不到这个词。</li>
+</ol>
+
+<h2>核心动词</h2>
+<p>辨认（英→中选义、快速判断）、回想（中→英选词）、拼写（字母格子默写）、抉择（选卡、购物、喝药）。</p>
+
+<h2>循环一句话</h2>
+<p>答题攻击敌人 → 胜利获得词魂与词典卡 → 在节点间恢复、购物、推进 → 击败 Boss 进入下一层 → 错词按遗忘曲线回到你的词卷。</p>
+
+<h2>范围与非目标</h2>
+<ul>
+<li><b>本轮要证明：</b>答题即战斗的瞬时循环成立；速度/准确率取舍真实存在；三选一构筑能驱动重开；错词间隔重复能落地。</li>
+<li><b>明确不做：</b>PVP 与多人、听音辨词（需音频资源）、账号云存档、付费商城、剧情演出、抽牌手牌式管理。</li>
+</ul>
+
+<h2>已裁决的关键结论</h2>
+<ul>
+<li>战斗采用<b>回合内即时结算</b>：每题一次结算，不做移动、瞄准等动作操作。</li>
+<li>构筑采用<b>被动收藏式词典卡</b>：获得即持续生效，不做手牌抽取，避免答题时还要管牌。</li>
+<li>一次远征固定 <b>3 层</b>，每层节点线性推进（分叉路线列入 P1）。</li>
+<li>学习成果不随失败清零：<b>失败时错词与已掌握进度全部保留</b>。</li>
+</ul>
+
+<h1 seq="auto">玩法走读（约 90 秒）</h1>
+<p>远征开始，第 1 层"词境·初醒"。玩家 HP 100、词魂 0、词典页空着。</p>
+<p>第一个节点是普通战，敌人是一只 HP 35 的<b>词魔</b>，攻击 8。屏幕中央出现单词 <b>abandon</b>，下面四个中文选项："放弃；抛弃"、"负担"、"丰富的"、"边界"。玩家在 2.4 秒点下"放弃；抛弃"，屏幕跳出伤害数字 <b>15</b>（基础 10 × 速攻 1.5），连击数跳到 1，词魔血条降到 20。</p>
+<p>第二题 <b>benefit</b>，玩家认得，1.8 秒点对，伤害 <b>16</b>（连击 1 带来 +5%，10 × 1.5 × 1.05 ≈ 15.75，向上取整 16），词魔倒下，跳出"胜利 +15 词魂"，紧接着是<b>三选一</b>：《速记》《灵光乍现》《错词护盾》。玩家想走快攻，选了《速记》（3 秒内答对额外 +30% 伤害）。</p>
+<p>第二个普通战，敌人是<b>易混词妖</b>，它的题选项全是近义词。考到 <b>adapt / adopt</b> 一组时，玩家手快点了"收养"，正确答案是"适应；改编"——屏幕边缘泛红，词妖反击 <b>9</b> 点，HP 降到 91，连击清零，<b>adapt 被记入错词本</b>。</p>
+<p>精英节点是<b>健忘幽灵</b>（HP 100，攻 12），它的题目限时只有 10 秒。玩家放慢节奏，连对 5 题把它打残；期间刚才错过的 <b>adapt</b> 再次出现，这次答对，错词本里它的状态从"待复习"推进到"学习中"。</p>
+<p>随后是<b>复习之泉</b>：恢复 30 HP，HP 回到 100 出头，并快速复习 3 个错词。<b>商店</b>里玩家用攒下的词魂买了一瓶血药（+30 HP，购买即生效）。</p>
+<p>层底 Boss <b>词魇·混沌</b>（HP 180，攻 14）。每答 4 题，它释放"词雾"，下一题限时减半。玩家在一次词雾中来不及，超时挨打 14 点，但凭借《速记》和连击把它在第 9 题击杀，获得稀有卡三选一。</p>
+<p>进入第 2 层时，玩家词典页有 4 张卡、HP 约 95，一套快攻连击流开始成型。</p>
+
+<h1 seq="auto">玩法架构</h1>
+
+<h2>三层循环</h2>
+<table>
+<colgroup><col width="110"/><col width="120"/><col width="300"/><col width="280"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>层级</p></th><th background-color="light-gray"><p>时间尺度</p></th><th background-color="light-gray"><p>玩家做什么</p></th><th background-color="light-gray"><p>传递到下一层的东西</p></th></tr></thead>
+<tbody>
+<tr><td><p>瞬时循环</p></td><td><p>每题 5–14 秒</p></td><td><p>读题、辨认/回想/拼写、作答</p></td><td><p>敌人 HP、玩家 HP/护盾、连击数</p></td></tr>
+<tr><td><p>单局循环</p></td><td><p>约 11 分钟</p></td><td><p>节点推进、战斗、选卡、恢复、购物、打 Boss</p></td><td><p>词典页（被动卡）、词魂、本层词的记忆状态</p></td></tr>
+<tr><td><p>长期循环</p></td><td><p>跨天</p></td><td><p>每天打开：新词 + 到期复习，推进词库进度</p></td><td><p>单词记忆状态、已掌握计数、墨晶（永久升级货币）</p></td></tr>
+</tbody>
+</table>
+
+<h2>瞬时循环因果链</h2>
+<p>题目出现并开始计时 → 玩家读取单词与选项 → 快速作答（赌速攻）或思考后作答（求稳）→ 系统结算：答对=敌人掉血+连击+1，答错/超时=玩家挨打+连击清零 → 伤害数字、血条、颜色与音效反馈 → 敌人存活则出下一题（错词加权再现），敌人倒下则进入胜利与三选一。</p>
+
+<h2>单局结构（每层固定节点）</h2>
+<p align="center"><b>普通战 → 普通战 → 精英战 → 复习之泉 → 商店 → Boss</b></p>
+<ul>
+<li>每层 2 场普通战、1 场精英战、1 个泉、1 个商店、1 个 Boss。</li>
+<li>原型为线性结构；P1 加入分叉路线（精英战可绕行、泉与商店二选一）。</li>
+</ul>
+
+<h2>Game Flow</h2>
+<p>从启动、组卷、节点推进、三选一、Boss、胜负结算到下一局与复习回归的完整状态：</p>
+<whiteboard type="svg" path="@./game-flow.svg"></whiteboard>
+
+<h1 seq="auto">核心机制</h1>
+
+<h2>出题与题型</h2>
+<p>每场战斗从<b>本层词池</b>无放回抽题，题目类型按概率出现：</p>
+<table>
+<colgroup><col width="150"/><col width="80"/><col width="380"/><col width="120"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>题型</p></th><th background-color="light-gray"><p>占比</p></th><th background-color="light-gray"><p>形式</p></th><th background-color="light-gray"><p>认知层级</p></th></tr></thead>
+<tbody>
+<tr><td><p>英→中（EN2CN）</p></td><td><p>55%</p></td><td><p>英文单词 + 4 个中文释义，选正确项</p></td><td><p>再认</p></td></tr>
+<tr><td><p>中→英（CN2EN）</p></td><td><p>15%</p></td><td><p>中文释义 + 4 个英文单词，选正确项</p></td><td><p>反向再认</p></td></tr>
+<tr><td><p>拼写（SPELL）</p></td><td><p>10%</p></td><td><p>中文释义 + 字母格子，逐格默写完整单词</p></td><td><p>主动回忆</p></td></tr>
+<tr><td><p>快速判断（JUDGE）</p></td><td><p>20%</p></td><td><p>英文单词 + 一个中文释义，判断"对 / 错"</p></td><td><p>再认（快速）</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li>干扰项从同章节、同词性、词形相近的词中生成（如 adapt 配 adopt、adept）。</li>
+<li><b>拼写题以字母格子呈现</b>：单词有几个字母划几个格子，逐格填充、当前格高亮；<b>填满后不自动提交</b>（格子金色高亮提示"已填满"），玩家可继续检查修改；按回车立即确认，或<b>等待限时结束自动按当前内容结算</b>（答对正常结算、答错正常受击），提交后整体变绿（逐格回弹）/ 红（整体抖动）。<b>答错时先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案并逐格变绿，同时提示"正确答案：xxx"</b>。</li>
+<li><b>拼写输入保护</b>：关闭自动纠错与自动大写（autocorrect=off / autocapitalize=off），强制拉丁字母键盘（inputmode=latin）；输入采用<b>键盘事件驱动</b>（自维护输入序列、value 仅回显），字母 / 退格 / 回车直接响应、删除键立即可用；对不派发按键事件的输入法按<b>增量合并</b>吸收新字母（兼容插到开头 / 末尾），联想、自动纠错或重排已输入字母的写入一律强制纠正，从根源上杜绝"输入自动反过来 / 丢字母"。</li>
+<li><b>拼写题单词长度受控</b>：只出不超过 8 个字母的词，长词（如 considerable、industrious）只在选择题 / 判断题中出现。</li>
+<li><b>快速判断节奏最快</b>：约一半给出正确释义、一半给出错误释义（错误优先取易混词），只有"对 / 错"两个大按钮，便于快速堆连击、强化心流。</li>
+<li>选择题 / 判断题限时 <b>12 秒</b>；<b>拼写题限时按单词长度动态计算</b>：4 秒基础 + 每字母 2 秒（4 字母词 12 秒、6 字母词 16 秒、8 字母词 20 秒），预留充足反应余量；凝神、Boss 缩短等修饰照常生效。</li>
+<li>拼写题<b>未填满超时惩罚减半</b>（打字慢不等于完全不会）；填满后限时结束按内容正常判定；判定时忽略大小写与首尾空格。</li>
+<li><b>拼写题按提交快慢动态增加伤害</b>：提交时剩余时间比例 ≥60% 伤害 ×2.0，≥40% ×1.6，≥25% ×1.25，其余 ×1.0——越快越高；其余题型保持两档（≤3 秒 1.5、≤6 秒 1.2）。</li>
+</ul>
+
+<h3>词性标注（RULE-POS）</h3>
+<p>每个词带词性，所有题目在题干旁显示词性标签，颜色按词性区分：</p>
+<table>
+<colgroup><col width="140"/><col width="120"/><col width="140"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>词性</p></th><th background-color="light-gray"><p>标签</p></th><th background-color="light-gray"><p>颜色</p></th></tr></thead>
+<tbody>
+<tr><td><p>名词</p></td><td><p>n.</p></td><td><p>蓝</p></td></tr>
+<tr><td><p>动词</p></td><td><p>v.</p></td><td><p>橙</p></td></tr>
+<tr><td><p>形容词</p></td><td><p>adj.</p></td><td><p>绿</p></td></tr>
+<tr><td><p>副词</p></td><td><p>adv.</p></td><td><p>青</p></td></tr>
+<tr><td><p>介词</p></td><td><p>prep.</p></td><td><p>紫</p></td></tr>
+<tr><td><p>连词 / 代词</p></td><td><p>conj. / pron.</p></td><td><p>灰</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li>多词性词显示多个标签（如 advance 为 v./n.）。</li>
+<li>中文释义 + 词性共同锁定唯一答案，解决两类混淆：同形不同词性（record 名词/动词），以及词性不同、拼写不同的 <b>advice（n.）/ advise（v.）</b>、effect（n.）/ affect（v.）。</li>
+<li>干扰项优先取同词性的词，避免靠词性就能排除而弱化词义判断。</li>
+</ul>
+
+<h2>伤害结算（RULE-ANSWER）</h2>
+<p>最终伤害公式：</p>
+<pre lang="text"><code>伤害 = 基础伤害 × 速度系数 × 连击系数 × 熟练度系数 × 卡牌系数</code></pre>
+<table>
+<colgroup><col width="150"/><col width="580"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>系数</p></th><th background-color="light-gray"><p>取值</p></th></tr></thead>
+<tbody>
+<tr><td><p>基础伤害</p></td><td><p>10</p></td></tr>
+<tr><td><p>速度系数</p></td><td><p>选择题 / 判断题：t ≤ 3 秒 1.5；3 &lt; t ≤ 6 秒 1.2；t &gt; 6 秒 1.0。拼写题按提交时剩余时间比例动态：≥60% ×2.0；≥40% ×1.6；≥25% ×1.25；其余 ×1.0</p></td></tr>
+<tr><td><p>连击系数</p></td><td><p>1 + 0.05 × 当前连击数，上限 2.0（即连击 20 封顶）</p></td></tr>
+<tr><td><p>熟练度系数</p></td><td><p>NEW 1.0；LEARNING 1.05；FAMILIAR 1.2；MASTERED 1.4</p></td></tr>
+<tr><td><p>卡牌系数</p></td><td><p>词典卡提供的乘区与加算，见词典卡构筑</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li>答对后连击数 +1；伤害数字向上取整显示（如 15.75 显示 16）。</li>
+<li>结算顺序：答题 → 计算伤害 → 敌人扣血 → 死亡判定 → 发奖 → 三选一。</li>
+</ul>
+<p><b>正常例：</b>连击 3、词状态 FAMILIAR、持有《速记》，2.5 秒答对拼写题：10 × 1.5 × 1.15 × 1.2 × 1.3（速记作用于速攻段）≈ 26.9，显示 27。</p>
+
+<h2>答错与超时（RULE-WRONG）</h2>
+<ul>
+<li>答错或超时：敌人对玩家造成其<b>攻击值</b>的伤害，先扣护盾、再扣 HP；连击数清零。</li>
+<li>该词进入错词本，记忆状态按间隔重复回退，并在<b>本局后续战斗中高概率再现</b>（加权抽题，直到本层答对一次）。</li>
+<li>结算顺序：答题 → 受击（护盾→HP）→ 连击清零 → 错词登记 → 死亡判定 → 下一题。</li>
+<li><b>错误停留 1 秒</b>：答错后错误反馈（红色选项 / 红格 / 红按钮）与受击演出完整停留约 1 秒再进入下一题，看清"错在哪、扣了多少血"；答对仍保持 0.48 秒快节奏。</li>
+<li><b>一屏布局</b>：战斗页压缩至单一视口（低屏自动隐藏战斗微目标行），答题、敌人、玩家状态同屏可见，无需滚动。</li>
+</ul>
+<p><b>边界例：</b>玩家护盾 6、HP 50，答错攻击 10 的敌人：护盾清零，HP 扣 4 降到 46；若 HP 本就为 3，则 HP 归零进入失败结算，不出现负数。</p>
+
+<h2>复仇加成（RULE-REVENGE）</h2>
+<p>之前答错的词进入错词本，再次出现时题头显示橙色"⚔ 再战"徽章并标注本次伤害倍率；这次答对，伤害在正常结算上<b>额外乘复仇系数</b>，并播放红金"复仇"数字、"雪耻"文字、红金粒子与强震动。</p>
+<ul>
+<li>复仇系数按该词<b>累计错过次数</b>递增：第一次错过为 <b>1.5</b>，之后每多错过一次 <b>+0.25</b>，上限 <b>2.0</b>（150% → 175% → 200%）。</li>
+<li>复仇与暴击可叠加（先乘复仇系数，暴击再翻倍），错过多次后一击秒杀的爽感最强。</li>
+<li>复仇成功后该词移出错词本；若再次答错，错过次数继续累加，下次复仇更重。</li>
+</ul>
+<p><b>正常例：</b>calm 错过 1 次，拼写题立即答对（速度 1.5、NEW 1.0、无卡）：10 × 1.5 × 1.0 × 1.5 = 22.5 → 显示"复仇 23"。</p>
+
+<h2>词典卡构筑（RULE-CARD）</h2>
+<ul>
+<li>每场普通战、精英战、Boss 战胜利后，从卡池<b>无放回抽 3 张</b>三选一，可放弃；Boss 后必含 1 张稀有卡。</li>
+<li>已拥有的卡不重复进入候选；卡为<b>持续生效的被动</b>，全部在"词典页"可见。</li>
+<li>一次远征共获得约 12 张卡（普通 6 + 精英 3 + Boss 3），加商店购买 2–3 张，流派成型。</li>
+</ul>
+<p><b>首发卡牌清单（15 张）：</b></p>
+<table>
+<colgroup><col width="120"/><col width="80"/><col width="530"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>卡名</p></th><th background-color="light-gray"><p>稀有度</p></th><th background-color="light-gray"><p>效果</p></th></tr></thead>
+<tbody>
+<tr><td><p>速记</p></td><td><p>普通</p></td><td><p>3 秒内答对的伤害额外 +30%</p></td></tr>
+<tr><td><p>连击大师</p></td><td><p>普通</p></td><td><p>连击 ≥ 8 时，伤害 +50%</p></td></tr>
+<tr><td><p>稳扎稳打</p></td><td><p>普通</p></td><td><p>连击 ≥ 5 时，每答对 3 题恢复 2 HP</p></td></tr>
+<tr><td><p>灵光乍现</p></td><td><p>普通</p></td><td><p>每题 15% 概率暴击，造成双倍伤害</p></td></tr>
+<tr><td><p>默写强化</p></td><td><p>普通</p></td><td><p>拼写题伤害 +80%</p></td></tr>
+<tr><td><p>错词护盾</p></td><td><p>普通</p></td><td><p>每场战斗开始时获得 6 点护盾</p></td></tr>
+<tr><td><p>厚积薄发</p></td><td><p>普通</p></td><td><p>FAMILIAR/MASTERED 的词伤害额外 +20%</p></td></tr>
+<tr><td><p>词魂引力</p></td><td><p>普通</p></td><td><p>战斗胜利获得的词魂 +40%</p></td></tr>
+<tr><td><p>越战越勇</p></td><td><p>普通</p></td><td><p>每进入新一层，该层伤害 +10%</p></td></tr>
+<tr><td><p>致命一击</p></td><td><p>稀有</p></td><td><p>暴击伤害从 ×2 提升为 ×3（同时获得 10% 暴击率）</p></td></tr>
+<tr><td><p>词火</p></td><td><p>稀有</p></td><td><p>每连续答对 4 题，对敌人造成其最大 HP 8% 的真实伤害</p></td></tr>
+<tr><td><p>势如破竹</p></td><td><p>稀有</p></td><td><p>答错时连击不清零，而是降为一半（向下取整）</p></td></tr>
+<tr><td><p>时间掌控</p></td><td><p>稀有</p></td><td><p>题目限时 +3 秒；超时受击伤害减半</p></td></tr>
+<tr><td><p>精准默写</p></td><td><p>稀有</p></td><td><p>拼写题答对恢复 4 HP，且拼写题再 +20% 伤害</p></td></tr>
+<tr><td><p>以退为进</p></td><td><p>稀有</p></td><td><p>每次答错后，下一题伤害 +60%（最多叠加 1 层）</p></td></tr>
+</tbody>
+</table>
+<p><b>构筑流派：</b></p>
+<table>
+<colgroup><col width="110"/><col width="320"/><col width="300"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>流派</p></th><th background-color="light-gray"><p>核心卡</p></th><th background-color="light-gray"><p>玩法</p></th></tr></thead>
+<tbody>
+<tr><td><p>连击流</p></td><td><p>速记 + 连击大师 + 势如破竹</p></td><td><p>追求速答不断连，堆高连击系数</p></td></tr>
+<tr><td><p>暴击流</p></td><td><p>灵光乍现 + 致命一击</p></td><td><p>靠概率爆发，配合高基础伤害</p></td></tr>
+<tr><td><p>拼写流</p></td><td><p>默写强化 + 精准默写</p></td><td><p>拼写题高伤又回血，考主动回忆</p></td></tr>
+<tr><td><p>防御流</p></td><td><p>错词护盾 + 稳扎稳打 + 时间掌控</p></td><td><p>容错高，适合新词多的章节</p></td></tr>
+<tr><td><p>资源流</p></td><td><p>词魂引力 + 厚积薄发</p></td><td><p>多赚词魂、靠熟词输出，购物滚雪球</p></td></tr>
+</tbody>
+</table>
+<p><b>正反例校验：</b>连击流在连对 10 题时伤害可观（连击系数 1.5、连击大师 +50%），但一旦答错且没有《势如破竹》，连击清零、输出骤降——正确选择（持续速答）与错误选择（失误）有可观察的差距。</p>
+
+<h2>单词记忆与间隔重复（RULE-REVIEW）</h2>
+<p>每个单词有四级记忆状态：</p>
+<table>
+<colgroup><col width="130"/><col width="180"/><col width="220"/><col width="120"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>状态</p></th><th background-color="light-gray"><p>含义</p></th><th background-color="light-gray"><p>到期间隔</p></th><th background-color="light-gray"><p>熟练度系数</p></th></tr></thead>
+<tbody>
+<tr><td><p>NEW</p></td><td><p>首次进入词卷</p></td><td><p>答对后 10 分钟</p></td><td><p>1.0</p></td></tr>
+<tr><td><p>LEARNING</p></td><td><p>已认对一次</p></td><td><p>答对后 1 天</p></td><td><p>1.05</p></td></tr>
+<tr><td><p>FAMILIAR</p></td><td><p>进入稳定复习</p></td><td><p>依次 2 / 4 / 7 / 15 天</p></td><td><p>1.2</p></td></tr>
+<tr><td><p>MASTERED</p></td><td><p>走完 15 天复习</p></td><td><p>不再主动出题</p></td><td><p>1.4</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li>答对：状态/间隔沿上表推进；答错：退回 LEARNING，间隔重置为 10 分钟。</li>
+<li>组卷规则：每局约 <b>60% 新词 + 40% 到期复习词</b>；一局 68 题对应约 31 个不同单词（新词 20–25 个），符合一次学习量。</li>
+<li>同层词池复用：新词在一层内平均出现约 2 次，错过的词加权再出现，保证"当层见到、当层记住"。</li>
+</ul>
+
+<h2>敌人</h2>
+<p><b>普通敌人：</b></p>
+<table>
+<colgroup><col width="130"/><col width="300"/><col width="160"/><col width="160"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>敌人</p></th><th background-color="light-gray"><p>出题特性</p></th><th background-color="light-gray"><p>HP（1/2/3 层）</p></th><th background-color="light-gray"><p>攻击（1/2/3 层）</p></th></tr></thead>
+<tbody>
+<tr><td><p>词魔</p></td><td><p>标准混合题型</p></td><td><p>35 / 45 / 55</p></td><td><p>8 / 10 / 12</p></td></tr>
+<tr><td><p>易混词妖</p></td><td><p>强制英→中，选项为近义/形近干扰</p></td><td><p>40 / 50 / 60</p></td><td><p>9 / 11 / 13</p></td></tr>
+<tr><td><p>拼写守卫</p></td><td><p>强制拼写题</p></td><td><p>45 / 55 / 65</p></td><td><p>10 / 12 / 14</p></td></tr>
+</tbody>
+</table>
+<p><b>精英敌人：</b></p>
+<table>
+<colgroup><col width="130"/><col width="300"/><col width="160"/><col width="160"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>敌人</p></th><th background-color="light-gray"><p>机制</p></th><th background-color="light-gray"><p>HP（1/2/3 层）</p></th><th background-color="light-gray"><p>攻击（1/2/3 层）</p></th></tr></thead>
+<tbody>
+<tr><td><p>健忘幽灵</p></td><td><p>题目限时 −2 秒</p></td><td><p>100 / 130 / 160</p></td><td><p>12 / 14 / 16</p></td></tr>
+<tr><td><p>多义词魔</p></td><td><p>考察熟词僻义，干扰项为该词其他释义</p></td><td><p>110 / 140 / 170</p></td><td><p>13 / 15 / 17</p></td></tr>
+</tbody>
+</table>
+<p><b>Boss：</b></p>
+<table>
+<colgroup><col width="180"/><col width="70"/><col width="70"/><col width="430"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>Boss</p></th><th background-color="light-gray"><p>HP</p></th><th background-color="light-gray"><p>攻击</p></th><th background-color="light-gray"><p>机制</p></th></tr></thead>
+<tbody>
+<tr><td><p>词魇·混沌（第1层）</p></td><td><p>180</p></td><td><p>14</p></td><td><p>每答 4 题释放"词雾"，下一题限时减半（6 秒）</p></td></tr>
+<tr><td><p>词魇·迷雾（第2层）</p></td><td><p>240</p></td><td><p>16</p></td><td><p>每答 3 题触发"错位"，下一题选项位置高速闪动后定格，需重新辨认</p></td></tr>
+<tr><td><p>词魇·深渊（第3层）</p></td><td><p>300</p></td><td><p>18</p></td><td><p>HP 低于 50% 狂暴：限时 −2 秒、攻击 +4</p></td></tr>
+</tbody>
+</table>
+<p>敌人在战斗界面顶部显示 HP 条与攻击值（"答错将受到 X 点伤害"始终可见），玩家作答前就能读出错的代价。</p>
+
+<h2>复习之泉与商店（RULE-SHOP）</h2>
+<p><b>复习之泉</b>（每层 1 个）：</p>
+<ul>
+<li>恢复 30 HP；随后快速复习 3 个错词，每答对 1 题额外恢复 2 HP。</li>
+<li>复习题不造成战斗伤害，答错仅标记，不扣血。</li>
+</ul>
+<p><b>词境商店</b>（每层 1 个）：</p>
+<table>
+<colgroup><col width="160"/><col width="130"/><col width="460"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>商品</p></th><th background-color="light-gray"><p>价格（词魂）</p></th><th background-color="light-gray"><p>效果</p></th></tr></thead>
+<tbody>
+<tr><td><p>血药</p></td><td><p>30</p></td><td><p>购买即回 30 HP（不超过上限）</p></td></tr>
+<tr><td><p>普通词典卡</p></td><td><p>50</p></td><td><p>从随机 2 张普通卡中选 1</p></td></tr>
+<tr><td><p>稀有词典卡</p></td><td><p>85</p></td><td><p>从随机 2 张稀有卡中选 1</p></td></tr>
+<tr><td><p>临时祝福</p></td><td><p>40</p></td><td><p>下一层伤害 +25%</p></td></tr>
+</tbody>
+</table>
+
+<h2>失败、结算与重开</h2>
+<ul>
+<li>玩家 HP 归零：远征失败。<b>错词本、记忆状态、已掌握进度全部保留</b>，仅本局未结算的题目作废。</li>
+<li>结算页显示：本局题数、正确率、最高连击、新学词数、复习词数、本次获得的词；失败/通关都获得少量墨晶（P1 永久升级货币）。</li>
+<li>点击"再战"无需刷新页面即可重新组卷开新局；通关后可选择"进入下一章节"（P1）。</li>
+</ul>
+
+<h2>心流与专注（RULE-FLOW）</h2>
+<p>心流是连续答对时进入的专注状态，凝神是连续受挫时的一次温和托底，二者共同把"挑战—技能"维持在可玩区间。</p>
+<p><b>心流（Flow）：</b>连击数达到 <b>5</b>（跨战斗累积，只要不答错）时进入心流——顶部"心流"横幅、敌人卡片青色呼吸光晕、连击数字转青色发光，每答对 1 题额外获得 <b>1 词魂</b>；答错或超时即心流中断、连击清零。普通战只有 2–3 题，心流主要在精英、Boss 战以及跨战斗连胜中触发。</p>
+<p><b>凝神（Focus）：</b>连续答错/超时达到 <b>2</b> 次，下一题自动限时 <b>+2 秒</b>并显示"凝神：本题限时 +2 秒"，只对这一题生效；继续答错会再次触发。这是玩家可见的辅助，不偷偷改攻击或血值。</p>
+<p><b>战斗微目标：</b>每场战斗开始随机一个即时小目标，完成当场给奖励：</p>
+<table>
+<colgroup><col width="300"/><col width="200"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>目标</p></th><th background-color="light-gray"><p>奖励</p></th></tr></thead>
+<tbody>
+<tr><td><p>本场连击达到 4</p></td><td><p>+6 HP</p></td></tr>
+<tr><td><p>本场答对 5 题</p></td><td><p>+6 词魂</p></td></tr>
+<tr><td><p>本场无错击败敌人</p></td><td><p>+10 词魂</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li>目标进度显示在敌人卡片上，完成时高亮并弹出奖励数字，把 11 分钟的远征切成十几个几秒内可达成的小反馈。</li>
+<li>答对到下一题的过渡由 620ms 缩短到 <b>480ms</b>，连击段几乎无停顿，让连续答对有"停不下来"的手感。</li>
+</ul>
+
+<h2>战斗演出与打击感（RULE-FX）</h2>
+<p>答对 / 答错的战斗结果通过多层演出强化，让"答题即攻击"有肉眼可见的重量与冲击：</p>
+<p><b>攻击（答对）</b></p>
+<ol>
+<li><b>出招</b>：作答瞬间一道斩击光波从玩家方向（底部）射向敌人（约 150ms）。</li>
+<li><b>命中顿帧</b>：光波到达时敌人短暂闪白、轻微定格（hit-stop），伤害数字与 HP 条在此时同步结算。</li>
+<li><b>击退</b>：敌人卡片向受击方向位移并轻微缩放后回弹；暴击时击退更强、卡片倾斜旋转。</li>
+<li><b>命中特效</b>：命中点迸出冲击环 + 金色星屑粒子（暴击为橙色、数量更多）。</li>
+<li><b>伤害数字</b>：从命中点弹出并上浮，先放大再回落；暴击数字更大、带旋转。</li>
+<li><b>屏幕震动</b>：普通命中轻微震动，暴击为更强的多段震动。</li>
+<li><b>连击反馈</b>：连击数字每答对一次弹动（pulse），并即时更新数值。</li>
+</ol>
+<p><b>受击（玩家答错 / 超时）</b>：屏幕强震动 + 红色闪屏，四边红色暗角短暂闪烁，受击点迸出红色粒子；<b>HP ≤ 30 时暗角持续脉动</b>，营造危险感。</p>
+<p><b>敌人死亡</b>：HP 归零时先播放终结（缩放 + 强闪），随后上飘消散，同时爆出金色 + 白色粒子，约 0.5 秒后进入三选一，让击杀有"终结感"。</p>
+<p><b>升级</b>：账号等级提升时全屏金色光柱升起、金色闪屏，中央弹出"LEVEL UP + 词灵使 Lv.N"并爆发金色粒子，约 1.4 秒，把成长做成高光时刻。</p>
+
+<h1 seq="auto">长期成长与留存</h1>
+<p>长期系统让"再来一局"有持续的理由。账号等级、每日目标、连续打卡、成就都在本地存档，无需账号。</p>
+<whiteboard type="svg" path="@./flow-retention.svg"></whiteboard>
+<h2>词灵使等级（XP）</h2>
+<ul>
+<li>答对 1 题 +2 XP，新学 1 词额外 +5 XP，词进入 MASTERED 额外 +10 XP。</li>
+<li>升级所需 XP = 120 × 当前等级（Lv.1→2 需 120，Lv.2→3 需 240，依次递增）。</li>
+<li>首页与结算页显示等级徽章和 XP 进度条；等级在 P1 解锁新卡、新皮肤与章节。</li>
+</ul>
+<h2>每日目标</h2>
+<p>每天 3 个目标，按本地日期零点重置：答对 40 题、新学 15 词、完成 1 次远征。首页显示每项进度，完成打勾。</p>
+<h2>连续打卡（Streak）</h2>
+<p>完成一次远征即当天打卡，连续天数 +1，首页显示火焰和天数；昨天打卡、今天继续则 +1，中间断一天则重置为 1；连续 3 天、7 天分别解锁成就。</p>
+<h2>成就（12 项）</h2>
+<p>成就覆盖战斗、构筑、掌握、打卡四类，解锁时顶部弹出"成就解锁"提示，首页成就墙展示：</p>
+<table>
+<colgroup><col width="140"/><col width="420"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>类别</p></th><th background-color="light-gray"><p>成就</p></th></tr></thead>
+<tbody>
+<tr><td><p>战斗</p></td><td><p>初战告捷（Boss1）、穿透迷雾（Boss2）、征服深渊（Boss3）、远征通关</p></td></tr>
+<tr><td><p>连击 / 输出</p></td><td><p>连击高手（连击 10）、弹无虚发（单局答对 50）</p></td></tr>
+<tr><td><p>构筑</p></td><td><p>初具规模（5 卡）、词典大成（10 卡）</p></td></tr>
+<tr><td><p>掌握</p></td><td><p>渐入佳境（掌握 30）、词汇达人（掌握 60）</p></td></tr>
+<tr><td><p>打卡</p></td><td><p>坚持不懈（3 天）、一周不辍（7 天）</p></td></tr>
+</tbody>
+</table>
+<h2>词库进度与 P1 永久升级</h2>
+<ul>
+<li>词库进度：已掌握 X / 2400，按章节解锁，已掌握词标金。</li>
+<li>P1 墨晶永久升级：初始 HP +20、起手词魂 +30、每场战斗首次答错不扣血等。</li>
+</ul>
+
+<h1 seq="auto">首个可玩范围（P0）与验证</h1>
+<p><b>P0（本次原型交付）：</b></p>
+<ul>
+<li>3 层完整远征，每层节点：普通战 ×2、精英战、复习之泉、商店、Boss。</li>
+<li>61 个样例词（分 3 个难度档对应 3 层，含 advice/advise 词性对比词对），4 种题型（英→中、中→英、拼写格子、快速判断）。</li>
+<li>词性标注（所有题型）、心流、凝神、战斗微目标。</li>
+<li>战斗演出：斩击、命中顿帧、粒子、屏幕震动、受击暗角、死亡消散、升级光柱（RULE-FX）。</li>
+<li>复仇加成：错过的词答对伤害更高，按错过次数递增，红金复仇特效（RULE-REVENGE）。</li>
+<li>15 张词典卡、6 种普通/精英敌人、3 个 Boss 及其机制。</li>
+<li>间隔重复与错词本（localStorage 持久化）、局后结算、无刷新重开。</li>
+<li>账号等级（XP）、每日目标、连续打卡、12 项成就。</li>
+</ul>
+<p><b>P1：</b>分叉路线、墨晶永久升级、完整四级词库与后续考纲、章节解锁、等级解锁新卡与皮肤。</p>
+<p><b>非目标：</b>PVP/多人、听音辨词、账号云存档、付费系统、剧情演出、动作操作型战斗。</p>
+<p><b>验证假设与阈值：</b></p>
+<ul>
+<li><b>核心假设：</b>玩家会为了速攻加成快速作答，但在被反击（或血线告急）后主动降速求稳，而不是始终无脑快答或无限思考。</li>
+<li><b>通过条件：</b>标准路径 3 层、68 题、约 11 分钟，正确率约 85% 的中等玩家可通关；失败路径连续答错可导致失败，且失败后错词保留、能无刷新重开；复习路径答错的词在后续战斗/泉中再现，答对后记忆状态推进；一局接触约 31 个不同词，新词 20–25 个。</li>
+<li><b>护栏信号：</b>若试玩中玩家因"怕答错"而普遍超过 8 秒/题，说明压力过大，下调敌人攻击或提高泉水恢复，而不是去掉速度加成。</li>
+</ul>
+<p><b>关键数值（已用计算工具复算）：</b></p>
+<table>
+<colgroup><col width="200"/><col width="120"/><col width="420"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>指标</p></th><th background-color="light-gray"><p>数值</p></th><th background-color="light-gray"><p>口径</p></th></tr></thead>
+<tbody>
+<tr><td><p>无卡平均每题伤害</p></td><td><p>14.4</p></td><td><p>10 × 1.2（速度）× 1.2（平均连击）</p></td></tr>
+<tr><td><p>普通怪击杀题数</p></td><td><p>2–4</p></td><td><p>35–55 HP / 14.4</p></td></tr>
+<tr><td><p>Boss 击杀题数</p></td><td><p>8–10</p></td><td><p>180–300 HP / 中阶构筑 22–30</p></td></tr>
+<tr><td><p>每层承伤</p></td><td><p>29.6 / 41.9 / 55.2</p></td><td><p>正确率 85–88%</p></td></tr>
+<tr><td><p>泉水总恢复</p></td><td><p>90</p></td><td><p>3 × 30</p></td></tr>
+<tr><td><p>净承伤（扣泉水）</p></td><td><p>36.7</p></td><td><p>修复拼写判定后，中等玩家可较顺畅通关</p></td></tr>
+<tr><td><p>一局总题数</p></td><td><p>68</p></td><td><p>普通 22 + 精英 19 + Boss 27</p></td></tr>
+<tr><td><p>一局总时长</p></td><td><p>约 11 分钟</p></td><td><p>68 × 7 秒 + 节点操作 200 秒</p></td></tr>
+<tr><td><p>词魂收入</p></td><td><p>375</p></td><td><p>每层 125（普通 30 + 精英 35 + Boss 60）</p></td></tr>
+<tr><td><p>商店消费</p></td><td><p>约 125/店</p></td><td><p>稀有 85 + 祝福 40 等组合，恰好花完</p></td></tr>
+<tr><td><p>一局 XP 收入</p></td><td><p>约 266–341</p></td><td><p>答对 116 + 新学 100–125 + 掌握 50–100</p></td></tr>
+<tr><td><p>升级节奏</p></td><td><p>1–2 局升 1 级</p></td><td><p>Lv1→2 需 120，累计 360 升 2 级</p></td></tr>
+<tr><td><p>心流词魂</p></td><td><p>每题 +1</p></td><td><p>连击≥5 期间，答错即中断</p></td></tr>
+<tr><td><p>战斗微目标</p></td><td><p>6 HP / 6–10 词魂</p></td><td><p>每场随机一个，即时结算</p></td></tr>
+<tr><td><p>每日目标</p></td><td><p>一局即可完成</p></td><td><p>答对 40 题、新学 15 词、远征 1 次</p></td></tr>
+</tbody>
+</table>
+
+<h1 seq="auto">可玩原型与交付</h1>
+<p>下方为可直接在文档内试玩的 HTML 原型（单文件、离线、无需依赖）：点选答案作答，拼写题在字母格子中逐格输入、填满自动提交，判断题点对 / 错；攻击、受击、死亡与升级均有打击演出。界面顶部为敌人与 HP，左下角为玩家 HP/护盾/词魂，右下角为连击。原型不覆盖听音、多人、云存档、付费与完整词库。</p>
+<html5-block path="@./word-dungeon-demo.html"></html5-block>
+<p>同一验收版本的单文件 HTML 源码（可下载、留档、复现与交接）：</p>
+<figure view-type="Card"><source path="@./word-dungeon-demo.html" name="word-dungeon-demo.html"></source></figure>

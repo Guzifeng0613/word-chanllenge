@@ -1,0 +1,1506 @@
+{
+  "schema_version": "6.0",
+  "task": {
+    "title": "单词地下城 Word Dungeon - 应试学生向单词战斗 Roguelike",
+    "source_text": "想做一个背单词的游戏。经确认：目标玩家为应试学生（中高考/四六级/考研/雅思），核心玩法为单词战斗 Roguelike（答题即攻击，连击、技能、卡组构筑，单局5-10分钟），交付物为完整 GDD 飞书云文档 + 可玩 HTML 原型 Demo。",
+    "readiness_target": "prototype",
+    "flags": {
+      "capacity": false,
+      "handoff": true,
+      "html": true,
+      "lifecycle": true,
+      "numbers": true,
+      "persistence": true,
+      "probability": true,
+      "production": false,
+      "resources": true,
+      "scope_constraints": false
+    }
+  },
+  "authority": {
+    "allowed_changes": [],
+    "forbidden_changes": [],
+    "proposed_changes": []
+  },
+  "assumptions": [
+    {
+      "id": "ASM-TIME",
+      "statement": "中等熟练玩家平均每题从读到答出约 5 秒，含战斗结算与节点操作平均每题约 7 秒",
+      "impact": "high",
+      "status": "test_value",
+      "validation": "真人试玩校准；若实际均值超过 8 秒，下调敌人 HP 与每层节点数"
+    },
+    {
+      "id": "ASM-ACCURACY",
+      "statement": "同层词池复用条件下，普通战正确率约 85%，精英 85%，Boss 约 88%",
+      "impact": "high",
+      "status": "test_value",
+      "validation": "试玩统计；若低于 80%，下调敌人攻击值或提高泉水恢复量"
+    }
+  ],
+  "rules": [
+    {
+      "id": "RULE-ANSWER",
+      "title": "答题结算",
+      "definition": "题目出现后开始计时。玩家在 t<=3 秒答对，伤害为基础值的 1.5 倍；3<t<=6 秒为 1.2 倍；t>6 秒为 1.0 倍。最终伤害 = 基础伤害 × 速度系数 × (1 + 0.05×连击数，上限 2.0) × 熟练度系数 × 卡牌系数。答对后连击数 +1。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-BASE-DMG",
+        "PAR-SPEED-T1",
+        "PAR-SPEED-T2",
+        "PAR-SPEED-M1",
+        "PAR-SPEED-M2",
+        "PAR-COMBO-STEP",
+        "PAR-COMBO-CAP"
+      ],
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "battle.answer_resolution"
+      ]
+    },
+    {
+      "id": "RULE-WRONG",
+      "title": "答错与超时",
+      "definition": "玩家答错或超过题目限时（默认 12 秒）未作答，敌人立即对玩家造成其攻击值的伤害（先扣护盾再扣 HP），连击数清零，该词进入错词本并在本局后续高概率再现。答错后错误反馈（红色选项/红格/红按钮）与受击演出停留约1秒再进入下一题；答对保持0.48秒快节奏。战斗页压缩至单一视口（低屏隐藏战斗微目标行），无需滚动。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-QUESTION-TIMEOUT"
+      ],
+      "state_machine_ids": [
+        "SM-BATTLE",
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "battle.wrong_answer",
+        "battle.wrong_pause_1s",
+        "layout.single_viewport"
+      ]
+    },
+    {
+      "id": "RULE-CARD",
+      "title": "三选一词典卡",
+      "definition": "每场普通战、精英战、Boss 战胜利后，从当前卡池无放回抽取 3 张卡供玩家选择其一（Boss 后必含稀有卡），也可放弃。获得的卡为持续生效的被动。已拥有的卡不重复进入候选。",
+      "priority": "P0",
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "cards.pick_one_of_three"
+      ]
+    },
+    {
+      "id": "RULE-REVIEW",
+      "title": "间隔重复",
+      "definition": "单词记忆状态 NEW/LEARNING/FAMILIAR/MASTERED。NEW 答对转 LEARNING，10 分钟后到期；LEARNING 答对转 FAMILIAR，1 天后到期；FAMILIAR 后每次在到期复习中答对，间隔按 2/4/7/15 天递进，走完 15 天转 MASTERED。任意状态答错退回 LEARNING 并重置 10 分钟。每局组卷由约 60% 新词与 40% 到期复习词组成。",
+      "priority": "P0",
+      "state_machine_ids": [
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "review.spaced_repetition"
+      ]
+    },
+    {
+      "id": "RULE-SHOP",
+      "title": "词境商店与复习之泉",
+      "definition": "每层 1 个商店节点。血药 30 词魂（回 30 HP），普通卡 50 词魂，稀有卡 85 词魂，临时祝福（下一层伤害+25%）40 词魂。每层 1 个复习之泉节点，恢复 25 HP 并快速复习 3 个错词。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-PRICE-POTION",
+        "PAR-PRICE-NORMAL",
+        "PAR-PRICE-RARE",
+        "PAR-PRICE-BLESS",
+        "PAR-SPRING-HEAL"
+      ],
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "shop.offerings"
+      ]
+    },
+    {
+      "id": "RULE-POS",
+      "title": "词性标注",
+      "definition": "每个词带词性（n./v./adj./adv./prep./conj./pron.），所有题目在题干旁显示词性标签，颜色按词性区分（n.蓝、v.橙、adj.绿、adv.青、prep.紫、conj./pron.灰）。中文释义+词性共同锁定唯一答案，区分同形不同词性（record）与词性不同拼写不同（advice n./advise v.）。干扰项优先同词性。",
+      "priority": "P0",
+      "state_machine_ids": [],
+      "authority_ids": [],
+      "fields": [
+        "content.pos_tag"
+      ]
+    },
+    {
+      "id": "RULE-FLOW",
+      "title": "心流、凝神与战斗微目标",
+      "definition": "连击数（跨战斗累积，答错清零）达到5进入心流：顶部横幅、敌人青色光晕、连击数字发光，每答对额外+1词魂；答错/超时心流中断。连续答错2次，下一题限时+2秒并显示凝神横幅，只对本题生效。每场战斗随机一个微目标（连击4奖6HP、答对5题奖6词魂、无错击败奖10词魂），即时结算。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-FLOW-THRESHOLD",
+        "PAR-FOCUS-STREAK",
+        "PAR-FOCUS-TIME"
+      ],
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "flow.state",
+        "focus.protection",
+        "battle.micro_goal"
+      ]
+    },
+    {
+      "id": "RULE-META",
+      "title": "账号等级、每日目标、打卡与成就",
+      "definition": "答对+2XP、新学+5XP、掌握+10XP，升级所需XP=120×当前等级。每日3目标（答对40题、新学15词、远征1次）按本地日期零点重置。完成远征当天打卡，连续天数+1，断一天重置。12项成就解锁时顶部弹窗，首页成就墙展示。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-XP-CORRECT",
+        "PAR-XP-NEW",
+        "PAR-XP-MASTER",
+        "PAR-XP-BASE"
+      ],
+      "state_machine_ids": [],
+      "authority_ids": [],
+      "fields": [
+        "meta.level",
+        "meta.daily",
+        "meta.streak",
+        "meta.achievements"
+      ]
+    },
+    {
+      "id": "RULE-FX",
+      "title": "战斗演出与打击感",
+      "definition": "答对：作答瞬间斩击光波从玩家射向敌人（约150ms），到达时敌人闪白、短暂顿帧（hit-stop），HP与伤害数字同步结算；敌人受击退缩放（暴击更强、倾斜旋转），命中点迸出冲击环+粒子（暴击橙色更多），伤害数字弹动，普通命中轻微震动、暴击强震动，连击数字弹动并即时更新。玩家受击：强震动+红色闪屏+四边红色暗角闪烁+红色粒子；HP≤30时暗角持续脉动。敌人死亡：终结缩放强闪后上飘消散，爆出金白粒子，约0.5秒进入三选一。升级：全屏金色光柱、闪屏、LEVEL UP卡片与金色粒子爆发，约1.4秒。答对正确项绿色闪光、答错选项/格子/按钮红色抖动脉冲，错误反馈在停留期内持续可读。",
+      "priority": "P0",
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "fx.hit",
+        "fx.hurt",
+        "fx.death",
+        "fx.levelup",
+        "fx.feedback_pulse"
+      ]
+    },
+    {
+      "id": "RULE-FORM",
+      "title": "拼写字母格子与快速判断",
+      "definition": "拼写题以字母格子呈现：单词有几个字母划几个格子，逐格填充、当前格高亮；填满后不自动提交（格子金色高亮提示），回车立即确认或限时结束自动按当前内容结算（答对正常结算、答错正常受击），提交后整体变绿（逐格回弹）/红（整体抖动）；答错时先红抖展示玩家拼写，约0.6秒后格子替换为正确答案逐格变绿并提示“正确答案：xxx”。拼写题只出≤8字母的词，长词只在选择题/判断题出现。拼写限时按单词长度动态计算：4秒基础+每字母2秒（4字母12秒/8字母20秒），预留反应余量；未填满超时惩罚减半。拼写题速度按提交时剩余时间比例动态分档：≥60%×2.0、≥40%×1.6、≥25%×1.25、其余×1.0；其余题型两档（≤3秒1.5/≤6秒1.2）。拼写输入关闭自动纠错/自动大写（autocorrect=off/autocapitalize=off）并强制拉丁键盘（inputmode=latin）；输入由键盘事件驱动（自维护输入序列、value 仅回显），字母/退格/回车直接响应、删除键立即可用；不派发按键事件的输入法按增量合并吸收新字母（兼容插到开头/末尾），联想、自动纠错或重排已输入字母的写入一律强制纠正。快速判断题：单词+一个中文释义，约一半正确一半错误（错误优先取易混词），两个大按钮判对错，节奏快、易堆连击。",
+      "priority": "P0",
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "form.spell_cells",
+        "form.spell_timer",
+        "form.spell_speed",
+        "form.spell_answer_reveal",
+        "form.judge"
+      ]
+    },
+    {
+      "id": "RULE-WRONG-BOOK",
+      "title": "错词分级练习",
+      "definition": "答错/超时的词归档进错词本，按累计错误次数分三级：L3顽固（≥3次，战斗抽题权重×3，复习最先）、L2易错（2次，权重×2）、L1生疏（1次，权重×1，复习最后）。战斗内错词抽题在60%优先基础上加权随机，存在L2/L3时错词出现率提升至75%。复习之泉与错词本一键复习均按顽固→易错→生疏排序出题（最多3个），答对移出错词本，答错次数累加继续出。主页常驻错词本入口（分级统计），错词本页三级分组展示词/词性/常用释义/错误次数，一键开始复习，复习完返回错词本。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-REVIEW-COUNT"
+      ],
+      "state_machine_ids": [
+        "SM-BATTLE",
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "wrongbook.grading",
+        "wrongbook.weight",
+        "wrongbook.ui"
+      ]
+    },
+    {
+      "id": "RULE-REVENGE",
+      "title": "复仇加成",
+      "definition": "之前答错的词进入错词本，再次出现时题头显示橙色“再战”徽章并标注伤害倍率；答对时伤害在正常结算上额外乘复仇系数，播放红金复仇数字、雪耻文字、红金粒子与强震动。复仇系数按累计错过次数递增：第一次1.5，之后每多错过一次+0.25，上限2.0；与暴击可叠加（先乘复仇、暴击再翻倍）；复仇成功移出错词本，再答错则错过次数继续累加。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-REVENGE-BASE",
+        "PAR-REVENGE-PER",
+        "PAR-REVENGE-CAP"
+      ],
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "revenge.bonus"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "id": "PAR-PLAYER-HP",
+      "name": "player_max_hp",
+      "value": 100,
+      "unit": "hp",
+      "source": "design_initial",
+      "min": 60,
+      "max": 160
+    },
+    {
+      "id": "PAR-BASE-DMG",
+      "name": "base_damage",
+      "value": 10,
+      "unit": "damage",
+      "source": "design_initial",
+      "min": 6,
+      "max": 16
+    },
+    {
+      "id": "PAR-SPEED-T1",
+      "name": "speed_threshold_fast",
+      "value": 3,
+      "unit": "second",
+      "source": "design_initial",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "id": "PAR-SPEED-T2",
+      "name": "speed_threshold_normal",
+      "value": 6,
+      "unit": "second",
+      "source": "design_initial",
+      "min": 4,
+      "max": 8
+    },
+    {
+      "id": "PAR-SPEED-M1",
+      "name": "speed_multiplier_fast",
+      "value": 1.5,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 1.2,
+      "max": 2.0
+    },
+    {
+      "id": "PAR-SPEED-M2",
+      "name": "speed_multiplier_normal",
+      "value": 1.2,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 1.0,
+      "max": 1.4
+    },
+    {
+      "id": "PAR-SPELL-TIME-BASE",
+      "name": "spell_time_base",
+      "value": 4,
+      "unit": "second",
+      "source": "design_initial",
+      "min": 3,
+      "max": 6
+    },
+    {
+      "id": "PAR-SPELL-TIME-PERCHAR",
+      "name": "spell_time_per_char",
+      "value": 2,
+      "unit": "second/letter",
+      "source": "design_initial",
+      "min": 1.5,
+      "max": 3
+    },
+    {
+      "id": "PAR-COMBO-STEP",
+      "name": "combo_bonus_per_stack",
+      "value": 0.05,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 0.02,
+      "max": 0.1
+    },
+    {
+      "id": "PAR-COMBO-CAP",
+      "name": "combo_bonus_cap",
+      "value": 1.0,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 0.5,
+      "max": 2.0
+    },
+    {
+      "id": "PAR-QUESTION-TIMEOUT",
+      "name": "question_timeout",
+      "value": 12,
+      "unit": "second",
+      "source": "design_initial",
+      "min": 8,
+      "max": 20
+    },
+    {
+      "id": "PAR-SPRING-HEAL",
+      "name": "spring_heal",
+      "value": 25,
+      "unit": "hp",
+      "source": "design_initial",
+      "min": 15,
+      "max": 40
+    },
+    {
+      "id": "PAR-REVIEW-COUNT",
+      "name": "wrongbook_review_count",
+      "value": 3,
+      "unit": "words",
+      "source": "design_initial",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "id": "PAR-PRICE-POTION",
+      "name": "price_potion",
+      "value": 30,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 20,
+      "max": 50
+    },
+    {
+      "id": "PAR-PRICE-NORMAL",
+      "name": "price_normal_card",
+      "value": 50,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 35,
+      "max": 70
+    },
+    {
+      "id": "PAR-PRICE-RARE",
+      "name": "price_rare_card",
+      "value": 85,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 60,
+      "max": 120
+    },
+    {
+      "id": "PAR-PRICE-BLESS",
+      "name": "price_blessing",
+      "value": 40,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 25,
+      "max": 60
+    },
+    {
+      "id": "PAR-GOLD-NORMAL",
+      "name": "gold_reward_normal",
+      "value": 15,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 10,
+      "max": 25
+    },
+    {
+      "id": "PAR-GOLD-ELITE",
+      "name": "gold_reward_elite",
+      "value": 35,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 25,
+      "max": 50
+    },
+    {
+      "id": "PAR-GOLD-BOSS",
+      "name": "gold_reward_boss",
+      "value": 60,
+      "unit": "soul",
+      "source": "design_initial",
+      "min": 45,
+      "max": 90
+    },
+    {
+      "id": "PAR-NORMAL-HP",
+      "name": "normal_enemy_hp_f1",
+      "value": 35,
+      "unit": "hp",
+      "source": "design_initial",
+      "min": 25,
+      "max": 60
+    },
+    {
+      "id": "PAR-BOSS-HP",
+      "name": "boss_hp_f1",
+      "value": 180,
+      "unit": "hp",
+      "source": "design_initial",
+      "min": 150,
+      "max": 220
+    },
+    {
+      "id": "PAR-AVG-SPEED",
+      "name": "avg_speed_mult",
+      "value": 1.2,
+      "unit": "x",
+      "source": "calculated",
+      "min": 1.0,
+      "max": 1.5
+    },
+    {
+      "id": "PAR-AVG-COMBO",
+      "name": "avg_combo_mult",
+      "value": 1.2,
+      "unit": "x",
+      "source": "calculated",
+      "min": 1.0,
+      "max": 1.5
+    },
+    {
+      "id": "PAR-DPP-BASE",
+      "name": "dpp_base",
+      "value": 14.4,
+      "unit": "damage",
+      "source": "calculated",
+      "min": 12,
+      "max": 18
+    },
+    {
+      "id": "PAR-DPP-MID",
+      "name": "dpp_mid_build",
+      "value": 22,
+      "unit": "damage",
+      "source": "calculated",
+      "min": 18,
+      "max": 28
+    },
+    {
+      "id": "PAR-DMG-L1",
+      "name": "damage_taken_l1",
+      "value": 29.64,
+      "unit": "hp",
+      "source": "calculated",
+      "min": 20,
+      "max": 45
+    },
+    {
+      "id": "PAR-DMG-L2",
+      "name": "damage_taken_l2",
+      "value": 41.88,
+      "unit": "hp",
+      "source": "calculated",
+      "min": 30,
+      "max": 60
+    },
+    {
+      "id": "PAR-DMG-L3",
+      "name": "damage_taken_l3",
+      "value": 55.2,
+      "unit": "hp",
+      "source": "calculated",
+      "min": 40,
+      "max": 75
+    },
+    {
+      "id": "PAR-SPRING-TOTAL",
+      "name": "spring_total_heal",
+      "value": 75,
+      "unit": "hp",
+      "source": "calculated",
+      "min": 60,
+      "max": 100
+    },
+    {
+      "id": "PAR-Q-NORMAL",
+      "name": "questions_normal_total",
+      "value": 22,
+      "unit": "question",
+      "source": "calculated",
+      "min": 15,
+      "max": 30
+    },
+    {
+      "id": "PAR-Q-ELITE",
+      "name": "questions_elite_total",
+      "value": 19,
+      "unit": "question",
+      "source": "calculated",
+      "min": 12,
+      "max": 28
+    },
+    {
+      "id": "PAR-Q-BOSS",
+      "name": "questions_boss_total",
+      "value": 27,
+      "unit": "question",
+      "source": "calculated",
+      "min": 20,
+      "max": 36
+    },
+    {
+      "id": "PAR-Q-TOTAL",
+      "name": "questions_total",
+      "value": 68,
+      "unit": "question",
+      "source": "calculated",
+      "min": 60,
+      "max": 80
+    },
+    {
+      "id": "PAR-SEC-PER-Q",
+      "name": "seconds_per_question",
+      "value": 7,
+      "unit": "second",
+      "source": "calculated",
+      "min": 6,
+      "max": 9
+    },
+    {
+      "id": "PAR-NODE-TIME",
+      "name": "node_operation_time",
+      "value": 200,
+      "unit": "second",
+      "source": "calculated",
+      "min": 120,
+      "max": 300
+    },
+    {
+      "id": "PAR-GOLD-PER-LAYER",
+      "name": "gold_per_layer",
+      "value": 125,
+      "unit": "soul",
+      "source": "calculated",
+      "min": 100,
+      "max": 150
+    },
+    {
+      "id": "PAR-OVERKILL",
+      "name": "boundary_overkill",
+      "value": 130,
+      "unit": "hp",
+      "source": "calculated",
+      "min": 100,
+      "max": 200
+    },
+    {
+      "id": "PAR-FLOW-THRESHOLD",
+      "name": "flow_threshold",
+      "value": 5,
+      "unit": "combo",
+      "source": "design_initial",
+      "min": 3,
+      "max": 8
+    },
+    {
+      "id": "PAR-FOCUS-STREAK",
+      "name": "focus_wrong_streak",
+      "value": 2,
+      "unit": "count",
+      "source": "design_initial",
+      "min": 2,
+      "max": 3
+    },
+    {
+      "id": "PAR-FOCUS-TIME",
+      "name": "focus_extra_time",
+      "value": 2,
+      "unit": "second",
+      "source": "design_initial",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "id": "PAR-XP-CORRECT",
+      "name": "xp_per_correct",
+      "value": 2,
+      "unit": "xp",
+      "source": "design_initial",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "id": "PAR-XP-NEW",
+      "name": "xp_per_new_word",
+      "value": 5,
+      "unit": "xp",
+      "source": "design_initial",
+      "min": 3,
+      "max": 10
+    },
+    {
+      "id": "PAR-XP-MASTER",
+      "name": "xp_per_master",
+      "value": 10,
+      "unit": "xp",
+      "source": "design_initial",
+      "min": 5,
+      "max": 20
+    },
+    {
+      "id": "PAR-XP-BASE",
+      "name": "xp_needed_base",
+      "value": 120,
+      "unit": "xp",
+      "source": "design_initial",
+      "min": 80,
+      "max": 200
+    },
+    {
+      "id": "PAR-REVENGE-BASE",
+      "name": "revenge_base_mult",
+      "value": 1.5,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 1.3,
+      "max": 2.0
+    },
+    {
+      "id": "PAR-REVENGE-PER",
+      "name": "revenge_per_extra_miss",
+      "value": 0.25,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 0.1,
+      "max": 0.5
+    },
+    {
+      "id": "PAR-REVENGE-CAP",
+      "name": "revenge_cap",
+      "value": 2.0,
+      "unit": "x",
+      "source": "design_initial",
+      "min": 1.5,
+      "max": 3.0
+    }
+  ],
+  "numeric_requirements": [
+    {
+      "id": "NUMREQ-DPP",
+      "statement": "无卡牌时中等玩家平均每题伤害应落在 13-16 区间，保证普通怪 2-4 题击杀",
+      "source": "design_goal",
+      "assertion_ids": [
+        "ASSERT-DPP-BASE",
+        "ASSERT-KILL-NORMAL"
+      ]
+    },
+    {
+      "id": "NUMREQ-DAMAGE",
+      "statement": "一局（3层）总承伤应在 110-145，扣除 3 个泉水恢复 75 后净压力 35-70，使中等玩家无防御卡也能靠血药紧张通关",
+      "source": "design_goal",
+      "assertion_ids": [
+        "ASSERT-DAMAGE-TOTAL",
+        "ASSERT-NET-DAMAGE"
+      ]
+    },
+    {
+      "id": "NUMREQ-PACE",
+      "statement": "一局总题数 60-80、总时长 9-13 分钟，符合应试学生碎片时间",
+      "source": "design_goal",
+      "assertion_ids": [
+        "ASSERT-QUESTIONS",
+        "ASSERT-TIME"
+      ]
+    },
+    {
+      "id": "NUMREQ-GOLD",
+      "statement": "一局金币收入约 375，3 个商店每店可支配约 125，恰好花完不囤积",
+      "source": "design_goal",
+      "assertion_ids": [
+        "ASSERT-GOLD",
+        "ASSERT-GOLD-SPEND"
+      ]
+    }
+  ],
+  "numerical_assertions": [
+    {
+      "id": "ASSERT-DPP-BASE",
+      "scenario": "normal",
+      "expression": "base*avg_speed*avg_combo",
+      "inputs": {
+        "base": "PAR-BASE-DMG",
+        "avg_speed": "PAR-AVG-SPEED",
+        "avg_combo": "PAR-AVG-COMBO"
+      },
+      "declared_value": 14.4,
+      "unit": "damage",
+      "tolerance": 0.1,
+      "acceptance": {
+        "operator": "between",
+        "min": 13,
+        "max": 16
+      }
+    },
+    {
+      "id": "ASSERT-KILL-NORMAL",
+      "scenario": "normal",
+      "expression": "normal_hp/dpp",
+      "inputs": {
+        "normal_hp": "PAR-NORMAL-HP",
+        "dpp": "PAR-DPP-BASE"
+      },
+      "declared_value": 2.43,
+      "unit": "question",
+      "tolerance": 0.2,
+      "acceptance": {
+        "operator": "between",
+        "min": 2,
+        "max": 4
+      }
+    },
+    {
+      "id": "ASSERT-KILL-BOSS",
+      "scenario": "normal",
+      "expression": "boss_hp/dpp_mid",
+      "inputs": {
+        "boss_hp": "PAR-BOSS-HP",
+        "dpp_mid": "PAR-DPP-MID"
+      },
+      "declared_value": 8.18,
+      "unit": "question",
+      "tolerance": 0.3,
+      "acceptance": {
+        "operator": "between",
+        "min": 7,
+        "max": 11
+      }
+    },
+    {
+      "id": "ASSERT-DAMAGE-TOTAL",
+      "scenario": "normal",
+      "expression": "d1+d2+d3",
+      "inputs": {
+        "d1": "PAR-DMG-L1",
+        "d2": "PAR-DMG-L2",
+        "d3": "PAR-DMG-L3"
+      },
+      "declared_value": 126.72,
+      "unit": "hp",
+      "tolerance": 1,
+      "acceptance": {
+        "operator": "between",
+        "min": 110,
+        "max": 145
+      }
+    },
+    {
+      "id": "ASSERT-NET-DAMAGE",
+      "scenario": "normal",
+      "expression": "d1+d2+d3-spring",
+      "inputs": {
+        "d1": "PAR-DMG-L1",
+        "d2": "PAR-DMG-L2",
+        "d3": "PAR-DMG-L3",
+        "spring": "PAR-SPRING-TOTAL"
+      },
+      "declared_value": 51.72,
+      "unit": "hp",
+      "tolerance": 1,
+      "acceptance": {
+        "operator": "between",
+        "min": 35,
+        "max": 70
+      }
+    },
+    {
+      "id": "ASSERT-QUESTIONS",
+      "scenario": "normal",
+      "expression": "qn+qe+qb",
+      "inputs": {
+        "qn": "PAR-Q-NORMAL",
+        "qe": "PAR-Q-ELITE",
+        "qb": "PAR-Q-BOSS"
+      },
+      "declared_value": 68,
+      "unit": "question",
+      "tolerance": 0,
+      "acceptance": {
+        "operator": "between",
+        "min": 60,
+        "max": 80
+      }
+    },
+    {
+      "id": "ASSERT-TIME",
+      "scenario": "normal",
+      "expression": "qt*spq+ntime",
+      "inputs": {
+        "qt": "PAR-Q-TOTAL",
+        "spq": "PAR-SEC-PER-Q",
+        "ntime": "PAR-NODE-TIME"
+      },
+      "declared_value": 676,
+      "unit": "second",
+      "tolerance": 20,
+      "acceptance": {
+        "operator": "between",
+        "min": 540,
+        "max": 780
+      }
+    },
+    {
+      "id": "ASSERT-GOLD",
+      "scenario": "normal",
+      "expression": "3*gpl",
+      "inputs": {
+        "gpl": "PAR-GOLD-PER-LAYER"
+      },
+      "declared_value": 375,
+      "unit": "soul",
+      "tolerance": 0,
+      "acceptance": {
+        "operator": "between",
+        "min": 350,
+        "max": 400
+      }
+    },
+    {
+      "id": "ASSERT-GOLD-SPEND",
+      "scenario": "normal",
+      "expression": "rare+bless",
+      "inputs": {
+        "rare": "PAR-PRICE-RARE",
+        "bless": "PAR-PRICE-BLESS"
+      },
+      "declared_value": 125,
+      "unit": "soul",
+      "tolerance": 0,
+      "acceptance": {
+        "operator": "==",
+        "value": 125
+      }
+    },
+    {
+      "id": "ASSERT-BOUNDARY-ZERO",
+      "scenario": "boundary",
+      "expression": "max(0, hp-overkill)",
+      "inputs": {
+        "hp": "PAR-PLAYER-HP",
+        "overkill": "PAR-OVERKILL"
+      },
+      "declared_value": 0,
+      "unit": "hp",
+      "tolerance": 0,
+      "acceptance": {
+        "operator": "==",
+        "value": 0
+      }
+    }
+  ],
+  "state_machines": [
+    {
+      "id": "SM-WORD-MEMORY",
+      "initial_state": "NEW",
+      "states": [
+        {
+          "id": "NEW",
+          "entry": "词首次进入组卷",
+          "exit": "首次答对"
+        },
+        {
+          "id": "LEARNING",
+          "entry": "10 分钟后到期复习",
+          "exit": "复习答对"
+        },
+        {
+          "id": "FAMILIAR",
+          "entry": "按 1/2/4/7/15 天间隔复习",
+          "exit": "走完 15 天复习"
+        },
+        {
+          "id": "MASTERED",
+          "entry": "已掌握，战斗中伤害 +40%，不再主动出题",
+          "exit": "终态"
+        }
+      ],
+      "event_order": [
+        "answer",
+        "state_transition",
+        "next_due_schedule"
+      ],
+      "transitions": [
+        {
+          "id": "TRIG-NEW-LEARN",
+          "from": "NEW",
+          "event": "答对",
+          "to": "LEARNING",
+          "effect": "安排 10 分钟后复习",
+          "repeat_policy": "同一题只结算一次",
+          "cleanup": "记录答题时间戳"
+        },
+        {
+          "id": "TRIG-LEARN-FAM",
+          "from": "LEARNING",
+          "event": "到期复习答对",
+          "to": "FAMILIAR",
+          "effect": "安排 1 天后复习",
+          "repeat_policy": "到期前不再出题",
+          "cleanup": "更新间隔索引"
+        },
+        {
+          "id": "TRIG-FAM-MASTER",
+          "from": "FAMILIAR",
+          "event": "完成 15 天档复习",
+          "to": "MASTERED",
+          "effect": "标记掌握，计入词库进度",
+          "repeat_policy": "不再主动出题",
+          "cleanup": "更新掌握计数"
+        },
+        {
+          "id": "TRIG-REGRESS",
+          "from": "FAMILIAR",
+          "event": "答错",
+          "to": "LEARNING",
+          "effect": "间隔重置为 10 分钟",
+          "repeat_policy": "高概率本局再现",
+          "cleanup": "间隔索引归零"
+        }
+      ],
+      "persistence": {
+        "required": true,
+        "write_trigger": "每次答题结算后与单局结束时写入 localStorage",
+        "restore_rule": "启动时读取 word_dungeon_progress_v1，重建单词记忆状态与到期复习队列",
+        "abnormal_exit": "中途关闭页面时，已结算的答题结果保留，当前未结算题目作废",
+        "fields": [
+          "wordStates",
+          "dueTimestamps",
+          "intervalIndex",
+          "masteredCount",
+          "meta.level",
+          "meta.xp",
+          "meta.daily",
+          "meta.streak",
+          "meta.achievements",
+          "settings"
+        ]
+      }
+    },
+    {
+      "id": "SM-BATTLE",
+      "initial_state": "QUESTION",
+      "states": [
+        {
+          "id": "QUESTION",
+          "entry": "出题并开始计时",
+          "exit": "玩家作答或超时"
+        },
+        {
+          "id": "RESOLVE",
+          "entry": "结算伤害/受击与反馈",
+          "exit": "进入下一题或战斗结束"
+        },
+        {
+          "id": "VICTORY",
+          "entry": "发放词魂并生成三选一",
+          "exit": "选卡完成"
+        },
+        {
+          "id": "DEFEAT",
+          "entry": "HP 归零，结算错词与统计",
+          "exit": "返回主界面或重开"
+        }
+      ],
+      "event_order": [
+        "answer",
+        "damage",
+        "death_check",
+        "reward",
+        "card_choice",
+        "outcome"
+      ],
+      "transitions": [
+        {
+          "id": "TRIG-ANSWER",
+          "from": "QUESTION",
+          "event": "玩家作答或超时",
+          "to": "RESOLVE",
+          "effect": "按 RULE-ANSWER/RULE-WRONG 结算",
+          "repeat_policy": "每题唯一结算",
+          "cleanup": "计时器停止"
+        },
+        {
+          "id": "TRIG-NEXT",
+          "from": "RESOLVE",
+          "event": "敌人仍存活且玩家存活",
+          "to": "QUESTION",
+          "effect": "出下一题",
+          "repeat_policy": "无放回抽题，错词加权",
+          "cleanup": "清空上一题状态"
+        },
+        {
+          "id": "TRIG-KILL",
+          "from": "RESOLVE",
+          "event": "敌人 HP 归零",
+          "to": "VICTORY",
+          "effect": "发词魂、生成三选一",
+          "repeat_policy": "同一敌人只结算一次",
+          "cleanup": "敌人离场"
+        },
+        {
+          "id": "TRIG-DEAD",
+          "from": "RESOLVE",
+          "event": "玩家 HP 归零",
+          "to": "DEFEAT",
+          "effect": "错词全部保留，生成局后统计",
+          "repeat_policy": "终局唯一",
+          "cleanup": "结束本局"
+        }
+      ]
+    }
+  ],
+  "ledgers": {
+    "probability_pools": [
+      {
+        "id": "POOL-QUESTION-TYPE",
+        "expected_total": 100,
+        "tolerance": 0,
+        "entries": [
+          {
+            "id": "EN2CN",
+            "value": 55
+          },
+          {
+            "id": "CN2EN",
+            "value": 15
+          },
+          {
+            "id": "SPELL",
+            "value": 10
+          },
+          {
+            "id": "JUDGE",
+            "value": 20
+          }
+        ]
+      },
+      {
+        "id": "POOL-CARD-RARITY",
+        "expected_total": 100,
+        "tolerance": 0,
+        "entries": [
+          {
+            "id": "NORMAL",
+            "value": 70
+          },
+          {
+            "id": "RARE",
+            "value": 30
+          }
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "RES-GOLD",
+        "starting": 0,
+        "allow_negative": false,
+        "transactions": [
+          {
+            "id": "T1",
+            "order": 1,
+            "amount": 125
+          },
+          {
+            "id": "T2",
+            "order": 2,
+            "amount": -80
+          },
+          {
+            "id": "T3",
+            "order": 3,
+            "amount": 125
+          },
+          {
+            "id": "T4",
+            "order": 4,
+            "amount": -125
+          },
+          {
+            "id": "T5",
+            "order": 5,
+            "amount": 125
+          },
+          {
+            "id": "T6",
+            "order": 6,
+            "amount": -125
+          }
+        ],
+        "expected_final": 45
+      },
+      {
+        "id": "RES-HP",
+        "starting": 100,
+        "allow_negative": false,
+        "transactions": [
+          {
+            "id": "H1",
+            "order": 1,
+            "amount": -29.64
+          },
+          {
+            "id": "H2",
+            "order": 2,
+            "amount": 25
+          },
+          {
+            "id": "H3",
+            "order": 3,
+            "amount": 30
+          },
+          {
+            "id": "H4",
+            "order": 4,
+            "amount": -41.88
+          },
+          {
+            "id": "H5",
+            "order": 5,
+            "amount": 25
+          },
+          {
+            "id": "H6",
+            "order": 6,
+            "amount": -55.2
+          },
+          {
+            "id": "H7",
+            "order": 7,
+            "amount": 25
+          }
+        ],
+        "expected_final": 78.28
+      }
+    ],
+    "capacity": []
+  },
+  "tests": [
+    {
+      "id": "TEST-CORRECT",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-ANSWER"
+      ],
+      "precondition": "战斗中敌人 HP 40，玩家 2.5 秒答对，连击 3",
+      "action": "点击正确选项",
+      "expected": "造成 10×1.5×1.15≈17 伤害，连击变 4",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-WRONG",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-WRONG"
+      ],
+      "precondition": "玩家连击 6，护盾 0",
+      "action": "点击错误选项",
+      "expected": "受敌人攻击值伤害，连击清零，词进错词本",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-TIMEOUT",
+      "type": "boundary",
+      "rule_ids": [
+        "RULE-WRONG"
+      ],
+      "precondition": "题目出现后 12 秒未作答",
+      "action": "等待超时",
+      "expected": "按答错结算受击",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-SHIELD",
+      "type": "boundary",
+      "rule_ids": [
+        "RULE-WRONG"
+      ],
+      "precondition": "玩家护盾 6，敌人攻击 10",
+      "action": "答错",
+      "expected": "护盾清零，HP 仅扣 4",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-CARD",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-CARD"
+      ],
+      "precondition": "敌人被击败，卡池可用",
+      "action": "在三选一浮层选择一张卡",
+      "expected": "卡加入词典页并立即生效，浮层关闭，另两张消失",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-SHOP",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-SHOP"
+      ],
+      "precondition": "玩家持有 60 词魂进入商店",
+      "action": "购买 1 瓶血药",
+      "expected": "词魂扣 30，HP 回 30（不超上限），已购物品标记售罄",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-DEFEAT-RESTART",
+      "type": "recovery",
+      "rule_ids": [
+        "RULE-WRONG",
+        "RULE-REVIEW"
+      ],
+      "precondition": "玩家 HP 归零",
+      "action": "在结算页点击再战",
+      "expected": "错词保留，无需刷新即可开始新一局",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-REVIEW-REPEAT",
+      "type": "abuse",
+      "rule_ids": [
+        "RULE-REVIEW"
+      ],
+      "precondition": "某词在一层内连续答错",
+      "action": "继续战斗",
+      "expected": "该词高概率再现且答对后停止加权，不会无限刷取",
+      "status": "planned"
+    },
+    {
+      "id": "TEST-POS",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-POS"
+      ],
+      "precondition": "拼写题分别考 advice（n.）与 advise（v.）",
+      "action": "在浏览器构造 buildQuestion('advice','spell') 与 buildQuestion('advise','spell')",
+      "expected": "题干显示对应中文释义与词性标签，advice 显示蓝色 n.，advise 显示橙色 v.，中文释义+词性锁定唯一答案",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-FLOW",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-FLOW"
+      ],
+      "precondition": "跨战斗连续答对，连击数达到 5",
+      "action": "连续答对 5 题",
+      "expected": "G.flow=true，顶部心流横幅、敌人 flowglow 青色光晕、连击数字发光，每答对额外+1词魂；答错后 flow=false、连击清零",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-FOCUS",
+      "type": "boundary",
+      "rule_ids": [
+        "RULE-FLOW"
+      ],
+      "precondition": "连续答错 2 题",
+      "action": "观察第 3 题",
+      "expected": "第3题限时+2秒（选择题12→14，拼写守卫14→16），显示紫色凝神横幅，只对本题生效",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-META",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-META"
+      ],
+      "precondition": "完成一局远征",
+      "action": "查看首页与结算页",
+      "expected": "答对/新学/掌握累计XP，等级提升（Lv1→Lv2）；每日目标累计（答对、新学、远征）；通关当天打卡 streak=1；达成条件解锁成就并弹窗，成就墙更新",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-FX",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-FX"
+      ],
+      "precondition": "战斗中答对一题（含强制暴击）",
+      "action": "answer(correct) 与 dealDamage(enemy,30,true)，敌人HP归零观察死亡",
+      "expected": "斩击从底部射出，约150ms命中：敌人闪白顿帧、退缩、HP条即时更新、冲击环+金色粒子、伤害数字弹动；暴击时敌人倾斜、橙色粒子、强震动；敌人死亡上飘消散+金白粒子后进入三选一；升级时金色光柱+LEVEL UP+粒子",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-FORM",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-FORM"
+      ],
+      "precondition": "buildQuestion('calm','spell') 与 buildQuestion 随机 judge",
+      "action": "在拼写格子逐格输入 calm；在判断题点对/错",
+      "expected": "拼写题显示4个字母格子、当前格高亮、提示首字母，填满自动提交后格子变绿；拼写题只出≤8字母词；判断题显示单词+一个释义与对/错两大按钮，错误释义优先取易混词，判对攻击、判错受击",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-REVENGE",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-REVENGE"
+      ],
+      "precondition": "答错 calm 进错词本（wrongCount=1），buildQuestion('calm','spell') 后立即答对",
+      "action": "answer(q.correct)，并构造错过2次的场景验证递增",
+      "expected": "错词回归题头显示橙色“再战”徽章（错过1次150%、2次175%、上限200%）；答对伤害额外乘复仇系数（calm 立即答对：10×1.5×1.0×1.5=22.5→复仇23），播放红金复仇数字、雪耻、红金粒子、强震动；复仇成功移出错词本",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-INPUT",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-FORM"
+      ],
+      "precondition": "buildQuestion('calm','spell') 显示 4 个字母格子",
+      "action": "①键盘事件逐键输入 c/a/l/m；②退格；③CDP insertText（字符插到开头、不派发 keydown）；④乱序/联想写入'lacm'；⑤回车",
+      "expected": "键盘事件按序入格并过滤大写与非法字符；退格立即可用（keydown 与仅 input 两种路径）；insertText 增量合并不丢字母（c,a,l,m 顺序正确，插到开头的字符也被吸收）；乱序/联想写入被强制纠正不污染格子；填满后不自动提交（金色高亮+提示文案），回车立即确认提交；答错后约0.6秒格子替换为正确答案逐格变绿并提示“正确答案：xxx”",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-SPELL-TIMER",
+      "type": "boundary",
+      "rule_ids": [
+        "RULE-FORM",
+        "RULE-WRONG"
+      ],
+      "precondition": "战斗中构造拼写题",
+      "action": "①测限时：calm/abroad/contract 的 limit；②填满后等待；③把 limit 缩为 0.4s 重启计时测限时结束自动结算；④未填满超时测半伤；⑤测 speedMultFor 各剩余比例",
+      "expected": "限时=4+字母数×2（calm 12s/abroad 16s/contract 20s）；填满后不自动提交（1.2s 无结算）；限时结束按内容自动结算（填满答对、未填满超时半伤）；速度动态分档：剩余≥60%×2.0、≥40%×1.6、≥25%×1.25、其余×1.0",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-WRONG-PAUSE",
+      "type": "boundary",
+      "rule_ids": [
+        "RULE-WRONG",
+        "RULE-FX"
+      ],
+      "precondition": "战斗中故意答错一题",
+      "action": "answer(错误选项) 后测量下一题出现时刻",
+      "expected": "答错后错误标记（红色选项/按钮/红格）与受击演出停留约1秒（850ms 时仍停留、locked=true、错误标记存在），约1.0s 后进入下一题；答对保持 0.48s 快节奏",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-WRONG-BOOK",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-WRONG-BOOK",
+        "RULE-REVIEW"
+      ],
+      "precondition": "战斗中制造多个错词（含重复答错同一词）",
+      "action": "①检查 wrongBookData 分级与排序；②主页错词本入口；③错词本三级分组展示；④一键开始复习（spring from=wrongbook）；⑤复习答对移出错词本、复习完返回错词本",
+      "expected": "错词按错误次数分级（L3顽固≥3次/L2易错2次/L1生疏1次），分级数据正确；错词本入口显示词数与顽固数；内页按级分组显示词/词性/常用释义/×次数；复习按顽固→易错→生疏排序（springData.from=wrongbook）；答对复习移出错词本；复习完 springDone 返回 wrongbook",
+      "status": "passed"
+    }
+  ],
+  "production_risks": [],
+  "prototype": {
+    "required": true,
+    "path": "/home/user/Doubao/chats/38448800358997506/word-dungeon/word-dungeon-demo.html",
+    "ruleset_id": "word-dungeon-ruleset-v1",
+    "config_source": "HTML 内 CONFIG 对象（单一配置源，GDD 参数表与其逐项一致）",
+    "checks": {
+      "load": "passed",
+      "input": "passed",
+      "main_loop": "passed",
+      "outcome": "passed",
+      "restart": "passed"
+    },
+    "journeys": [
+      {
+        "id": "JOURNEY-STANDARD",
+        "name": "标准通关路径",
+        "type": "standard",
+        "expected": "玩家从主界面开始，依次完成 3 层的普通战、精英战、复习之泉、商店与 Boss，最终看到胜利结算与词库进度",
+        "evidence": "Chromium 真实浏览器走查：3 层全通，55 题、正确率 84%、最高连击 13、新学 31 词；商店购买临时祝福（gold 65→25，blessForLayer=2），第3层商店买血药后 HP 88 通关；结算与词列表完整。",
+        "steps": [
+          "主界面点击开始远征",
+          "完成第1层普通战并选择一张词典卡",
+          "击败精英后选卡",
+          "经过复习之泉恢复并复习错词",
+          "在商店购买物品",
+          "击败第1层 Boss 并获得稀有卡",
+          "继续完成第2、3层",
+          "查看胜利结算与词库进度"
+        ],
+        "status": "passed"
+      },
+      {
+        "id": "JOURNEY-DEFEAT",
+        "name": "失败恢复路径",
+        "type": "failure",
+        "expected": "连续答错导致 HP 归零后进入失败结算，错词全部保留，点击再战可无刷新开始新一局",
+        "evidence": "连续答错 10 题 HP 归零，进入失败结算（0% 正确率），列出错词 agree/abandon/careful/advance/admire；存档保留 40 词记录（26 个 LEARNING），再战一局无刷新重开成功。",
+        "steps": [
+          "进入战斗后连续答错",
+          "观察护盾与 HP 依次扣减",
+          "HP 归零进入失败结算",
+          "确认错词已进入错词本",
+          "点击再战开始新一局"
+        ],
+        "status": "passed"
+      },
+      {
+        "id": "JOURNEY-COMBO",
+        "name": "连击取舍路径",
+        "type": "abuse",
+        "expected": "快速连对堆高连击与伤害，一次答错后连击清零，玩家能体会速度与准确率的取舍",
+        "evidence": "答对 abandon 连击 0→1，堆高后伤害随连击上升；故意答错 adapt 后 HP 100→92、连击清零、错词登记；验证速度与准确率取舍。",
+        "steps": [
+          "连续快速答对 5 题以上观察连击加成",
+          "故意答错一次",
+          "观察连击清零、伤害回落",
+          "重新作答恢复连击"
+        ],
+        "status": "passed"
+      },
+      {
+        "id": "JOURNEY-REVIEW",
+        "name": "错词再现路径",
+        "type": "recovery",
+        "expected": "答错的词在后续战斗或复习之泉再次出现，答对后记忆状态推进，到期时间更新",
+        "evidence": "答错的 abandon/agree/advance 在再战后第1层复习之泉回归（复习 1/3）；点击记得/直接结算后 LEARNING→FAMILIAR、due 1 天后、bonus 计数，答对状态推进正常。",
+        "steps": [
+          "答错一个词",
+          "继续后续战斗或进入复习之泉",
+          "再次遇到该词并答对",
+          "查看错词本中状态与到期时间变化"
+        ],
+        "status": "passed"
+      }
+    ]
+  },
+  "claims": [
+    {
+      "id": "CLAIM-PACE",
+      "text": "一局 68 题、约 11 分钟，符合碎片时间。",
+      "strength": "calculated",
+      "evidence_ids": [
+        "ASSERT-QUESTIONS",
+        "ASSERT-TIME"
+      ]
+    },
+    {
+      "id": "CLAIM-BALANCE",
+      "text": "中等玩家净承伤约 52，配合血药与泉水可紧张通关，玩得差则倒在第3层且学习成果保留。",
+      "strength": "calculated",
+      "evidence_ids": [
+        "ASSERT-DAMAGE-TOTAL",
+        "ASSERT-NET-DAMAGE"
+      ]
+    },
+    {
+      "id": "CLAIM-LEARN",
+      "text": "一局接触约 31 个不同词（新词 20-25），错词按间隔重复回归。",
+      "strength": "calculated",
+      "evidence_ids": [
+        "ASSERT-QUESTIONS"
+      ]
+    }
+  ]
+}
