@@ -39,6 +39,10 @@ def init_db():
             "ALTER TABLE progress ADD COLUMN stage INTEGER DEFAULT 0",
             "ALTER TABLE progress ADD COLUMN lapses INTEGER DEFAULT 0",
             "ALTER TABLE progress ADD COLUMN streak INTEGER DEFAULT 0",
+            # V4.3 迁移：题型阶梯 step、是否毕业、首见时间
+            "ALTER TABLE progress ADD COLUMN step INTEGER DEFAULT 0",
+            "ALTER TABLE progress ADD COLUMN graduated INTEGER DEFAULT 0",
+            "ALTER TABLE progress ADD COLUMN created INTEGER DEFAULT 0",
         ):
             try:
                 db.execute(stmt)
@@ -58,7 +62,7 @@ def get_db():
 
 
 init_db()
-app = FastAPI(title="单词地下城 API", version="4.2")
+app = FastAPI(title="单词地下城 API", version="4.3")
 
 
 # ---------------- 认证（设备令牌） ----------------
@@ -129,34 +133,56 @@ class DrawReq(BaseModel):
 
 
 def _progress_map(db, uid):
+    """读取进度并转成 core 期望的格式：due 秒→毫秒，graduated→布尔。"""
     rows = db.execute("SELECT * FROM progress WHERE user_id=?", (uid,)).fetchall()
-    return {r["word"]: dict(r) for r in rows}
+    out = {}
+    for r in rows:
+        d = dict(r)
+        d["due"] = d["due"] * 1000 if d["due"] else 0
+        d["graduated"] = bool(d["graduated"])
+        out[r["word"]] = d
+    return out
+
+
+def _new_today(db, uid, today0):
+    """今日首次引入的新词数。"""
+    return db.execute(
+        "SELECT COUNT(*) c FROM progress WHERE user_id=? AND created>=?",
+        (uid, today0)).fetchone()["c"]
 
 
 @app.post("/quiz/draw")
 def quiz_draw(req: DrawReq, user=Depends(current_user)):
-    """后端组卷：自适应（θ 配比）或手动难度；错词按分级反复，到期词进巩固桶。"""
+    """后端组卷：题型阶梯驱动（先认后背，拼写压轴）；θ 控选词难度。"""
+    now = int(time.time())
+    today0 = now // 86400 * 86400
     with get_db() as db:
         prog = _progress_map(db, user["id"])
-    wrong = {w: p["wrong_count"] for w, p in prog.items()
-             if p["wrong_count"] > 0}
-    now = int(time.time())
-    due = core.due_queue(prog, now, req.book)
+        new_today = _new_today(db, user["id"], today0)
     theta = user["theta"] if req.adaptive else None
-    q = core.draw_question(req.layer, wrong, req.force,
-                          req.book, req.difficulty, theta, due)
+    q = core.draw_question(req.layer, prog, req.force,
+                          req.book, req.difficulty, theta, new_today)
     return q
 
 
 # ---------------- 到期复习 ----------------
 @app.get("/review/due")
 def review_due(book: Optional[str] = None, user=Depends(current_user)):
-    """今日到期复习队列与新词上限（客户端"今日待复习"卡片）。"""
+    """今日到期队列：区分"未毕业(学习中)"与"已毕业(复习)"，及新词上限。"""
+    now_ms = int(time.time() * 1000)
+    today0 = int(time.time()) // 86400 * 86400
     with get_db() as db:
         prog = _progress_map(db, user["id"])
-    now = int(time.time())
-    due = core.due_queue(prog, now, book)
-    return {"due": due, "due_count": len(due),
+        new_today = _new_today(db, user["id"], today0)
+    bookset = (set(o["w"] for o in core.words_by_book(book))
+               if book else None)
+    dl = [w for w in core.due_learning(prog, now_ms)
+          if bookset is None or w in bookset]
+    dg = [w for w in core.due_graduated(prog, now_ms)
+          if bookset is None or w in bookset]
+    return {"due_learning": dl, "due_graduated": dg,
+            "learning_count": len(dl), "review_count": len(dg),
+            "new_today": new_today,
             "theta": user["theta"],
             "new_cap": core.CONFIG["daily"]["newCap"],
             "target_rate": core.CONFIG["adaptive"]["targetRate"]}
@@ -196,11 +222,21 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
         row = db.execute(
             "SELECT * FROM progress WHERE user_id=? AND word=?",
             (user["id"], req.word)).fetchone()
-        old_rec = ({"state": row["state"], "stage": row["stage"],
-                    "lapses": row["lapses"], "streak": row["streak"],
-                    "due": row["due"]} if row else None)
-        state = row["state"] if row else "NEW"
-        wrong_count = row["wrong_count"] if row else 0
+        if row:
+            old_rec = {
+                "state": row["state"], "step": row["step"],
+                "graduated": bool(row["graduated"]), "stage": row["stage"],
+                "lapses": row["lapses"], "streak": row["streak"],
+                "wrong_count": row["wrong_count"],
+                "due": row["due"] * 1000 if row["due"] else 0}
+            state = row["state"]
+            wrong_count = row["wrong_count"]
+            created = row["created"] or 0
+        else:
+            old_rec = None
+            state = "NEW"
+            wrong_count = 0
+            created = now
 
         if is_correct:
             dmg, detail = core.calc_damage(
@@ -210,23 +246,27 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
         else:
             dmg, detail = 0, {}
 
-        # SM-2 调度 + θ 更新
-        new_rec = core.srs_schedule(old_rec, is_correct, fast, now_ms)
+        # 题型阶梯 / SM-2 调度 + θ 更新
+        new_rec = core.schedule(old_rec, is_correct, fast, now_ms)
         new_theta = core.update_theta(user["theta"], is_correct, fast)
         interval_min = max(1, (new_rec["due"] - now_ms) // 60000)
-        reset_wrong = new_rec["lapses"]
+        new_wrong = new_rec["wrong_count"]
 
         db.execute(
             "INSERT INTO progress(user_id,word,state,interval_min,wrong_count,"
-            "last_review,due,stage,lapses,streak) VALUES(?,?,?,?,?,?,?,?,?,?) "
+            "last_review,due,stage,lapses,streak,step,graduated,created) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(user_id,word) DO UPDATE SET state=?,interval_min=?,"
-            "wrong_count=?,last_review=?,due=?,stage=?,lapses=?,streak=?",
-            (user["id"], req.word, new_rec["state"], interval_min, reset_wrong,
+            "wrong_count=?,last_review=?,due=?,stage=?,lapses=?,streak=?,"
+            "step=?,graduated=?,created=?",
+            (user["id"], req.word, new_rec["state"], interval_min, new_wrong,
              now, new_rec["due"] // 1000, new_rec["stage"],
-             new_rec["lapses"], new_rec["streak"],
-             new_rec["state"], interval_min, reset_wrong, now,
+             new_rec["lapses"], new_rec["streak"], new_rec["step"],
+             int(new_rec["graduated"]), created,
+             new_rec["state"], interval_min, new_wrong, now,
              new_rec["due"] // 1000, new_rec["stage"],
-             new_rec["lapses"], new_rec["streak"]))
+             new_rec["lapses"], new_rec["streak"], new_rec["step"],
+             int(new_rec["graduated"]), created))
         db.execute("UPDATE users SET theta=? WHERE id=?",
                    (new_theta, user["id"]))
         db.execute(
@@ -236,9 +276,10 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
 
     return {"correct": is_correct, "fast": fast, "damage": dmg, "detail": detail,
             "correct_answer": entry["w"] if req.qtype == "spell" else entry["m"],
-            "state": new_rec["state"], "wrong_count": reset_wrong,
-            "grade": core.grade_of(reset_wrong) if reset_wrong else 0,
+            "state": new_rec["state"], "wrong_count": new_wrong,
+            "grade": core.grade_of(new_wrong) if new_wrong else 0,
             "theta": new_theta, "due_min": interval_min,
+            "step": new_rec["step"], "graduated": new_rec["graduated"],
             "stage": new_rec["stage"]}
 
 

@@ -46,6 +46,14 @@ CONFIG = {
 # V4.2 SM-2 间隔梯（分钟）：10分钟→1天→3天→7天→16天→30天
 SRS_LADDER = [10, 1440, 4320, 10080, 23040, 43200]
 
+# V4.3 题型阶梯（先认后背，拼写压轴）
+# 毕业前，每个词按 step 0→3 爬升，题型由 step 决定（不再随机）
+TYPE_LADDER = ["judge", "en2cn", "cn2en", "spell"]
+# step 0/1/2 答对后，下一级的间隔（分钟）；step 3 拼写答对 = 毕业
+STEP_DELAY_MIN = [2, 3, 5]
+# 毕业后每个 stage 的复习题型：10分轻确认→1天拼写→3天识别→7天回顾→16天识别→30天拼写
+GRAD_REVIEW_TYPE = ["cn2en", "spell", "en2cn", "cn2en", "en2cn", "spell"]
+
 # 记忆状态到期间隔（分钟）
 INTERVALS = {"NEW": 10, "LEARNING": 1440, "FAMILIAR": [2880, 5760, 10080, 21600]}
 
@@ -146,138 +154,184 @@ def adaptive_tier(theta):
     return max(1, base - 1), "consolidate"
 
 
-# ---------------- V4.2 SM-2 间隔重复 ----------------
-def srs_schedule(rec, correct, fast=False, now=None):
-    """简化 SM-2 调度。
-    rec: {stage,due,lapses,streak,state}；fast 答对直接升级，normal 需连续 2 次。
-    """
-    now = now if now is not None else int(time.time() * 1000)
+# ---------------- V4.3 单词记录 / 题型阶梯 ----------------
+def norm_rec(rec):
+    """补齐单词记录的缺省字段（内部时间统一用毫秒）。"""
     rec = dict(rec or {})
+    rec.setdefault("state", "NEW")
+    rec.setdefault("step", 0)
+    rec.setdefault("graduated", False)
     rec.setdefault("stage", 0)
     rec.setdefault("lapses", 0)
     rec.setdefault("streak", 0)
-    if not correct:
-        rec["stage"] = 0
-        rec["streak"] = 0
-        rec["lapses"] += 1
-        rec["state"] = "LEARNING"
-    else:
-        if fast:
-            rec["stage"] = min(rec["stage"] + 1, len(SRS_LADDER) - 1)
-            rec["streak"] = 0
-        else:
-            rec["streak"] += 1
-            if rec["streak"] >= 2:
-                rec["stage"] = min(rec["stage"] + 1, len(SRS_LADDER) - 1)
-                rec["streak"] = 0
-        stage = rec["stage"]
-        rec["state"] = ("MASTERED" if stage == len(SRS_LADDER) - 1
-                        else "FAMILIAR" if stage >= 1 else "LEARNING")
-    rec["due"] = now + SRS_LADDER[rec["stage"]] * 60 * 1000
+    rec.setdefault("wrong_count", 0)
+    rec.setdefault("due", 0)
     return rec
 
 
-def due_queue(progress, now=None, book=None):
-    """到期需复习的词；可按词书范围过滤。
-    时间单位与 progress 中 due 一致（DB 存秒；调用方传同单位 now）。
+def type_for_word(rec):
+    """该词当前应该出现的题型：毕业前按 step，毕业后按 stage。"""
+    rec = norm_rec(rec)
+    if rec["graduated"]:
+        return GRAD_REVIEW_TYPE[rec["stage"]]
+    return TYPE_LADDER[rec["step"]]
+
+
+def learn_step(rec, correct, fast=False, now=None):
+    """毕业前：按题型阶梯爬升；答错记录在案并退回一级。"""
+    now = now if now is not None else int(time.time() * 1000)
+    rec = norm_rec(rec)
+    s = rec["step"]
+    if not correct:
+        rec["wrong_count"] += 1
+        rec["state"] = "LEARNING"
+        rec["step"] = max(0, s - 1)
+        rec["due"] = now + STEP_DELAY_MIN[rec["step"]] * 60000
+        return rec
+    if s < 3:
+        rec["step"] = s + 1
+        rec["state"] = "LEARNING"
+        rec["due"] = now + STEP_DELAY_MIN[s] * 60000
+    else:
+        # 拼写（最终关卡）答对 → 毕业，进入长期间隔重复
+        rec["graduated"] = True
+        rec["state"] = "FAMILIAR"
+        rec["stage"] = 0
+        rec["streak"] = 0
+        rec["due"] = now + SRS_LADDER[0] * 60000
+    return rec
+
+
+def grad_step(rec, correct, fast=False, now=None):
+    """毕业后 SM-2：按 stage 升级；答错 lapse、记录并退回阶梯。"""
+    now = now if now is not None else int(time.time() * 1000)
+    rec = norm_rec(rec)
+    top = len(SRS_LADDER) - 1
+    if not correct:
+        rec["wrong_count"] += 1
+        rec["lapses"] += 1
+        rec["stage"] = 0
+        rec["streak"] = 0
+        rec["graduated"] = False
+        rec["state"] = "LEARNING"
+        rec["step"] = 1 if rec["wrong_count"] >= 2 else 2
+        rec["due"] = now + STEP_DELAY_MIN[rec["step"]] * 60000
+        return rec
+    if fast:
+        rec["stage"] = min(rec["stage"] + 1, top)
+        rec["streak"] = 0
+    else:
+        rec["streak"] += 1
+        if rec["streak"] >= 2:
+            rec["stage"] = min(rec["stage"] + 1, top)
+            rec["streak"] = 0
+    st = rec["stage"]
+    rec["state"] = "MASTERED" if st == top else "FAMILIAR"
+    rec["due"] = now + SRS_LADDER[st] * 60000
+    return rec
+
+
+def schedule(rec, correct, fast=False, now=None):
+    """统一调度：毕业前走阶梯，毕业后走 SM-2。"""
+    rec = norm_rec(rec)
+    if rec["graduated"]:
+        return grad_step(rec, correct, fast, now)
+    return learn_step(rec, correct, fast, now)
+
+
+def due_learning(progress, now):
+    """到期的未毕业词（含错词、中段学习）。"""
+    return [w for w, r in progress.items()
+            if not r.get("graduated") and r.get("due", 0) and r["due"] <= now]
+
+
+def due_graduated(progress, now):
+    """到期的已毕业词（SM-2 复习）。"""
+    return [w for w, r in progress.items()
+            if r.get("graduated") and r.get("due", 0) and r["due"] <= now]
+
+
+# ---------------- 组卷（V4.3 题型阶梯驱动） ----------------
+def draw_question(layer=1, progress=None, force=None,
+                  book=None, difficulty=None, theta=None,
+                  new_today=0, now=None):
+    """出一道题。
+    优先级：到期未毕业（错词/中段学习）→ 到期已毕业（SM-2 复习）→ 新词（step0）。
+    θ / 手动难度控制"选词难度档"；题型由单词的 step / stage 决定（拼写压轴）。
     """
-    now = now if now is not None else int(time.time())
-    bookset = set(o["w"] for o in words_by_book(book)) if book else None
-    out = []
-    for word, rec in progress.items():
-        if rec.get("due") and rec["due"] <= now and (bookset is None or word in bookset):
-            out.append(word)
-    return out
+    progress = progress or {}
+    now_ms = now if now is not None else int(time.time() * 1000)
 
-
-def review_qtype(grade):
-    """复习题型按顽固度：L3 拼写 / L2 英中或中英 / L1 判断。"""
-    if grade >= 3:
-        return "spell"
-    if grade == 2:
-        return random.choice(["en2cn", "cn2en"])
-    return "judge"
-
-
-# ---------------- 组卷 ----------------
-def _pick_qtype():
-    r = random.random()
-    acc = 0
-    for qt, prob in CONFIG["pool"].items():
-        acc += prob
-        if r < acc:
-            return qt
-    return "en2cn"
-
-
-def draw_question(layer=1, wrong_words=None, force=None,
-                  book=None, difficulty=None, theta=None, due_words=None):
-    """出一道题（V4.2）。
-    - wrong_words: {word: wrong_count} 错词按分级加权反复出现，题型按顽固度强制。
-    - book: 词书；difficulty: 1/2/3 手动硬过滤（0/None=全部）。
-    - theta: 自适应能力值（给定则按 70/15/15 配比，consolidate 桶优先到期词）。
-    - due_words: 到期复习词列表。
-    """
-    wrong_words = wrong_words or {}
-    due_words = due_words or []
-
-    # 词书范围（全部难度）
+    # 词书范围
     if book:
         book_words = [o["w"] for o in words_by_book(book)]
     else:
         book_words = [o["w"] for o in BANK_WORDS]
+    book_set = set(book_words)
 
-    # 目标难度档与桶
-    bucket = "normal"
+    # 难度档（θ 自适应或手动）
     if force:
         tier = None
     elif theta is not None:
-        tier, bucket = adaptive_tier(theta)
+        tier, _bucket = adaptive_tier(theta)
     elif difficulty:
         tier = difficulty
     else:
         tier = min(layer, 3) if not book else None
 
-    word, qtype, from_review = None, None, False
+    # 到期队列（限定当前词书）
+    dl = [w for w in due_learning(progress, now_ms) if w in book_set]
+    dg = [w for w in due_graduated(progress, now_ms) if w in book_set]
+    due = dl + dg
 
-    # 1) 错词优先（只在当前词书内），题型按顽固度
-    pending = [w for w in wrong_words if w in book_words]
-    if pending:
-        has_hard = any(wrong_words[w] >= 2 for w in pending)
-        rate = (CONFIG["wrongbook"]["hardRate"] if has_hard
-                else CONFIG["wrongbook"]["normalRate"])
-        if random.random() < rate:
-            w = weighted_pick(pending, [min(3, wrong_words[w]) for w in pending])
-            qt = force or review_qtype(grade_of(wrong_words[w]))
-            if qt != "spell" or len(w) <= 8:
-                word, qtype, from_review = w, qt, True
+    word, from_review = None, False
+    cap = CONFIG["daily"]["newCap"]
+    can_new = new_today < cap
+    try_new = can_new and (not due or random.random() < 0.30)
 
-    # 2) 自适应巩固桶：到期词（快速判断）
-    if word is None and bucket == "consolidate":
-        due = [w for w in due_words if w in book_words]
-        if due:
-            w = random.choice(due)
-            qt = force or "judge"
-            if qt != "spell" or len(w) <= 8:
-                word, qtype, from_review = w, qt, True
-
-    # 3) 常规：按目标难度抽词
+    if try_new:
+        # 新词：当前词书内、无记录、按难度档
+        unseen = [w for w in book_words if w not in progress
+                  and (tier is None or WMAP[w]["t"] == tier)]
+        if not unseen:
+            unseen = [w for w in book_words if w not in progress]
+        if unseen:
+            word = random.choice(unseen)
     if word is None:
-        qtype = force or _pick_qtype()
-        def ok(w):
-            return len(w) <= 8 if qtype == "spell" else True
-        if tier is not None:
-            cand = [w for w in book_words if ok(w) and WMAP[w]["t"] == tier]
+        if due:
+            word = random.choice(dl) if dl else random.choice(dg)
+            from_review = True
         else:
-            cand = [w for w in book_words if ok(w)]
-        if not cand:
-            cand = [w for w in book_words if ok(w)] or \
-                   [o["w"] for o in BANK_WORDS if ok(o["w"])]
-        word = random.choice(cand)
+            # 无到期：优先继续推进最接近毕业的学习词（会话节奏，不硬等计时）
+            learning = [w for w in progress
+                        if not progress[w].get("graduated") and w in book_set]
+            learning.sort(key=lambda w: -progress[w].get("step", 0))
+            if learning:
+                word = learning[0]
+            elif can_new:
+                unseen = [w for w in book_words if w not in progress
+                          and (tier is None or WMAP[w]["t"] == tier)]
+                if not unseen:
+                    unseen = [w for w in book_words if w not in progress]
+                if unseen:
+                    word = random.choice(unseen)
+            if word is None:
+                # 真正兜底：任意词（遵守手动难度档）
+                pool = [w for w in book_words
+                        if tier is None or WMAP[w]["t"] == tier]
+                word = random.choice(pool or book_words)
+
+    # 题型：force 覆盖；否则按阶梯；超长词不拼写
+    qtype = force or type_for_word(progress.get(word))
+    if qtype == "spell" and len(word) > 8:
+        qtype = "cn2en"
 
     entry = WMAP[word]
+    rec = progress.get(word)
     q = {"qtype": qtype, "word": word, "pos": entry.get("p", ""),
-         "mean": entry["m"], "bucket": bucket, "review": from_review}
+         "mean": entry["m"], "review": from_review,
+         "step": (rec or {}).get("step", 0),
+         "graduated": (rec or {}).get("graduated", False)}
 
     if qtype == "en2cn":
         opts = make_distractors(word) + [entry["m"]]
@@ -291,12 +345,17 @@ def draw_question(layer=1, wrong_words=None, force=None,
         limit = CONFIG["spell"]["base"] + len(word) * CONFIG["spell"]["perChar"]
         q.update(correct=word, hint=entry["m"], timeLimit=limit)
     else:  # judge
-        if random.random() < 0.5:
-            shown = entry["m"]; correct = "yes"
+        is_first = rec is None or (not rec.get("graduated")
+                                   and rec.get("step", 0) == 0)
+        if is_first:
+            # 初识：固定给出正确释义（呈现/学习）
+            shown, correct = entry["m"], "yes"
+        elif random.random() < 0.5:
+            shown, correct = entry["m"], "yes"
         else:
-            shown = random.choice(make_distractors(word, 1))
-            correct = "no"
-        q.update(judgeShown=shown, correct=correct, timeLimit=CONFIG["speed"]["normalT"])
+            shown, correct = random.choice(make_distractors(word, 1)), "no"
+        q.update(judgeShown=shown, correct=correct,
+                 timeLimit=CONFIG["speed"]["normalT"])
     return q
 
 

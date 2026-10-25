@@ -1,5 +1,6 @@
 <title>《单词地下城 Word Dungeon》游戏设计文档（GDD）</title>
-<callout emoji="📘" background-color="light-blue"><p>版本 V4.2（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="📘" background-color="light-blue"><p>版本 V4.3（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="🪜" background-color="light-green"><p>V4.3 新增：题型阶梯（先认后背，拼写压轴）——题型由每个单词的学习进度 step 决定：step0 初识（给正确释义）→ step1 英→中 → step2 中→英 → step3 拼写（压轴），拼写答对才毕业进入 SM-2；错过的词记录在案、退回阶梯短间隔重现；出题优先级：到期未毕业 → 到期已毕业 → 新词（30% 插新词）。θ 仍控制选词难度，与题型阶梯正交</p></callout>
 <callout emoji="🧠" background-color="light-cyan"><p>V4.2 新增：自适应难度引擎（θ，初始 1.5）+ SM-2 间隔重复（10 分→1 天→3 天→7 天→16 天→30 天）+ 今日到期复习队列。按 85% 目标成功率 70/15/15 三段配比抽题，主页新增今日待复习 + θ 卡片，默认自适应、保留手动难度；参数依据见研究文献章节</p></callout>
 <callout emoji="📖" background-color="light-gray"><p>V4.1 新增：开源 ECDICT 词库落地（7388 词：高考3674/四级3846/六级5406/考研4801，主释义取常用义），主页可指定词书 + 难度，抽题按词书与难度过滤，已重新打包 APK</p></callout>
 <callout emoji="💡" background-color="light-gray"><p>V3.5 新增：拼写题答错后显示正确答案——先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案逐格变绿并提示"正确答案"</p></callout>
@@ -100,23 +101,25 @@
 <h1 seq="auto">核心机制</h1>
 
 <h2>出题与题型</h2>
-<p>每场战斗从<b>本层词池</b>无放回抽题，题目类型按概率出现：</p>
+<p>每场战斗从<b>本层词池</b>抽题。<b>V4.3 起题型不再随机，而由每个单词的学习进度 step（0–3）决定</b>——同一个词从"见过"到"能默写"逐级爬升，拼写是最终关卡：</p>
 <table>
-<colgroup><col width="150"/><col width="80"/><col width="380"/><col width="120"/></colgroup>
-<thead><tr><th background-color="light-gray"><p>题型</p></th><th background-color="light-gray"><p>占比</p></th><th background-color="light-gray"><p>形式</p></th><th background-color="light-gray"><p>认知层级</p></th></tr></thead>
+<colgroup><col width="70"/><col width="150"/><col width="380"/><col width="130"/><col width="120"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>step</p></th><th background-color="light-gray"><p>题型</p></th><th background-color="light-gray"><p>形式</p></th><th background-color="light-gray"><p>认知层级</p></th><th background-color="light-gray"><p>答对后</p></th></tr></thead>
 <tbody>
-<tr><td><p>英→中（EN2CN）</p></td><td><p>55%</p></td><td><p>英文单词 + 4 个中文释义，选正确项</p></td><td><p>再认</p></td></tr>
-<tr><td><p>中→英（CN2EN）</p></td><td><p>15%</p></td><td><p>中文释义 + 4 个英文单词，选正确项</p></td><td><p>反向再认</p></td></tr>
-<tr><td><p>拼写（SPELL）</p></td><td><p>10%</p></td><td><p>中文释义 + 字母格子，逐格默写完整单词</p></td><td><p>主动回忆</p></td></tr>
-<tr><td><p>快速判断（JUDGE）</p></td><td><p>20%</p></td><td><p>英文单词 + 一个中文释义，判断"对 / 错"</p></td><td><p>再认（快速）</p></td></tr>
+<tr><td><p>0</p></td><td><p>初识（JUDGE）</p></td><td><p>单词 + 正确释义直接给出，确认"见过"</p></td><td><p>呈现/学习</p></td><td><p>2 分钟后重现</p></td></tr>
+<tr><td><p>1</p></td><td><p>英→中（EN2CN）</p></td><td><p>英文单词 + 4 个中文释义，选正确项</p></td><td><p>再认</p></td><td><p>3 分钟后重现</p></td></tr>
+<tr><td><p>2</p></td><td><p>中→英（CN2EN）</p></td><td><p>中文释义 + 4 个英文单词，选正确项</p></td><td><p>反向再认</p></td><td><p>5 分钟后重现</p></td></tr>
+<tr><td><p>3</p></td><td><p>拼写（SPELL）</p></td><td><p>中文释义 + 字母格子，逐格默写完整单词</p></td><td><p>主动回忆（压轴）</p></td><td><p>毕业，进入 SM-2</p></td></tr>
 </tbody>
 </table>
 <ul>
+<li><b>先认后背：</b>新词第一次出现必定是 step0 初识（正确释义直接给，只需确认"见过"），随后依次英→中、中→英，<b>最后才是拼写</b>；不会出现"从没见过的新词第一次就被要求默写"。</li>
+<li>战斗中题干下方显示该词的<b>四格进阶进度（识→认→写→拼）</b>，当前格高亮、已完成格变蓝，玩家清楚知道这个词走到哪一步。</li>
 <li>干扰项从同章节、同词性、词形相近的词中生成（如 adapt 配 adopt、adept）。</li>
 <li><b>拼写题以字母格子呈现</b>：单词有几个字母划几个格子，逐格填充、当前格高亮；<b>填满后不自动提交</b>（格子金色高亮提示"已填满"），玩家可继续检查修改；按回车立即确认，或<b>等待限时结束自动按当前内容结算</b>（答对正常结算、答错正常受击），提交后整体变绿（逐格回弹）/ 红（整体抖动）。<b>答错时先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案并逐格变绿，同时提示"正确答案：xxx"</b>。</li>
 <li><b>拼写输入保护</b>：关闭自动纠错与自动大写（autocorrect=off / autocapitalize=off），强制拉丁字母键盘（inputmode=latin）；输入采用<b>键盘事件驱动</b>（自维护输入序列、value 仅回显），字母 / 退格 / 回车直接响应、删除键立即可用；对不派发按键事件的输入法按<b>增量合并</b>吸收新字母（兼容插到开头 / 末尾），联想、自动纠错或重排已输入字母的写入一律强制纠正，从根源上杜绝"输入自动反过来 / 丢字母"。</li>
-<li><b>拼写题单词长度受控</b>：只出不超过 8 个字母的词，长词（如 considerable、industrious）只在选择题 / 判断题中出现。</li>
-<li><b>快速判断节奏最快</b>：约一半给出正确释义、一半给出错误释义（错误优先取易混词），只有"对 / 错"两个大按钮，便于快速堆连击、强化心流。</li>
+<li><b>拼写题单词长度受控</b>：只出不超过 8 个字母的词，长词（如 considerable、industrious）只在选择题 / 判断题中出现；自然题型为拼写但超长的词降级为中→英。</li>
+<li><b>快速判断（JUDGE）</b>在初识（step0）固定给出正确释义（呈现/学习）；其余阶段的判断约一半给出正确释义、一半给出错误释义（错误优先取易混词），只有"对 / 错"两个大按钮。</li>
 <li>选择题 / 判断题限时 <b>12 秒</b>；<b>拼写题限时按单词长度动态计算</b>：4 秒基础 + 每字母 2 秒（4 字母词 12 秒、6 字母词 16 秒、8 字母词 20 秒），预留充足反应余量；凝神、Boss 缩短等修饰照常生效。</li>
 <li>拼写题<b>未填满超时惩罚减半</b>（打字慢不等于完全不会）；填满后限时结束按内容正常判定；判定时忽略大小写与首尾空格。</li>
 <li><b>拼写题按提交快慢动态增加伤害</b>：提交时剩余时间比例 ≥60% 伤害 ×2.0，≥40% ×1.6，≥25% ×1.25，其余 ×1.0——越快越高；其余题型保持两档（≤3 秒 1.5、≤6 秒 1.2）。</li>
@@ -224,54 +227,60 @@
 <p><b>正反例校验：</b>连击流在连对 10 题时伤害可观（连击系数 1.5、连击大师 +50%），但一旦答错且没有《势如破竹》，连击清零、输出骤降——正确选择（持续速答）与错误选择（失误）有可观察的差距。</p>
 
 <h2>单词记忆与自适应复习（RULE-REVIEW）</h2>
-<p>V4.2 用<b>自适应难度引擎 θ</b>决定出什么难度，用<b>SM-2 间隔重复</b>决定每个词何时再出现，替代旧的固定 60/40 配比与状态机。</p>
+<p>V4.3 用<b>题型阶梯</b>决定每个词"怎么考"（先认后背、拼写压轴），用<b>自适应难度引擎 θ</b>决定"出什么难度"，用<b>SM-2 间隔重复</b>决定毕业词何时再出现。</p>
 
 <h3>自适应难度引擎（RULE-ADAPTIVE-DIFF）</h3>
 <ul>
 <li>玩家维护能力值 <b>θ（theta）</b>，初始 1.5、范围 1.0–3.0、持久化；θ 越大水平越高。</li>
 <li>每题结算更新：<b>快速答对 +0.10、正常答对 +0.05、答错 −0.10</b>（边界裁剪）。</li>
-<li>抽题以 θ 为基准，按 <b>85% 目标成功率</b>三段配比：<b>70% 匹配</b>（同档）、<b>15% 拉伸</b>（高 1 档）、<b>15% 巩固</b>（低 1 档，或优先出今日到期词）。</li>
-<li>自适应为默认；主页可切手动难度（全部/简单/中等/困难），手动按难度硬过滤；主页新增"今日待复习 N 词 + θ + 进度条"卡片。</li>
+<li>θ 只控制"选词难度档"（1/2/3），与题型阶梯正交；手动难度（全部/简单/中等/困难）按难度硬过滤。</li>
 </ul>
 
-<h3>SM-2 间隔重复（RULE-SM-2）</h3>
-<p>每词记录 stage / streak / lapses / due，记忆状态由 stage 派生：</p>
+<h3>毕业门与 SM-2 间隔重复（RULE-SM-2）</h3>
+<p>单词在 step3 拼写答对才毕业（graduated=true），随后进入 SM-2。记录 stage / streak / lapses / due，记忆状态由阶梯与 stage 派生：</p>
 <table>
 <colgroup><col width="130"/><col width="320"/><col width="120"/></colgroup>
 <thead><tr><th background-color="light-gray"><p>状态</p></th><th background-color="light-gray"><p>触发条件</p></th><th background-color="light-gray"><p>熟练度系数</p></th></tr></thead>
 <tbody>
 <tr><td><p>NEW</p></td><td><p>从未作答</p></td><td><p>1.0</p></td></tr>
-<tr><td><p>LEARNING</p></td><td><p>stage 0（10 分钟内）</p></td><td><p>1.05</p></td></tr>
-<tr><td><p>FAMILIAR</p></td><td><p>stage 1–4（1 天至 16 天）</p></td><td><p>1.2</p></td></tr>
-<tr><td><p>MASTERED</p></td><td><p>stage 5（30 天）</p></td><td><p>1.4</p></td></tr>
+<tr><td><p>LEARNING</p></td><td><p>毕业前阶梯 step0-3</p></td><td><p>1.05</p></td></tr>
+<tr><td><p>FAMILIAR</p></td><td><p>已毕业 stage0-4</p></td><td><p>1.2</p></td></tr>
+<tr><td><p>MASTERED</p></td><td><p>stage5（30 天复习通过）</p></td><td><p>1.4</p></td></tr>
 </tbody>
 </table>
 <ul>
+<li><b>毕业复习题型按阶段交替</b>（不再一律压成判断）：stage0（10 分）中→英；stage1（1 天）<b>拼写</b>；stage2（3 天）英→中；stage3（7 天）中→英；stage4（16 天）英→中；stage5（30 天）<b>拼写</b>（通过即 MASTERED）。</li>
 <li><b>间隔梯：</b>10 分钟 → 1 天 → 3 天 → 7 天 → 16 天 → 30 天。</li>
-<li><b>快速答对</b>直接升 1 阶段；<b>正常答对</b>需连续 2 次升 1 阶段；<b>答错</b>阶段重置为 0（10 分钟到期）、lapses +1。</li>
-<li>到期词进<b>今日到期复习队列</b>，在巩固桶以快速判断题优先抽到；每日新词上限 20。</li>
+<li><b>快速答对</b>直接升 1 阶段；<b>正常答对</b>需连续 2 次升 1 阶段。</li>
+<li><b>答错（lapse）：</b>wrong_count +1、lapses +1、stage 清零、退出毕业<b>退回阶梯</b>（首次错回 step2，多次错回 step1），短间隔重现。</li>
 <li>fast 判定：选择/判断题反应 ≤3 秒；拼写题提交时剩余时间 ≥60%。</li>
 </ul>
 
-<h3>错词分级练习（RULE-WRONG-BOOK）</h3>
-<p>答错 / 超时的词<b>归档进错词本</b>，按累计错误次数分三级，顽固词反复出现直到掌握：</p>
+<h3>组卷优先级与新词插入</h3>
+<ul>
+<li>出题优先级：<b>到期未毕业（错词/中段学习）→ 到期已毕业（SM-2）→ 新词</b>。</li>
+<li>为不饿死新词，每次抽题有 <b>30% 概率插入新词</b>（且今日新词未达上限 20）；每日新词上限 20。</li>
+<li>无到期、无新词时继续推进最接近毕业的学习词，不会卡住。</li>
+</ul>
+
+<h3>错词归档与分级练习（RULE-WRONG-BOOK）</h3>
+<p>答错 / 超时的词<b>记录在案</b>（wrong_count +1）并归档进错词本，按累计错误次数分三级，反复出现直到拼写毕业：</p>
 <table>
-<colgroup><col width="120"/><col width="110"/><col width="180"/><col width="160"/><col width="100"/></colgroup>
-<thead><tr><th background-color="light-gray"><p>等级</p></th><th background-color="light-gray"><p>错误次数</p></th><th background-color="light-gray"><p>定位</p></th><th background-color="light-gray"><p>战斗内错词抽题权重</p></th><th background-color="light-gray"><p>复习顺序</p></th></tr></thead>
+<colgroup><col width="120"/><col width="110"/><col width="200"/><col width="240"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>等级</p></th><th background-color="light-gray"><p>错误次数</p></th><th background-color="light-gray"><p>定位</p></th><th background-color="light-gray"><p>阶梯处理</p></th></tr></thead>
 <tbody>
-<tr><td><p><span text-color="red">L3 顽固</span></p></td><td><p>≥ 3 次</p></td><td><p>反复出错，强制拼写</p></td><td><p>×3</p></td><td><p>最先</p></td></tr>
-<tr><td><p><span text-color="orange">L2 易错</span></p></td><td><p>2 次</p></td><td><p>强制英→中/中→英</p></td><td><p>×2</p></td><td><p>其次</p></td></tr>
-<tr><td><p><span text-color="yellow">L1 生疏</span></p></td><td><p>1 次</p></td><td><p>快速判断</p></td><td><p>×1</p></td><td><p>最后</p></td></tr>
+<tr><td><p><span text-color="red">L3 顽固</span></p></td><td><p>≥ 3 次</p></td><td><p>反复出错</p></td><td><p>多次错退回 step1，最短间隔重现</p></td></tr>
+<tr><td><p><span text-color="orange">L2 易错</span></p></td><td><p>2 次</p></td><td><p>接近掌握</p></td><td><p>答错退回 step2</p></td></tr>
+<tr><td><p><span text-color="yellow">L1 生疏</span></p></td><td><p>1 次</p></td><td><p>初次受挫</p></td><td><p>答错退回上一级</p></td></tr>
 </tbody>
 </table>
 <ul>
-<li><b>战斗内反复出现：</b>本层无 L2/L3 时 60% 优先，存在 L2/L3 时提升至 75%，按分级加权随机、优先高等级。</li>
-<li><b>按顽固度强制题型：</b>L3 顽固强制拼写（能默写才算消灭）、L2 易错强制选择、L1 生疏用快速判断，避免"眼熟就放过"。</li>
-<li><b>分级复习：</b>复习之泉与错词本一键复习都按"顽固 → 易错 → 生疏"排序（最多 3 个）；答对移出，答错累加、下次再出。</li>
+<li><b>错过的词一定回来：</b>答错即 wrong_count +1、step 退回一级、短间隔（2–5 分钟）重现，到期队列最高优先级，必须重新爬阶梯、拼写答对才毕业。</li>
+<li>题型由该词当前 step 决定，不再"按顽固度强制"：错词回到对应阶梯后从识/认/写/拼重新走，确保先有再认、再做产出。</li>
+<li><b>分级复习：</b>复习之泉与错词本一键复习按"顽固 → 易错 → 生疏"排序（最多 3 个）；答对移出，答错累加、下次再出。</li>
 <li><b>常驻错词本界面：</b>主页入口（错词本 N 词 · 顽固 M），三级分组展示词/词性/常用释义/错误次数，一键复习，完后返回。</li>
-<li>错词分级与 SM-2 共用错误计数（lapses）：答错阶段重置为 0、10 分钟到期，长期不再出错自然升入 FAMILIAR/MASTERED。</li>
 </ul>
-<callout emoji="⚔️" background-color="light-red"><p>边界例：award 已错 3 次（L3 顽固）、adapt 错 1 次（L1）。award 再出现时强制拼写、权重 3，adapt 用快速判断；泉水分级复习先出 award，答对移出后 adapt 升级为下一轮优先对象。</p></callout>
+<callout emoji="⚔️" background-color="light-red"><p>边界例：award 已错 3 次（L3 顽固）、adapt 错 1 次（L1）。award 多次错被退回 step1，每 2 分钟到期重现、优先级最高，先重新识认、再一步步爬到拼写，拼写答对才毕业；泉水分级复习先出 award。</p></callout>
 
 <h2>敌人</h2>
 <p><b>普通敌人：</b></p>
@@ -279,9 +288,9 @@
 <colgroup><col width="130"/><col width="300"/><col width="160"/><col width="160"/></colgroup>
 <thead><tr><th background-color="light-gray"><p>敌人</p></th><th background-color="light-gray"><p>出题特性</p></th><th background-color="light-gray"><p>HP（1/2/3 层）</p></th><th background-color="light-gray"><p>攻击（1/2/3 层）</p></th></tr></thead>
 <tbody>
-<tr><td><p>词魔</p></td><td><p>标准混合题型</p></td><td><p>35 / 45 / 55</p></td><td><p>8 / 10 / 12</p></td></tr>
-<tr><td><p>易混词妖</p></td><td><p>强制英→中，选项为近义/形近干扰</p></td><td><p>40 / 50 / 60</p></td><td><p>9 / 11 / 13</p></td></tr>
-<tr><td><p>拼写守卫</p></td><td><p>强制拼写题</p></td><td><p>45 / 55 / 65</p></td><td><p>10 / 12 / 14</p></td></tr>
+<tr><td><p>词魔</p></td><td><p>题型阶梯（按单词进度）</p></td><td><p>35 / 45 / 55</p></td><td><p>8 / 10 / 12</p></td></tr>
+<tr><td><p>易混词妖</p></td><td><p>偏好英→中（易混词配组），选项为近义/形近干扰</p></td><td><p>40 / 50 / 60</p></td><td><p>9 / 11 / 13</p></td></tr>
+<tr><td><p>拼写守卫</p></td><td><p>偏好拼写（只选自然题型为拼写的词，不硬考新词）</p></td><td><p>45 / 55 / 65</p></td><td><p>10 / 12 / 14</p></td></tr>
 </tbody>
 </table>
 <p><b>精英敌人：</b></p>

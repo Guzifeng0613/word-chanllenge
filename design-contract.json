@@ -40,6 +40,28 @@
   ],
   "rules": [
     {
+      "id": "RULE-TYPE-LADDER",
+      "title": "题型阶梯（先认后背，拼写压轴）",
+      "definition": "题型由每个单词的学习进度 step(0-3) 决定，不再随机：step0 初识 judge（单词+正确释义直接给出，确认见过）→ step1 英→中 en2cn（4选1）→ step2 中→英 cn2en（4选1）→ step3 拼写 spell（自由产出，压轴）。答对 step s<3 升一级（间隔 2/3/5 分钟），step3 拼写答对才毕业（graduated=true，进入 SM-2，10 分钟后首次复习）；答错 wrong_count+1、step 退回一级、短间隔重现。战斗中题干下方显示四格进阶（识→认→写→拼）。拼写仅限≤8字母，超长词降级 cn2en。毕业后复习题型按阶段交替：stage0 中→英(10分)、stage1 拼写(1天)、stage2 英→中(3天)、stage3 中→英(7天)、stage4 英→中(16天)、stage5 拼写(30天，通过即 MASTERED)。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-STEP-DELAY0",
+        "PAR-STEP-DELAY1",
+        "PAR-STEP-DELAY2",
+        "PAR-NEW-CAP",
+        "PAR-NEW-INSERT"
+      ],
+      "state_machine_ids": [
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "ladder.type_by_step",
+        "ladder.graduation_gate",
+        "ladder.ui_progress"
+      ]
+    },
+    {
       "id": "RULE-ANSWER",
       "title": "答题结算",
       "definition": "题目出现后开始计时。玩家在 t<=3 秒答对，伤害为基础值的 1.5 倍；3<t<=6 秒为 1.2 倍；t>6 秒为 1.0 倍。最终伤害 = 基础伤害 × 速度系数 × (1 + 0.05×连击数，上限 2.0) × 熟练度系数 × 卡牌系数。答对后连击数 +1。",
@@ -121,7 +143,7 @@
     {
       "id": "RULE-SM-2",
       "title": "SM-2 间隔重复",
-      "definition": "每词记录 stage/streak/lapses/due，记忆状态由 stage 派生（NEW/LEARNING=stage0/FAMILIAR=stage1-4/MASTERED=stage5）。间隔梯：10 分钟、1 天、3 天、7 天、16 天、30 天。快速答对直接升 1 阶段；正常答对需连续 2 次升 1 阶段；答错阶段重置为 0（10 分钟到期）、lapses+1。到期词进今日到期复习队列，在巩固桶以快速判断题优先抽到；每日新词上限 20。fast 判定：选择/判断反应<=3 秒，拼写剩余时间>=60%。",
+      "definition": "单词在 step3 拼写答对毕业（graduated=true）后进入 SM-2。记录 stage/streak/lapses/due，间隔梯：10 分钟、1 天、3 天、7 天、16 天、30 天。各阶段复习题型交替（见 RULE-TYPE-LADDER）。快速答对直接升 1 阶段；正常答对需连续 2 次升 1 阶段；答错 lapse：wrong_count+1、lapses+1、stage 清零、退出毕业退回阶梯（首次错回 step2，多次错回 step1）。每日新词上限 20。fast 判定：选择/判断反应<=3 秒，拼写剩余时间>=60%。",
       "priority": "P0",
       "parameter_ids": [
         "PAR-NEW-CAP",
@@ -133,8 +155,8 @@
       "authority_ids": [],
       "fields": [
         "srs.ladder",
-        "srs.due_queue",
-        "srs.daily_new_cap"
+        "srs.graduated_only",
+        "srs.lapse_to_ladder"
       ]
     },
     {
@@ -810,6 +832,42 @@
       "source": "design_initial",
       "min": 1.5,
       "max": 3.0
+    },
+    {
+      "id": "PAR-STEP-DELAY0",
+      "name": "step_delay_after_0",
+      "value": 2,
+      "unit": "minute",
+      "source": "design_initial",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "id": "PAR-STEP-DELAY1",
+      "name": "step_delay_after_1",
+      "value": 3,
+      "unit": "minute",
+      "source": "design_initial",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "id": "PAR-STEP-DELAY2",
+      "name": "step_delay_after_2",
+      "value": 5,
+      "unit": "minute",
+      "source": "design_initial",
+      "min": 3,
+      "max": 10
+    },
+    {
+      "id": "PAR-NEW-INSERT",
+      "name": "new_word_insert_probability",
+      "value": 0.3,
+      "unit": "ratio",
+      "source": "design_initial",
+      "min": 0.15,
+      "max": 0.5
     }
   ],
   "numeric_requirements": [
@@ -1032,23 +1090,23 @@
       "states": [
         {
           "id": "NEW",
-          "entry": "词首次进入组卷",
-          "exit": "首次作答（fast 升 stage1，normal 记 streak）"
+          "entry": "词首次进入（step0 初识 judge，正确释义直接给）",
+          "exit": "初识确认答对"
         },
         {
           "id": "LEARNING",
-          "entry": "stage 0，10 分钟后到期",
-          "exit": "fast 答对或连续 2 次 normal 答对升 stage1"
+          "entry": "题型阶梯 step0-3：judge→en2cn→cn2en→spell",
+          "exit": "step3 拼写答对毕业；答错退回一级（仍在 LEARNING）"
         },
         {
           "id": "FAMILIAR",
-          "entry": "stage 1-4，间隔 1/3/7/16 天",
-          "exit": "fast 答对或连续 2 次 normal 答对升下一阶段"
+          "entry": "已毕业 SM-2 stage0-4，间隔 10分/1天/3天/7天/16天",
+          "exit": "答对升阶段；答错 lapse 退回阶梯"
         },
         {
           "id": "MASTERED",
-          "entry": "stage 5，30 天，伤害 +40%",
-          "exit": "终态；答错仍回退 stage0"
+          "entry": "stage5，30 天复习通过，伤害 +40%",
+          "exit": "终态；答错仍退回 LEARNING"
         }
       ],
       "event_order": [
@@ -1061,27 +1119,54 @@
         {
           "id": "TRIG-NEW-LEARN",
           "from": "NEW",
-          "event": "fast 答对，或连续 2 次 normal 答对",
+          "event": "初识 judge 答对",
           "to": "LEARNING",
-          "effect": "fast 直接 stage1（1 天），normal 首次 streak1（10 分钟），theta +0.10/+0.05",
+          "effect": "step0→1，2 分钟后重现，theta +0.05",
           "repeat_policy": "同一题只结算一次",
-          "cleanup": "记录答题时间戳与 streak"
+          "cleanup": "记录 step 与 due"
         },
         {
-          "id": "TRIG-LEARN-FAM",
+          "id": "TRIG-LADDER-UP",
           "from": "LEARNING",
-          "event": "fast 答对，或连续 2 次 normal 答对",
+          "event": "step1/2 答对",
+          "to": "LEARNING",
+          "effect": "step 升一级，间隔 3/5 分钟重现",
+          "repeat_policy": "到期前不重复",
+          "cleanup": "更新 step/due"
+        },
+        {
+          "id": "TRIG-LADDER-BACK",
+          "from": "LEARNING",
+          "event": "答错",
+          "to": "LEARNING",
+          "effect": "wrong_count+1，step 退回一级，短间隔重现",
+          "repeat_policy": "到期最高优先级",
+          "cleanup": "step 退回"
+        },
+        {
+          "id": "TRIG-LADDER-GRADUATE",
+          "from": "LEARNING",
+          "event": "step3 拼写答对",
           "to": "FAMILIAR",
-          "effect": "stage 升 1，按间隔梯安排 1/3/7/16 天",
-          "repeat_policy": "到期前不出新词",
+          "effect": "graduated=true，stage0，10 分钟后首次复习",
+          "repeat_policy": "毕业唯一",
+          "cleanup": "进入 SM-2"
+        },
+        {
+          "id": "TRIG-FAM-UP",
+          "from": "FAMILIAR",
+          "event": "fast 答对或连续 2 次 normal 答对",
+          "to": "FAMILIAR",
+          "effect": "stage 升一级，按间隔梯安排",
+          "repeat_policy": "到期前不重复",
           "cleanup": "更新 stage/streak"
         },
         {
           "id": "TRIG-FAM-MASTER",
           "from": "FAMILIAR",
-          "event": "stage4 时 fast 答对，或连续 2 次 normal 答对",
+          "event": "stage4 时 fast 答对或连续 2 次 normal 答对",
           "to": "MASTERED",
-          "effect": "stage5，30 天，伤害 +40%，计入掌握",
+          "effect": "stage5，30 天，伤害 +40%",
           "repeat_policy": "不再主动出题",
           "cleanup": "更新掌握计数"
         },
@@ -1090,32 +1175,34 @@
           "from": "FAMILIAR",
           "event": "答错",
           "to": "LEARNING",
-          "effect": "stage 重置为 0，10 分钟到期，lapses+1，theta -0.10",
-          "repeat_policy": "高概率本局再现",
-          "cleanup": "stage 归零、streak 清零"
+          "effect": "lapse：wrong_count+1、lapses+1、stage 清零、退回阶梯（首次 step2，多次 step1）",
+          "repeat_policy": "到期最高优先级",
+          "cleanup": "退出毕业、step 退回"
         },
         {
           "id": "TRIG-MASTER-REGRESS",
           "from": "MASTERED",
           "event": "答错",
           "to": "LEARNING",
-          "effect": "stage 重置为 0，10 分钟到期，lapses+1",
-          "repeat_policy": "高概率本局再现",
-          "cleanup": "stage 归零"
+          "effect": "lapse，退回阶梯",
+          "repeat_policy": "到期最高优先级",
+          "cleanup": "stage 清零"
         }
       ],
       "persistence": {
         "required": true,
         "write_trigger": "每次答题结算后与单局结束时写入 localStorage",
-        "restore_rule": "启动时读取 word_dungeon_progress_v1，重建 theta、stage、lapses 与到期复习队列",
+        "restore_rule": "启动时读取 word_dungeon_progress_v1，重建 step/graduated/stage/lapses/wrong_count 与到期队列",
         "abnormal_exit": "中途关闭页面时，已结算的答题结果保留，当前未结算题目作废",
         "fields": [
-          "meta.theta",
-          "wordStages",
-          "wordStreaks",
-          "wordLapses",
+          "word.step",
+          "word.graduated",
+          "word.stage",
+          "word.streak",
+          "word.lapses",
+          "word.wrong_count",
           "dueTimestamps",
-          "masteredCount",
+          "meta.theta",
           "meta.level",
           "meta.xp",
           "meta.daily",
@@ -1201,25 +1288,17 @@
   "ledgers": {
     "probability_pools": [
       {
-        "id": "POOL-QUESTION-TYPE",
+        "id": "POOL-DRAW-MIX",
         "expected_total": 100,
         "tolerance": 0,
         "entries": [
           {
-            "id": "EN2CN",
-            "value": 55
+            "id": "DUE_WORDS",
+            "value": 70
           },
           {
-            "id": "CN2EN",
-            "value": 15
-          },
-          {
-            "id": "SPELL",
-            "value": 10
-          },
-          {
-            "id": "JUDGE",
-            "value": 20
+            "id": "NEW_WORD",
+            "value": 30
           }
         ]
       },
@@ -1325,6 +1404,17 @@
     "capacity": []
   },
   "tests": [
+    {
+      "id": "TEST-TYPE-LADDER",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-TYPE-LADDER"
+      ],
+      "precondition": "对全新词，浏览器驱动其连续答对直到毕业；再制造答错",
+      "action": "在浏览器对同一新词依次作答 step0→1→2→3；毕业到期后走 stage0-5；中途答错",
+      "expected": "新词首题必为 judge（给正确释义）；题型依次 judge/en2cn/cn2en/spell，四格进度逐格点亮；拼写答对毕业（graduated=true）；毕业复习 stage0 中→英、stage1 拼写、stage2 英→中…；答错 wrong_count+1、step 退回（首次 step2、多次 step1）、短间隔重现；超长词不拼写",
+      "status": "passed"
+    },
     {
       "id": "TEST-CORRECT",
       "type": "normal",

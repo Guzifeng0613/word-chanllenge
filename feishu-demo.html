@@ -92,6 +92,15 @@
   .qword{font-size:27px; font-weight:800; letter-spacing:1px;}
   .qpos{font-size:13px; color:var(--cyan);}
   .qprompt{text-align:center; color:var(--mut); font-size:13.5px; margin-top:2px;}
+  /* V4.3 题型阶梯进度（识→认→写→拼） */
+  .ladder{display:flex; align-items:center; justify-content:center; gap:7px; margin:7px 2px 0;}
+  .lad-segs{display:flex; gap:4px;}
+  .lad-segs .seg{font-style:normal; font-size:11px; line-height:1; min-width:26px; text-align:center;
+    padding:4px 6px; border-radius:6px; border:1px solid var(--line); color:var(--mut);
+    background:#101f36; transition:all .18s ease;}
+  .lad-segs .seg.on{color:#0b1424; background:linear-gradient(180deg,#3b82f6,#2563eb); border-color:#3b82f6; font-weight:700;}
+  .lad-segs .seg.cur{box-shadow:0 0 0 2px rgba(251,191,36,.55); transform:translateY(-1px);}
+  .lad-lab{font-size:11px; color:var(--gold); font-weight:700;}
   .timer{height:7px; background:#13243c; border-radius:5px; overflow:hidden; margin:8px 2px 2px; border:1px solid var(--line);}
   .timer > i{display:block; height:100%; background:linear-gradient(90deg,var(--gold),var(--orange)); width:100%;}
   .timetxt{font-size:11px; color:var(--mut); text-align:center;}
@@ -461,8 +470,8 @@ const hasCard=id=>G.cards.includes(id);
 const ENEMY = {
   normal:[
    {id:'wordfiend',name:'词魔',hp:[35,45,55],atk:[8,10,12]},
-   {id:'confuser',name:'易混词妖',hp:[40,50,60],atk:[9,11,13],force:'en2cn',confuse:true},
-   {id:'speller',name:'拼写守卫',hp:[45,55,65],atk:[10,12,14],force:'spell'}
+   {id:'confuser',name:'易混词妖',hp:[40,50,60],atk:[9,11,13],prefer:'en2cn',confuse:true},
+   {id:'speller',name:'拼写守卫',hp:[45,55,65],atk:[10,12,14],prefer:'spell'}
   ],
   elite:[
    {id:'ghost',name:'健忘幽灵',hp:[100,130,160],atk:[12,14,16],timeMod:-2},
@@ -567,13 +576,19 @@ const Save = {
   reset(){ localStorage.removeItem(SAVE_KEY); }
 };
 let P = Save.load();
-function recOf(w){ return P.words[w] || {state:'NEW',stage:0,lapses:0,streak:0,due:0}; }
+function recOf(w){
+  return P.words[w] || {state:'NEW',step:0,graduated:false,stage:0,lapses:0,streak:0,wrong_count:0,due:0};
+}
 function wState(w){ return recOf(w).state; }
 
 /* ============================================================
- * V4.2 自适应难度 θ + SM-2 间隔重复
+ * V4.3 题型阶梯（先认后背，拼写压轴）+ 自适应 θ + SM-2
  * ============================================================ */
 const SRS_LADDER=[10,1440,4320,10080,23040,43200];   // 分钟
+const NEW_CAP=20;                                       // 每日新词上限
+const TYPE_LADDER=['judge','en2cn','cn2en','spell'];
+const STEP_DELAY_MIN=[2,3,5];
+const GRAD_REVIEW_TYPE=['cn2en','spell','en2cn','cn2en','en2cn','spell'];
 function updateTheta(theta,correct,fast){
   if(correct) theta += fast?0.10:0.05;
   else theta -= 0.10;
@@ -585,33 +600,72 @@ function adaptiveTier(theta){
   if(r<0.85) return {tier:Math.min(3,base+1),bucket:'stretch'};
   return {tier:Math.max(1,base-1),bucket:'consolidate'};
 }
-function srsSchedule(rec,correct,fast,now){
-  rec=Object.assign({stage:0,lapses:0,streak:0,state:'NEW'},rec);
+function normRec(rec){
+  return Object.assign({state:'NEW',step:0,graduated:false,stage:0,lapses:0,
+    streak:0,wrong_count:0,due:0,created:0},rec);
+}
+function typeForWord(rec){
+  rec=normRec(rec);
+  if(rec.graduated) return GRAD_REVIEW_TYPE[rec.stage];
+  return TYPE_LADDER[rec.step];
+}
+function learnStep(rec,correct,fast,now){
+  rec=normRec(rec);
+  const s=rec.step;
   if(!correct){
-    rec.stage=0; rec.streak=0; rec.lapses++; rec.state='LEARNING';
-  } else {
-    if(fast){ rec.stage=Math.min(rec.stage+1,SRS_LADDER.length-1); rec.streak=0; }
-    else {
-      rec.streak++;
-      if(rec.streak>=2){ rec.stage=Math.min(rec.stage+1,SRS_LADDER.length-1); rec.streak=0; }
-    }
-    rec.state = rec.stage===SRS_LADDER.length-1?'MASTERED' : rec.stage>=1?'FAMILIAR':'LEARNING';
+    rec.wrong_count++; rec.state='LEARNING';
+    rec.step=Math.max(0,s-1);
+    rec.due=now+STEP_DELAY_MIN[rec.step]*60000;
+    return rec;
   }
-  rec.due=now+SRS_LADDER[rec.stage]*60*1000;
+  if(s<3){
+    rec.step=s+1; rec.state='LEARNING';
+    rec.due=now+STEP_DELAY_MIN[s]*60000;
+  } else {
+    rec.graduated=true; rec.state='FAMILIAR'; rec.stage=0; rec.streak=0;
+    rec.due=now+SRS_LADDER[0]*60000;
+  }
   return rec;
 }
-function dueWordsNow(){
-  const now=Date.now();
+function gradStep(rec,correct,fast,now){
+  rec=normRec(rec);
+  const top=SRS_LADDER.length-1;
+  if(!correct){
+    rec.wrong_count++; rec.lapses++; rec.stage=0; rec.streak=0;
+    rec.graduated=false; rec.state='LEARNING';
+    rec.step = rec.wrong_count>=2?1:2;
+    rec.due=now+STEP_DELAY_MIN[rec.step]*60000;
+    return rec;
+  }
+  if(fast){ rec.stage=Math.min(rec.stage+1,top); rec.streak=0; }
+  else {
+    rec.streak++;
+    if(rec.streak>=2){ rec.stage=Math.min(rec.stage+1,top); rec.streak=0; }
+  }
+  rec.state = rec.stage===top?'MASTERED':'FAMILIAR';
+  rec.due=now+SRS_LADDER[rec.stage]*60000;
+  return rec;
+}
+function schedule(rec,correct,fast,now){
+  rec=normRec(rec);
+  if(rec.graduated) return gradStep(rec,correct,fast,now);
+  return learnStep(rec,correct,fast,now);
+}
+function dueLearning(now){
   return Object.keys(P.words).filter(w=>{
-    const d=P.words[w].due; return d&&d<=now;
+    const r=P.words[w]; return !r.graduated && r.due && r.due<=now;
   });
 }
-function gradeOf(wrongCount){ return wrongCount>=3?3:wrongCount===2?2:1; }
-function reviewQtype(grade){
-  if(grade>=3) return 'spell';
-  if(grade===2) return rpick(['en2cn','cn2en']);
-  return 'judge';
+function dueGraduated(now){
+  return Object.keys(P.words).filter(w=>{
+    const r=P.words[w]; return r.graduated && r.due && r.due<=now;
+  });
 }
+function newToday(){
+  const today0=Math.floor(Date.now()/86400000)*86400000;
+  return Object.keys(P.words).filter(w=>(P.words[w].created||0)>=today0).length;
+}
+function gradeOf(wrongCount){ return wrongCount>=3?3:wrongCount===2?2:1; }
 function isFastAnswer(q,elapsed,remainFrac){
   if(q.qtype==='spell') return remainFrac>=0.60;
   return elapsed<=C.speed.fastT;
@@ -619,7 +673,8 @@ function isFastAnswer(q,elapsed,remainFrac){
 function applySrs(word,correct,fast){
   const now=Date.now();
   const old=P.words[word]?Object.assign({},P.words[word]):null;
-  const rec=srsSchedule(old,correct,fast,now);
+  const rec=schedule(old,correct,fast,now);
+  rec.created = old? (old.created||0) : now;
   P.words[word]=rec;
   P.meta.theta=updateTheta(P.meta.theta,correct,fast);
   Save.write(P);
@@ -825,46 +880,59 @@ function speedMultFor(q,elapsed){
   }
   return elapsed<=C.speed.fastT?C.speed.fastM:elapsed<=C.speed.normalT?C.speed.normalM:1;
 }
-function pickWordAndType(forceType){
+function pickWordAndType(prefer){
   const maxLen=8;
-  // 目标桶与难度
-  let bucket='normal', targetTier=null;
+  // 目标难度档（θ 自适应或手动）；题型永远由单词 step/stage 决定
+  let targetTier=null;
   if(isAdaptive()){
-    const t=adaptiveTier(P.meta.theta); targetTier=t.tier; bucket=t.bucket;
+    targetTier=adaptiveTier(P.meta.theta).tier;
   } else if(SETTINGS.difficulty){
     targetTier=SETTINGS.difficulty;
   }
-  // 1) 本层错词：按分级加权反复，题型按顽固度强制
-  const pend=Object.keys(G.wrongWords).filter(w=>G.wrongWords[w]&&G.layerWords.includes(w));
-  if(pend.length){
-    const hasHard=pend.some(w=>(G.wrongCount[w]||0)>=2);
-    const rate=hasHard?0.75:0.6;
-    if(rnd()<rate){
-      const w=wpick(pend,pend.map(w=>Math.min(3,G.wrongCount[w]||1)));
-      let qt=forceType||reviewQtype(gradeOf(G.wrongCount[w]||1));
-      if(qt==='spell'&&w.length>maxLen) qt='en2cn';
-      return {word:w,qtype:qt,review:true,bucket};
-    }
+  const now=Date.now();
+  const dl=dueLearning(now).filter(w=>G.layerWords.includes(w));
+  const dg=dueGraduated(now).filter(w=>G.layerWords.includes(w));
+  const due=dl.concat(dg);
+  const canNew=newToday()<NEW_CAP;
+
+  // 敌人偏好：优先选"自然题型=偏好"的词（拼写守卫/易混词妖），但不硬覆盖新词
+  if(prefer){
+    const fit=w=>typeForWord(P.words[w])===prefer && (prefer!=='spell'||w.length<=maxLen);
+    const dueFit=due.filter(fit);
+    if(dueFit.length) return {word:rpick(dueFit),qtype:prefer,review:true,bucket:'match'};
+    const cont=Object.keys(P.words).filter(w=>G.layerWords.includes(w)
+      && !P.words[w].graduated && fit(w));
+    if(cont.length) return {word:rpick(cont),qtype:prefer,review:false,bucket:'match'};
   }
-  // 2) 巩固桶：到期词（快速判断）
-  if(bucket==='consolidate'){
-    const due=dueWordsNow().filter(w=>G.layerWords.includes(w)&&!G.wrongWords[w]);
+
+  const tryNew=canNew && (!due.length || rnd()<0.30);
+  let word=null, review=false;
+  if(tryNew){
+    let unseen=G.layerWords.filter(w=>!P.words[w] && (!targetTier||WMAP[w].t===targetTier));
+    if(!unseen.length) unseen=G.layerWords.filter(w=>!P.words[w]);
+    if(unseen.length) word=rpick(unseen);
+  }
+  if(!word){
     if(due.length){
-      const w=rpick(due);
-      return {word:w,qtype:forceType||'judge',review:true,bucket};
+      word=dl.length?rpick(dl):rpick(dg); review=true;
+    } else {
+      // 无到期：继续推进最接近毕业的学习词（会话节奏）
+      const learning=Object.keys(P.words)
+        .filter(w=>!P.words[w].graduated && G.layerWords.includes(w));
+      learning.sort((a,b)=>P.words[b].step-P.words[a].step);
+      if(learning.length) word=learning[0];
+      else if(canNew){
+        let unseen=G.layerWords.filter(w=>!P.words[w] && (!targetTier||WMAP[w].t===targetTier));
+        if(!unseen.length) unseen=G.layerWords.filter(w=>!P.words[w]);
+        if(unseen.length) word=rpick(unseen);
+      }
+      if(!word) word=rpick(G.layerWords);
     }
   }
-  // 3) 常规：随机题型（或 force），按目标难度抽词
-  let qtype=forceType;
-  if(!qtype){
-    const r=rnd(); let acc=0;
-    qtype = r<(acc+=C.question.pool.en2cn)?'en2cn' : r<(acc+=C.question.pool.cn2en)?'cn2en' : r<(acc+=C.question.pool.spell)?'spell' : 'judge';
-  }
-  const ok=w=>(qtype!=='spell'||w.length<=maxLen);
-  let cand=G.layerWords.filter(w=>ok(w)&&(!targetTier||WMAP[w].t===targetTier));
-  if(!cand.length) cand=G.layerWords.filter(ok);
-  if(!cand.length) cand=G.layerWords;
-  return {word:rpick(cand),qtype,review:false,bucket};
+  // 题型永远来自阶梯；超长词降级
+  let qtype=typeForWord(P.words[word]);
+  if(qtype==='spell'&&word.length>maxLen) qtype='cn2en';
+  return {word,qtype,review,bucket:isAdaptive()?'match':'normal'};
 }
 function nextQuestion(){
   const b=G.battle;
@@ -877,16 +945,19 @@ function nextQuestion(){
     if(t.mech==='fog' && b.answered>0 && b.answered%t.every===0) b.fog=true;
     if(t.mech==='blur' && b.answered>0 && b.answered%t.every===0) b.blur=true;
   }
-  const forceType=enemy.tpl.force||null;
+  const preferType=enemy.tpl.prefer||null;
   let pick=null;
-  // 易混敌人：优先用能配组的词
+  // 易混敌人：优先用能配组的词（题型仍走阶梯，不硬覆盖）
   if(enemy.tpl.confuse){
     const candidates=G.layerWords.filter(w=>groupOf(w));
     if(candidates.length){
-      pick={word:rpick(candidates),qtype:forceType||'en2cn',review:false,bucket:'match'};
+      const w=rpick(candidates);
+      let qt=typeForWord(P.words[w]);
+      if(qt==='spell'&&w.length>8) qt='cn2en';
+      pick={word:w,qtype:qt,review:!!P.words[w],bucket:'match'};
     }
   }
-  if(!pick) pick=pickWordAndType(forceType);
+  if(!pick) pick=pickWordAndType(preferType);
   G.curBucket=pick.bucket;
   buildQuestion(pick.word,pick.qtype);
 }
@@ -915,7 +986,9 @@ function buildQuestion(word,qtype){
     }
   }
   if(qtype==='judge'){
-    const showRight=rnd()<0.5;
+    const rec=P.words[word];
+    const isFirst=!rec || (!rec.graduated && rec.step===0);
+    const showRight=isFirst || rnd()<0.5;   // 初识固定给正确释义
     if(showRight){
       q.judgeShown=o.m; q.correct='yes';
     } else {
@@ -1452,7 +1525,9 @@ function viewHome(){
      <div class="progress-row" style="margin-top:10px;"><span>已接触单词</span><span class="mut">${total}</span></div>
    </div>
    <div class="card" style="margin-top:12px;">
-     <div class="progress-row"><span>今日待复习（到期）</span><span class="mut" style="color:var(--gold,#fbbf24);font-weight:700;">${dueWordsNow().length} 词</span></div>
+     <div class="progress-row"><span>学习中（未毕业·到期）</span><span class="mut" style="color:#3b82f6;font-weight:700;">${dueLearning(Date.now()).length} 词</span></div>
+    <div class="progress-row" style="margin-top:8px;"><span>今日复习（已毕业·到期）</span><span class="mut" style="color:var(--gold,#fbbf24);font-weight:700;">${dueGraduated(Date.now()).length} 词</span></div>
+    <div class="progress-row" style="margin-top:8px;"><span>今日新词</span><span class="mut">${newToday()} / ${NEW_CAP}</span></div>
      <div class="progress-row" style="margin-top:8px;"><span>当前能力 θ</span><span class="mut">${P.meta.theta.toFixed(2)}（目标成功率 85%）</span></div>
      <div class="bar" style="margin-top:6px;"><i style="width:${(P.meta.theta-1)/2*100}%"></i></div>
    </div>
@@ -1559,6 +1634,20 @@ function judgeView(q){
     </div>
   </div>`;
 }
+function ladderHTML(word){
+  const rec=P.words[word];
+  if(rec&&rec.graduated){
+    const labels=['10分','1天','3天','7天','16天','30天'];
+    return `<div class="ladder"><span class="lad-lab">复习</span><div class="lad-segs">${
+      labels.map((l,i)=>`<i class="seg ${i<=rec.stage?'on':''} ${i===rec.stage?'cur':''}">${l}</i>`).join('')
+    }</div></div>`;
+  }
+  const step=rec?rec.step:0;
+  const labels=['识','认','写','拼'];
+  return `<div class="ladder"><div class="lad-segs">${
+    labels.map((l,i)=>`<i class="seg ${i<=step?'on':''} ${i===step?'cur':''}">${l}</i>`).join('')
+  }</div></div>`;
+}
 function viewBattle(){
   const b=G.battle, e=b.enemy, q=b.q;
   const hpPct=Math.round(e.hp/e.maxHp*100);
@@ -1615,6 +1704,7 @@ function viewBattle(){
        ${G.wrongWords[q.word]?`<span class="revbadge">⚔ 再战 · 伤害${Math.round((Math.min(C.revenge.base+C.revenge.perMiss*((G.wrongCount[q.word]||1)-1),C.revenge.cap))*100)}%</span>`:''}
      </div>
      <div class="qprompt">${q.qtype==='en2cn'?'选择正确的中文释义':q.qtype==='cn2en'?'选择正确的英文单词':q.qtype==='judge'?'这个释义对吗？':'根据释义默写英文单词'}</div>
+     ${ladderHTML(q.word)}
      <div class="timer"><i id="timerfill" style="width:100%"></i></div>
      <div class="timetxt" id="timetxt">${q.limit}.0 秒</div>
      <div class="opts ${b.blur?'blurring':''}" id="opts">${opts}</div>
