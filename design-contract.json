@@ -231,6 +231,22 @@
       ]
     },
     {
+      "id": "RULE-BOOK-SELECT",
+      "title": "词书与难度选择",
+      "definition": "开源 ECDICT 词库（7388词，含高考/四级/六级/考研考试标签）。主页可指定词书（gaokao/cet4/cet6/kaoyan四选一）与难度（全部/简单1/中等2/困难3四选一），选择持久化；组卷抽题严格按词书归属与难度过滤，错词只在属于当前词书时反复出现。主释义取常用义（前2高频义位），干扰项从同词性、近形/近义族生成。",
+      "priority": "P0",
+      "parameter_ids": [],
+      "state_machine_ids": [
+        "SM-BATTLE"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "book.select",
+        "book.difficulty",
+        "book.filter"
+      ]
+    },
+    {
       "id": "RULE-REVENGE",
       "title": "复仇加成",
       "definition": "之前答错的词进入错词本，再次出现时题头显示橙色“再战”徽章并标注伤害倍率；答对时伤害在正常结算上额外乘复仇系数，播放红金复仇数字、雪耻文字、红金粒子与强震动。复仇系数按累计错过次数递增：第一次1.5，之后每多错过一次+0.25，上限2.0；与暴击可叠加（先乘复仇、暴击再翻倍）；复仇成功移出错词本，再答错则错过次数继续累加。",
@@ -1395,6 +1411,17 @@
       "precondition": "战斗中制造多个错词（含重复答错同一词）",
       "action": "①检查 wrongBookData 分级与排序；②主页错词本入口；③错词本三级分组展示；④一键开始复习（spring from=wrongbook）；⑤复习答对移出错词本、复习完返回错词本",
       "expected": "错词按错误次数分级（L3顽固≥3次/L2易错2次/L1生疏1次），分级数据正确；错词本入口显示词数与顽固数；内页按级分组显示词/词性/常用释义/×次数；复习按顽固→易错→生疏排序（springData.from=wrongbook）；答对复习移出错词本；复习完 springDone 返回 wrongbook",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-BOOK-SELECT",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-BOOK-SELECT"
+      ],
+      "precondition": "开源 ECDICT 7388 词已内嵌，主页有词书/难度选择卡片",
+      "action": "①切换词书（高考/四级/六级/考研）；②切换难度（全部/简单/中等/困难）；③开始远征，检查连续出题是否都属于所选词书与难度",
+      "expected": "词书词数：高考3674/四级3846/六级5406/考研4801；难度筛选正确（六级困难3404）；选择持久化；远征抽题全部属于所选词书与难度（六级困难抽到 modulate/dip/hence 等，均含 cet6 标签且 t=3）",
       "status": "passed"
     }
   ],

@@ -1,6 +1,7 @@
 <title>《单词地下城 Word Dungeon》游戏设计文档（GDD）</title>
-<callout emoji="📘" background-color="light-blue"><p>版本 V4.0（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
-<callout emoji="📚" background-color="light-cyan"><p>V4.0 新增：错词分级练习系统（L1 生疏 / L2 易错 / L3 顽固，战斗加权反复出现 + 分级复习 + 常驻错词本界面）；第 8 章词库规范（开源词库 COCA/四六级/CEFR、常用义优先）、界面设计（底部 Tab + 错词本页）、后端架构与 Capacitor APK 打包方案</p></callout>
+<callout emoji="📘" background-color="light-blue"><p>版本 V4.1（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="📖" background-color="light-cyan"><p>V4.1 新增：开源 ECDICT 词库落地（7388 词：高考3674/四级3846/六级5406/考研4801，主释义取常用义），主页可指定词书 + 难度（全部/简单/中等/困难），抽题按词书与难度过滤，已重新打包 APK</p></callout>
+<callout emoji="📚" background-color="light-gray"><p>V4.0 新增：错词分级练习系统（L1 生疏 / L2 易错 / L3 顽固，战斗加权反复出现 + 分级复习 + 常驻错词本界面）；第 8 章词库规范、界面设计、后端架构与 Capacitor APK 打包方案</p></callout>
 <callout emoji="💡" background-color="light-gray"><p>V3.5 新增：拼写题答错后显示正确答案——先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案逐格变绿并提示"正确答案"</p></callout>
 <callout emoji="⏱️" background-color="light-gray"><p>V3.4 新增：拼写题填满不再自动提交（回车确认或限时结束自动结算）；拼写限时按单词长度动态计算（4s 基础 + 每字母 2s，预留反应余量）；拼写题按提交快慢动态增加伤害（剩余 ≥60%×2.0 / ≥40%×1.6 / ≥25%×1.25 / 其余×1.0）</p></callout>
 <callout emoji="🔧" background-color="light-gray"><p>V3.3 修复：拼写输入改为键盘事件驱动 + 增量合并——彻底修复"输入自动反过来 / 丢字母"与手机删除键失效</p></callout>
@@ -427,32 +428,34 @@
 </table>
 
 <h1 seq="auto">可玩原型与交付</h1>
-<p>下方为可直接在文档内试玩的 HTML 原型（单文件、离线、无需依赖）：点选答案作答，拼写题在字母格子中逐格输入、填满自动提交，判断题点对 / 错；攻击、受击、死亡与升级均有打击演出。界面顶部为敌人与 HP，左下角为玩家 HP/护盾/词魂，右下角为连击。原型不覆盖听音、多人、云存档、付费与完整词库。</p>
-<html5-block path="@./word-dungeon-demo.html"></html5-block>
-<p>同一验收版本的单文件 HTML 源码（可下载、留档、复现与交接）：</p>
+<p>下方为可直接在文档内试玩的 HTML 原型（内嵌 541 词精简版，覆盖全部功能：词书/难度选择、四题型、打击演出、错词本、复习）；完整 7388 词版本见下方源码附件与已打包 APK。</p>
+<html5-block path="@./feishu-demo.html"></html5-block>
+<p>完整 7388 词的单文件 HTML 源码（可下载、留档、复现与交接）：</p>
 <figure view-type="Card"><source path="@./word-dungeon-demo.html" name="word-dungeon-demo.html"></source></figure>
 
 <h1 seq="auto">词库、界面与产品化架构（V4 方向）</h1>
 <p>V4 产品化方向：错词分级练习（已落地 Demo）→ 开源词库与常用释义 → 客户端 APK（主要代码写在后端）。</p>
 
-<h2 seq="auto">词库选择与释义规范</h2>
+<h2 seq="auto">词库选择与释义规范（已落地 ECDICT）</h2>
+<p><b>当前已落地：</b>开源 ECDICT（MIT），按考试标签筛选 <b>7388 词</b>——高考 3674 / 四级 3846 / 六级 5406 / 考研 4801；每词含主释义、词性、难度（Collins 星级 + 词频）。</p>
 <table>
 <colgroup><col width="130"/><col width="260"/><col width="330"/></colgroup>
 <thead><tr><th background-color="light-gray"><p>项</p></th><th background-color="light-gray"><p>决策</p></th><th background-color="light-gray"><p>说明</p></th></tr></thead>
 <tbody>
-<tr><td><p>开源词库</p></td><td><p>COCA 2 万高频 + 四六级大纲 + CEFR 分级表</p></td><td><p>词条自带词频排序与 CEFR 难度标签（A1–C1），映射 tier 1/2/3 难度层</p></td></tr>
+<tr><td><p>开源词库</p></td><td><p>ECDICT（考试标签 gk/cet4/cet6/ky）+ 词频</p></td><td><p>后续可叠加 COCA 2 万高频与 CEFR 分级表，映射 tier 1/2/3</p></td></tr>
 <tr><td><p>释义取常用义</p></td><td><p>每词主释义 = 词频最高的常用义位</p></td><td><p>一词多义只保留前 2 个高频义位；拼写 / 释义 / 判断答案一律取主释义，避免冷僻义误导</p></td></tr>
 <tr><td><p>释义相近</p></td><td><p>干扰项从"同词性 + 近形 / 近义族"生成</p></td><td><p>现有 18 组易混词 GROUPS 机制扩展：同族词互相作干扰项，强化辨析</p></td></tr>
-<tr><td><p>词条字段</p></td><td><p>单词、主释义、次释义、词性、CEFR、词频、易混组、例句</p></td><td><p>服务端下发，客户端离线缓存</p></td></tr>
+<tr><td><p>词条字段</p></td><td><p>单词、主释义、词性、难度、词书归属、词频</p></td><td><p>服务端下发，客户端离线缓存（wordbooks.json 内嵌 APK）</p></td></tr>
 </tbody>
 </table>
 
 <h2 seq="auto">界面设计（移动端 APK）</h2>
 <ul>
-<li><b>底部 Tab（4 个）：</b>远征 / 错词本 / 词库 / 我的——单手指操作，战斗页保持"一屏放下"。</li>
+<li><b>词书 / 难度选择（已实现）：</b>主页"选择词书"卡片——高考 / 四级 / 六级 / 考研四选一；难度"全部 / 简单 / 中等 / 困难"四选一；实时显示词书与词数，抽题严格按词书与难度过滤。</li>
+<li><b>底部 Tab（4 个，P1）：</b>远征 / 错词本 / 词库 / 我的——单手指操作，战斗页保持"一屏放下"。</li>
 <li><b>错词本页（已实现）：</b>顽固 / 易错 / 生疏三级分组卡片，每词展示「单词 + 词性 + 常用释义 + 错误次数」，底部一键"开始复习（顽固优先）"。</li>
 <li><b>复习模式：</b>复用复习之泉流程（记得 +HP / 不记得），答对绿色、答错展示正确答案，复习完回错词本。</li>
-<li><b>词库页：</b>按 CEFR / 词性 / 易混组筛选，点击词条展开常用义、次义与例句。</li>
+<li><b>词库页（P1）：</b>按词书 / 词性 / 易混组筛选，点击词条展开常用义、次义与例句。</li>
 <li>视觉延续 V3：深蓝暗色 + 词性彩色标签 + 金色进度，动效走 CSS/Canvas。</li>
 </ul>
 

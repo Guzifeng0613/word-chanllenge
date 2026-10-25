@@ -75,10 +75,27 @@ def guest_login():
 
 
 # ---------------- 词库 ----------------
+@app.get("/bank/meta")
+def bank_meta():
+    """词书与难度定义（客户端渲染"选择词书 / 难度"界面）。"""
+    return core.book_meta()
+
+
 @app.get("/bank/tier")
 def bank_tier(tier: int = 1):
     """按难度层下发词库（开源词库 COCA/四六级/CEFR 映射 tier）。"""
     return {"tier": tier, "words": core.words_by_tier(tier)}
+
+
+@app.get("/bank/book")
+def bank_book(book: str, difficulty: Optional[int] = None):
+    """按词书（gaokao/cet4/cet6/kaoyan）下发，可指定难度 1/2/3。"""
+    if book not in core.BOOKS:
+        raise HTTPException(400, "未知词书，可用：" + ",".join(core.BOOKS))
+    if difficulty and difficulty not in core.DIFFS:
+        raise HTTPException(400, "难度需为 1/2/3")
+    return {"book": book, "difficulty": difficulty,
+            "words": core.words_by_book(book, difficulty)}
 
 
 @app.get("/bank/word")
@@ -86,7 +103,8 @@ def bank_word(word: str):
     if word not in core.WMAP:
         raise HTTPException(404, "词条不存在")
     o = core.WMAP[word]
-    return {"word": o["w"], "pos": o["p"], "mean": o["m"], "tier": o["t"],
+    return {"word": o["w"], "pos": o.get("p", ""), "mean": o["m"],
+            "tier": o["t"], "books": o.get("b", []),
             "distractors": core.make_distractors(word)}
 
 
@@ -94,6 +112,8 @@ def bank_word(word: str):
 class DrawReq(BaseModel):
     layer: int = 1
     force: Optional[str] = None
+    book: Optional[str] = None
+    difficulty: Optional[int] = None
 
 
 def _progress_map(db, uid):
@@ -103,12 +123,13 @@ def _progress_map(db, uid):
 
 @app.post("/quiz/draw")
 def quiz_draw(req: DrawReq, user=Depends(current_user)):
-    """后端组卷：错词按分级加权反复出现，返回完整题目。"""
+    """后端组卷：按词书/难度筛选，错词按分级加权反复出现。"""
     with get_db() as db:
         prog = _progress_map(db, user["id"])
     wrong = {w: p["wrong_count"] for w, p in prog.items()
              if p["wrong_count"] > 0}
-    q = core.draw_question(req.layer, wrong, req.force)
+    q = core.draw_question(req.layer, wrong, req.force,
+                           req.book, req.difficulty)
     return q
 
 

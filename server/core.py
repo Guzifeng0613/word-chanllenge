@@ -15,9 +15,13 @@ def _load(name):
         return json.load(f)
 
 
-WORDS = _load("words.json")            # [{w,p,m,t}]
+WORDS = _load("words.json")            # 示例词库 [{w,p,m,t}]
+WB_BANK = _load("wordbooks.json")       # 完整词库 {meta, words:[{w,p,m,t,b,f}]}
+BANK_WORDS = WB_BANK["words"]
 GROUPS = _load("confuse-groups.json")  # [[...], ...]
-WMAP = {o["w"]: o for o in WORDS}
+WMAP = {o["w"]: o for o in BANK_WORDS}
+BOOKS = {b["id"]: b for b in WB_BANK["meta"]["books"]}
+DIFFS = {d["id"]: d for d in WB_BANK["meta"]["difficulties"]}
 
 # 配置（与 GDD / Demo 同一版本）
 CONFIG = {
@@ -39,7 +43,22 @@ INTERVALS = {"NEW": 10, "LEARNING": 1440, "FAMILIAR": [2880, 5760, 10080, 21600]
 
 # ---------------- 词库 ----------------
 def words_by_tier(tier):
-    return [o for o in WORDS if o["t"] == tier]
+    return [o for o in BANK_WORDS if o["t"] == tier]
+
+
+def words_by_book(book, difficulty=None):
+    """按词书筛选；difficulty 1 简单 / 2 中等 / 3 困难，可指定。"""
+    out = [o for o in BANK_WORDS if book in o.get("b", [])]
+    if difficulty:
+        out = [o for o in out if o["t"] == difficulty]
+    return out
+
+
+def book_meta():
+    """词书与难度定义（供客户端渲染选择界面）。"""
+    return {"books": WB_BANK["meta"]["books"],
+            "difficulties": WB_BANK["meta"]["difficulties"],
+            "counts": WB_BANK["meta"]["counts"]}
 
 
 def _confuse_group(word):
@@ -50,8 +69,8 @@ def _confuse_group(word):
 
 
 def _same_pos(word):
-    p = WMAP[word]["p"]
-    return [o["w"] for o in WORDS if o["p"] == p and o["w"] != word]
+    p = WMAP.get(word, {}).get("p")
+    return [o["w"] for o in BANK_WORDS if o.get("p") == p and o["w"] != word]
 
 
 def make_distractors(word, n=3):
@@ -106,19 +125,30 @@ def _pick_qtype():
     return "en2cn"
 
 
-def draw_question(layer=1, wrong_words=None, force=None):
-    """出一道题。wrong_words: {word: wrong_count} 错词按分级加权反复出现。
+def draw_question(layer=1, wrong_words=None, force=None,
+                  book=None, difficulty=None):
+    """出一道题。
+    - wrong_words: {word: wrong_count} 错词按分级加权反复出现。
+    - book: 词书（gaokao/cet4/cet6/kaoyan），difficulty: 1/2/3。
     返回题目对象（含题型、选项、正确答案、词性、限时）。
     """
     wrong_words = wrong_words or {}
     qtype = force or _pick_qtype()
+
+    # 当前词书 + 难度的词池（无指定则按难度层 tier）
+    if book:
+        base = words_by_book(book, difficulty)
+    else:
+        base = words_by_tier(difficulty or min(layer, 3))
+    pool_words = [o["w"] for o in base]
 
     # 拼写题抽词长度 ≤8
     def ok(word):
         return len(word) <= 8 if qtype == "spell" else True
 
     word = None
-    pending = [w for w in wrong_words if ok(w)]
+    # 错词只在属于当前词书时反复出现
+    pending = [w for w in wrong_words if ok(w) and (not book or w in pool_words)]
     if pending:
         has_hard = any(wrong_words[w] >= 2 for w in pending)
         rate = (CONFIG["wrongbook"]["hardRate"] if has_hard
@@ -127,12 +157,12 @@ def draw_question(layer=1, wrong_words=None, force=None):
             word = weighted_pick(
                 pending, [min(3, wrong_words[w]) for w in pending])
     if word is None:
-        pool = [o["w"] for o in words_by_tier(min(layer, 3)) if ok(o["w"])]
-        word = random.choice(pool) if pool else random.choice(
-            [o["w"] for o in WORDS if ok(o["w"])])
+        cand = [w for w in pool_words if ok(w)]
+        word = random.choice(cand) if cand else random.choice(
+            [o["w"] for o in BANK_WORDS if ok(o["w"])])
 
     entry = WMAP[word]
-    q = {"qtype": qtype, "word": word, "pos": entry["p"], "mean": entry["m"]}
+    q = {"qtype": qtype, "word": word, "pos": entry.get("p", ""), "mean": entry["m"]}
 
     if qtype == "en2cn":
         opts = make_distractors(word) + [entry["m"]]
