@@ -1,6 +1,7 @@
 <title>《单词地下城 Word Dungeon》游戏设计文档（GDD）</title>
-<callout emoji="📘" background-color="light-blue"><p>版本 V3.5（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
-<callout emoji="💡" background-color="light-cyan"><p>V3.5 新增：拼写题答错后显示正确答案——先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案逐格变绿并提示"正确答案"</p></callout>
+<callout emoji="📘" background-color="light-blue"><p>版本 V4.0（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="📚" background-color="light-cyan"><p>V4.0 新增：错词分级练习系统（L1 生疏 / L2 易错 / L3 顽固，战斗加权反复出现 + 分级复习 + 常驻错词本界面）；第 8 章词库规范（开源词库 COCA/四六级/CEFR、常用义优先）、界面设计（底部 Tab + 错词本页）、后端架构与 Capacitor APK 打包方案</p></callout>
+<callout emoji="💡" background-color="light-gray"><p>V3.5 新增：拼写题答错后显示正确答案——先红抖展示玩家拼写，约 0.6 秒后格子替换为正确答案逐格变绿并提示"正确答案"</p></callout>
 <callout emoji="⏱️" background-color="light-gray"><p>V3.4 新增：拼写题填满不再自动提交（回车确认或限时结束自动结算）；拼写限时按单词长度动态计算（4s 基础 + 每字母 2s，预留反应余量）；拼写题按提交快慢动态增加伤害（剩余 ≥60%×2.0 / ≥40%×1.6 / ≥25%×1.25 / 其余×1.0）</p></callout>
 <callout emoji="🔧" background-color="light-gray"><p>V3.3 修复：拼写输入改为键盘事件驱动 + 增量合并——彻底修复"输入自动反过来 / 丢字母"与手机删除键失效</p></callout>
 <callout emoji="⌨️" background-color="light-blue"><p>V3.2 新增：拼写输入保护（防自动纠错 / 中文输入法干扰）、战斗页一屏布局、答错停留 1 秒、错误脉冲等反馈优化</p></callout>
@@ -239,6 +240,25 @@
 <li>同层词池复用：新词在一层内平均出现约 2 次，错过的词加权再出现，保证"当层见到、当层记住"。</li>
 </ul>
 
+<h3>错词分级练习（RULE-WRONG-BOOK）</h3>
+<p>答错 / 超时的词<b>归档进错词本</b>，按累计错误次数分三级，顽固词反复出现直到掌握：</p>
+<table>
+<colgroup><col width="120"/><col width="110"/><col width="180"/><col width="160"/><col width="100"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>等级</p></th><th background-color="light-gray"><p>错误次数</p></th><th background-color="light-gray"><p>定位</p></th><th background-color="light-gray"><p>战斗内错词抽题权重</p></th><th background-color="light-gray"><p>复习顺序</p></th></tr></thead>
+<tbody>
+<tr><td><p><span text-color="red">L3 顽固</span></p></td><td><p>≥ 3 次</p></td><td><p>反复出错，优先消灭</p></td><td><p>×3</p></td><td><p>最先</p></td></tr>
+<tr><td><p><span text-color="orange">L2 易错</span></p></td><td><p>2 次</p></td><td><p>接近掌握</p></td><td><p>×2</p></td><td><p>其次</p></td></tr>
+<tr><td><p><span text-color="yellow">L1 生疏</span></p></td><td><p>1 次</p></td><td><p>初次受挫</p></td><td><p>×1</p></td><td><p>最后</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li><b>战斗内反复出现：</b>错词抽题在原有 60% 优先基础上按分级加权；存在 L2/L3 错词时错词出现率提升至 75%，并优先抽高等级错词（加权随机）。</li>
+<li><b>分级复习：</b>复习之泉与错词本一键复习都按"顽固 → 易错 → 生疏"排序出题（最多 3 个）；复习答对即移出错词本，复习答错错误次数继续累加、下次再出。</li>
+<li><b>常驻错词本界面：</b>主页可见入口（错词本 N 词 · 顽固 M）；内页三级分组展示单词、词性、常用释义与错误次数，底部"开始复习（顽固优先）"一键进入，复习完返回错词本。</li>
+<li>错词本与记忆状态联动：错词必为 LEARNING 及以下；答对降级直至移出，长期不再出错自然升入 FAMILIAR/MASTERED。</li>
+</ul>
+<callout emoji="⚔️" background-color="light-red"><p>边界例：award 已错 3 次（L3 顽固）、adapt 错 1 次（L1）。战斗抽题时 award 权重 3、adapt 权重 1，出现率高 2 倍；泉水分级复习先出 award，答对移出后，adapt 自动升级为下一轮优先复习对象。</p></callout>
+
 <h2>敌人</h2>
 <p><b>普通敌人：</b></p>
 <table>
@@ -411,3 +431,56 @@
 <html5-block path="@./word-dungeon-demo.html"></html5-block>
 <p>同一验收版本的单文件 HTML 源码（可下载、留档、复现与交接）：</p>
 <figure view-type="Card"><source path="@./word-dungeon-demo.html" name="word-dungeon-demo.html"></source></figure>
+
+<h1 seq="auto">词库、界面与产品化架构（V4 方向）</h1>
+<p>V4 产品化方向：错词分级练习（已落地 Demo）→ 开源词库与常用释义 → 客户端 APK（主要代码写在后端）。</p>
+
+<h2 seq="auto">词库选择与释义规范</h2>
+<table>
+<colgroup><col width="130"/><col width="260"/><col width="330"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>项</p></th><th background-color="light-gray"><p>决策</p></th><th background-color="light-gray"><p>说明</p></th></tr></thead>
+<tbody>
+<tr><td><p>开源词库</p></td><td><p>COCA 2 万高频 + 四六级大纲 + CEFR 分级表</p></td><td><p>词条自带词频排序与 CEFR 难度标签（A1–C1），映射 tier 1/2/3 难度层</p></td></tr>
+<tr><td><p>释义取常用义</p></td><td><p>每词主释义 = 词频最高的常用义位</p></td><td><p>一词多义只保留前 2 个高频义位；拼写 / 释义 / 判断答案一律取主释义，避免冷僻义误导</p></td></tr>
+<tr><td><p>释义相近</p></td><td><p>干扰项从"同词性 + 近形 / 近义族"生成</p></td><td><p>现有 18 组易混词 GROUPS 机制扩展：同族词互相作干扰项，强化辨析</p></td></tr>
+<tr><td><p>词条字段</p></td><td><p>单词、主释义、次释义、词性、CEFR、词频、易混组、例句</p></td><td><p>服务端下发，客户端离线缓存</p></td></tr>
+</tbody>
+</table>
+
+<h2 seq="auto">界面设计（移动端 APK）</h2>
+<ul>
+<li><b>底部 Tab（4 个）：</b>远征 / 错词本 / 词库 / 我的——单手指操作，战斗页保持"一屏放下"。</li>
+<li><b>错词本页（已实现）：</b>顽固 / 易错 / 生疏三级分组卡片，每词展示「单词 + 词性 + 常用释义 + 错误次数」，底部一键"开始复习（顽固优先）"。</li>
+<li><b>复习模式：</b>复用复习之泉流程（记得 +HP / 不记得），答对绿色、答错展示正确答案，复习完回错词本。</li>
+<li><b>词库页：</b>按 CEFR / 词性 / 易混组筛选，点击词条展开常用义、次义与例句。</li>
+<li>视觉延续 V3：深蓝暗色 + 词性彩色标签 + 金色进度，动效走 CSS/Canvas。</li>
+</ul>
+
+<h2 seq="auto">后端架构（主要代码在后端）</h2>
+<pre lang="text" wrap="true"><code>客户端（Android APK / H5）
+  ├─ Capacitor WebView 壳：内嵌离线词库 JSON + 本地进度（SQLite）
+  └─ REST API（登录、词库增量、进度同步、统计、成就）
+后端
+  ├─ API 网关 / 鉴权（JWT）
+  ├─ 服务：题库服务（词库下发、组卷、近义干扰生成）
+  │        进度服务（错词分级、间隔重复、打卡、成就）
+  │        统计服务（每日目标、正确率、顽固词报告）
+  ├─ 存储：PostgreSQL（账号、跨设备进度）+ Redis 缓存
+  └─ 词库流水线：开源词库导入 → 常用义清洗 → 近义族标注 → 版本化发布</code></pre>
+<p><b>API 概览：</b></p>
+<table>
+<colgroup><col width="220"/><col width="500"/></colgroup>
+<thead><tr><th background-color="light-gray"><p>接口</p></th><th background-color="light-gray"><p>职责</p></th></tr></thead>
+<tbody>
+<tr><td><p>POST /auth/login</p></td><td><p>登录 / 注册，签发 JWT</p></td></tr>
+<tr><td><p>GET /bank/tier、/bank/word</p></td><td><p>按难度层 / CEFR 下发词库（增量版本）</p></td></tr>
+<tr><td><p>GET /wrongbook</p></td><td><p>错词本分级清单（顽固 / 易错 / 生疏）</p></td></tr>
+<tr><td><p>POST /wrongbook/review</p></td><td><p>提交复习结果，服务端结算分级（答对移出 / 答错累加）</p></td></tr>
+<tr><td><p>POST /progress/sync</p></td><td><p>错词分级 / 记忆状态增量合并，跨设备同步</p></td></tr>
+<tr><td><p>GET /stats/daily</p></td><td><p>每日目标、正确率、打卡 streak 与成就</p></td></tr>
+</tbody>
+</table>
+<ul>
+<li><b>离线优先：</b>词库随 APK 内置，错词本 / 复习离线可玩；联网后增量同步（服务端为权威源，冲突按"更高错误次数 / 更近时间戳"合并）。</li>
+<li><b>打包方案：</b>现有单文件 HTML 演进为 Capacitor 工程（www/ 静态资源 + capacitor.config.json），npx cap add android &amp;&amp; npx cap sync，Android Studio 出签 APK（AAB 上架）；词库作为 assets 内嵌，容量控制在 5MB 内。</li>
+</ul>
