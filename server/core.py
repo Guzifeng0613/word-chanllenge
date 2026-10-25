@@ -254,13 +254,22 @@ def due_graduated(progress, now):
 # ---------------- 组卷（V4.3 题型阶梯驱动） ----------------
 def draw_question(layer=1, progress=None, force=None,
                   book=None, difficulty=None, theta=None,
-                  new_today=0, now=None):
+                  new_today=0, now=None, run_state=None):
     """出一道题。
     优先级：到期未毕业（错词/中段学习）→ 到期已毕业（SM-2 复习）→ 新词（step0）。
     θ / 手动难度控制"选词难度档"；题型由单词的 step / stage 决定（拼写压轴）。
+    run_state：单局（一次远征）状态，限制答错的词只再出现 1 次（首次答错+1次重现=2次），
+    达到上限后本局不再抽，仅归档进错词本/后续复习。
     """
     progress = progress or {}
     now_ms = now if now is not None else int(time.time() * 1000)
+    if run_state is None:
+        run_state = {"wrong": {}, "seen": {}}
+
+    def run_cap(w):
+        # 单局重现上限：已答错、且已用掉唯一一次重现（seen>=1）→ 本局不再抽
+        return not (run_state["wrong"].get(w)
+                    and run_state["seen"].get(w, 0) >= 1)
 
     # 词书范围
     if book:
@@ -279,9 +288,11 @@ def draw_question(layer=1, progress=None, force=None,
     else:
         tier = min(layer, 3) if not book else None
 
-    # 到期队列（限定当前词书）
-    dl = [w for w in due_learning(progress, now_ms) if w in book_set]
-    dg = [w for w in due_graduated(progress, now_ms) if w in book_set]
+    # 到期队列（限定当前词书，并遵守单局重现上限）
+    dl = [w for w in due_learning(progress, now_ms)
+          if w in book_set and run_cap(w)]
+    dg = [w for w in due_graduated(progress, now_ms)
+          if w in book_set and run_cap(w)]
     due = dl + dg
 
     word, from_review = None, False
@@ -304,7 +315,8 @@ def draw_question(layer=1, progress=None, force=None,
         else:
             # 无到期：优先继续推进最接近毕业的学习词（会话节奏，不硬等计时）
             learning = [w for w in progress
-                        if not progress[w].get("graduated") and w in book_set]
+                        if not progress[w].get("graduated")
+                        and w in book_set and run_cap(w)]
             learning.sort(key=lambda w: -progress[w].get("step", 0))
             if learning:
                 word = learning[0]
@@ -316,10 +328,15 @@ def draw_question(layer=1, progress=None, force=None,
                 if unseen:
                     word = random.choice(unseen)
             if word is None:
-                # 真正兜底：任意词（遵守手动难度档）
+                # 真正兜底：任意未达单局上限的词（遵守手动难度档）
                 pool = [w for w in book_words
-                        if tier is None or WMAP[w]["t"] == tier]
+                        if (tier is None or WMAP[w]["t"] == tier)
+                        and run_cap(w)]
                 word = random.choice(pool or book_words)
+
+    # 若该词本局已答错，本次是它的重现，计数+1（达到上限后下次不再抽）
+    if run_state["wrong"].get(word):
+        run_state["seen"][word] = run_state["seen"].get(word, 0) + 1
 
     # 题型：force 覆盖；否则按阶梯；超长词不拼写
     qtype = force or type_for_word(progress.get(word))
@@ -331,7 +348,8 @@ def draw_question(layer=1, progress=None, force=None,
     q = {"qtype": qtype, "word": word, "pos": entry.get("p", ""),
          "mean": entry["m"], "review": from_review,
          "step": (rec or {}).get("step", 0),
-         "graduated": (rec or {}).get("graduated", False)}
+         "graduated": (rec or {}).get("graduated", False),
+         "run_state": run_state}
 
     if qtype == "en2cn":
         opts = make_distractors(word) + [entry["m"]]
@@ -357,6 +375,16 @@ def draw_question(layer=1, progress=None, force=None,
         q.update(judgeShown=shown, correct=correct,
                  timeLimit=CONFIG["speed"]["normalT"])
     return q
+
+
+def mark_run_wrong(run_state, word):
+    """单局记录：首次答错标记（留给它 1 次重现）；之后仅归档，本局不再抽。"""
+    if run_state is None:
+        run_state = {"wrong": {}, "seen": {}}
+    if not run_state["wrong"].get(word):
+        run_state["wrong"][word] = True
+        run_state["seen"][word] = run_state["seen"].get(word, 0)
+    return run_state
 
 
 def _distractor_words(word, n=3):

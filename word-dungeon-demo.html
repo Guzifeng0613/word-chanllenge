@@ -693,6 +693,7 @@ function newRun(){
     flow:false, wrongStreak:0, focus:false,
     cards:[], vengeance:0, blessForLayer:0,
     layerWords:[], queue:[], wrongWords:{}, wrongCount:{}, answeredThisLayer:0,
+    runWrong:{}, runWrongSeen:{},
     battle:null, choice:null,
     stats:{questions:0,correct:0,wrong:0,maxCombo:0,newWords:new Set(),reviewWords:new Set()}
   };
@@ -890,8 +891,10 @@ function pickWordAndType(prefer){
     targetTier=SETTINGS.difficulty;
   }
   const now=Date.now();
-  const dl=dueLearning(now).filter(w=>G.layerWords.includes(w));
-  const dg=dueGraduated(now).filter(w=>G.layerWords.includes(w));
+  // 单局（一次远征）重现上限：答错的词只再出现 1 次（首次答错+1次重现=2次），之后本局不再抽，仅记录归档
+  const runCap=w=>!(G.runWrong[w] && (G.runWrongSeen[w]||0)>=1);
+  const dl=dueLearning(now).filter(w=>G.layerWords.includes(w)&&runCap(w));
+  const dg=dueGraduated(now).filter(w=>G.layerWords.includes(w)&&runCap(w));
   const due=dl.concat(dg);
   const canNew=newToday()<NEW_CAP;
 
@@ -901,7 +904,7 @@ function pickWordAndType(prefer){
     const dueFit=due.filter(fit);
     if(dueFit.length) return {word:rpick(dueFit),qtype:prefer,review:true,bucket:'match'};
     const cont=Object.keys(P.words).filter(w=>G.layerWords.includes(w)
-      && !P.words[w].graduated && fit(w));
+      && !P.words[w].graduated && fit(w) && runCap(w));
     if(cont.length) return {word:rpick(cont),qtype:prefer,review:false,bucket:'match'};
   }
 
@@ -918,7 +921,7 @@ function pickWordAndType(prefer){
     } else {
       // 无到期：继续推进最接近毕业的学习词（会话节奏）
       const learning=Object.keys(P.words)
-        .filter(w=>!P.words[w].graduated && G.layerWords.includes(w));
+        .filter(w=>!P.words[w].graduated && G.layerWords.includes(w) && runCap(w));
       learning.sort((a,b)=>P.words[b].step-P.words[a].step);
       if(learning.length) word=learning[0];
       else if(canNew){
@@ -926,7 +929,10 @@ function pickWordAndType(prefer){
         if(!unseen.length) unseen=G.layerWords.filter(w=>!P.words[w]);
         if(unseen.length) word=rpick(unseen);
       }
-      if(!word) word=rpick(G.layerWords);
+      if(!word){
+        const rest=G.layerWords.filter(runCap);
+        if(rest.length) word=rpick(rest);
+      }
     }
   }
   // 题型永远来自阶梯；超长词降级
@@ -949,7 +955,7 @@ function nextQuestion(){
   let pick=null;
   // 易混敌人：优先用能配组的词（题型仍走阶梯，不硬覆盖）
   if(enemy.tpl.confuse){
-    const candidates=G.layerWords.filter(w=>groupOf(w));
+    const candidates=G.layerWords.filter(w=>groupOf(w)&&(!G.runWrong[w]||(G.runWrongSeen[w]||0)<1));
     if(candidates.length){
       const w=rpick(candidates);
       let qt=typeForWord(P.words[w]);
@@ -958,6 +964,8 @@ function nextQuestion(){
     }
   }
   if(!pick) pick=pickWordAndType(preferType);
+  // 若该词本局已答错，本次是它的重现，计数+1（达到上限后下次不再抽）
+  if(G.runWrong[pick.word]) G.runWrongSeen[pick.word]=(G.runWrongSeen[pick.word]||0)+1;
   G.curBucket=pick.bucket;
   buildQuestion(pick.word,pick.qtype);
 }
@@ -1128,6 +1136,8 @@ function resolve(choice,isTimeout,forceCorrect){
     applySrs(word,false,false);
     G.wrongWords[word]=true;
     G.wrongCount[word]=(G.wrongCount[word]||0)+1;
+    // 单局记录：首次答错标记，留给它 1 次重现；之后仅归档、本局不再抽
+    if(!G.runWrong[word]){ G.runWrong[word]=true; G.runWrongSeen[word]=0; }
     if(choice!==null) markOptions(false,choice);
     updateGoal(false);
   }

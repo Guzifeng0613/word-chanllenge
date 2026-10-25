@@ -1,5 +1,6 @@
 <title>《单词地下城 Word Dungeon》游戏设计文档（GDD）</title>
-<callout emoji="📘" background-color="light-blue"><p>版本 V4.3（原型阶段）｜更新日期 2026-10-25｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="📘" background-color="light-blue"><p>版本 V4.4（原型阶段）｜更新日期 2026-10-26｜状态：当前设计真值｜Ruleset ID：word-dungeon-ruleset-v1（GDD 参数表、HTML Demo 与调试面板共用同一配置）</p></callout>
+<callout emoji="🔁" background-color="light-yellow"><p>V4.4 新增：单局错词重现上限（2 次封顶）——一次远征内，一个被答错的词只出现 2 次（首次答错 + 1 次重现），第 2 次后本局不再抽它，只记录归档（wrong_count 照记、进错词本、按 SM-2 留给后续复习），计数贯穿 3 层不重置；后端随 draw/answer 透传 run_state</p></callout>
 <callout emoji="🪜" background-color="light-green"><p>V4.3 新增：题型阶梯（先认后背，拼写压轴）——题型由每个单词的学习进度 step 决定：step0 初识（给正确释义）→ step1 英→中 → step2 中→英 → step3 拼写（压轴），拼写答对才毕业进入 SM-2；错过的词记录在案、退回阶梯短间隔重现；出题优先级：到期未毕业 → 到期已毕业 → 新词（30% 插新词）。θ 仍控制选词难度，与题型阶梯正交</p></callout>
 <callout emoji="🧠" background-color="light-cyan"><p>V4.2 新增：自适应难度引擎（θ，初始 1.5）+ SM-2 间隔重复（10 分→1 天→3 天→7 天→16 天→30 天）+ 今日到期复习队列。按 85% 目标成功率 70/15/15 三段配比抽题，主页新增今日待复习 + θ 卡片，默认自适应、保留手动难度；参数依据见研究文献章节</p></callout>
 <callout emoji="📖" background-color="light-gray"><p>V4.1 新增：开源 ECDICT 词库落地（7388 词：高考3674/四级3846/六级5406/考研4801，主释义取常用义），主页可指定词书 + 难度，抽题按词书与难度过滤，已重新打包 APK</p></callout>
@@ -276,6 +277,7 @@
 </table>
 <ul>
 <li><b>错过的词一定回来：</b>答错即 wrong_count +1、step 退回一级、短间隔（2–5 分钟）重现，到期队列最高优先级，必须重新爬阶梯、拼写答对才毕业。</li>
+<li><b>单局重现上限（V4.4，2 次封顶）：</b>一次远征（贯穿 3 层）内，一个被答错的词最多出现 2 次（首次答错 + 1 次重现），第 2 次后本局不再抽它，只记录归档（wrong_count、错词等级、SM-2 调度照常，进错词本、留给后续远征/到期复习）；由单局状态 runWrong / runWrongSeen 控制，后端随 draw/answer 透传 run_state。</li>
 <li>题型由该词当前 step 决定，不再"按顽固度强制"：错词回到对应阶梯后从识/认/写/拼重新走，确保先有再认、再做产出。</li>
 <li><b>分级复习：</b>复习之泉与错词本一键复习按"顽固 → 易错 → 生疏"排序（最多 3 个）；答对移出，答错累加、下次再出。</li>
 <li><b>常驻错词本界面：</b>主页入口（错词本 N 词 · 顽固 M），三级分组展示词/词性/常用释义/错误次数，一键复习，完后返回。</li>

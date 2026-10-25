@@ -316,6 +316,24 @@
       "fields": [
         "revenge.bonus"
       ]
+    },
+    {
+      "id": "RULE-RUN-CAP",
+      "title": "单局错词重现上限（2次封顶）",
+      "definition": "一次远征（一局，贯穿3层）内，一个被答错的单词最多出现2次：首次答错时 runWrong 标记、runWrongSeen=0；再抽到该词（重现）时 runWrongSeen+1=1。第2次出现后抽题不再选它（runCap 对 runWrong 且 runWrongSeen>=1 的词返回 false），仅记录归档：wrong_count、错词等级、SM-2 调度照常，进错词本，留给后续远征/今日到期复习。计数不随层重置。后端以 run_state={wrong,seen} 随每次 draw/answer 透传，answer 答错时 mark_run_wrong 首次标记。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-RUN-REAPPEAR-CAP"
+      ],
+      "state_machine_ids": [
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "run.cap",
+        "run.state",
+        "run.record"
+      ]
     }
   ],
   "parameters": [
@@ -868,6 +886,15 @@
       "source": "design_initial",
       "min": 0.15,
       "max": 0.5
+    },
+    {
+      "id": "PAR-RUN-REAPPEAR-CAP",
+      "name": "run_wrong_reappear_cap",
+      "value": 1,
+      "unit": "count",
+      "source": "design_initial",
+      "min": 0,
+      "max": 3
     }
   ],
   "numeric_requirements": [
@@ -1659,6 +1686,17 @@
       "precondition": "对全新词分别 fast/normal/答错",
       "action": "applySrs 测试：fast 1 次、normal 2 次、答错；模拟到期后查巩固桶",
       "expected": "fast 直接 stage1（1 天）；normal 第 1 次 streak1（10 分钟）、第 2 次 stage1；答错 stage0、lapses+1（10 分钟）；到期词进今日到期队列，在巩固桶以 judge 抽到（review=true）",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-RUN-CAP",
+      "type": "boundary",
+      "rule_ids": [
+        "RULE-RUN-CAP"
+      ],
+      "precondition": "开始远征，将一个到期词每次都答错",
+      "action": "浏览器连续对同一词提交错误（resolve timeout），记录该词出现次数；后端重复 draw/answer 并透传 run_state",
+      "expected": "该词在本局恰好出现2次（首次答错+1次重现），之后不再被抽（runWrongSeen=1 被排除）；wrong_count 照记、归档进错词本，后续远征/到期复习仍会出现；计数贯穿3层不重置",
       "status": "passed"
     }
   ],

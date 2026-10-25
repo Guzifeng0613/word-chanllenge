@@ -130,6 +130,7 @@ class DrawReq(BaseModel):
     book: Optional[str] = None
     difficulty: Optional[int] = None
     adaptive: bool = True
+    run_state: Optional[dict] = None
 
 
 def _progress_map(db, uid):
@@ -161,7 +162,8 @@ def quiz_draw(req: DrawReq, user=Depends(current_user)):
         new_today = _new_today(db, user["id"], today0)
     theta = user["theta"] if req.adaptive else None
     q = core.draw_question(req.layer, prog, req.force,
-                          req.book, req.difficulty, theta, new_today)
+                          req.book, req.difficulty, theta, new_today,
+                          run_state=req.run_state)
     return q
 
 
@@ -198,6 +200,7 @@ class AnswerReq(BaseModel):
     crit: bool = False
     card_mult: float = 1.0
     shown: Optional[str] = None
+    run_state: Optional[dict] = None
 
 
 @app.post("/quiz/answer")
@@ -217,6 +220,10 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
     fast = is_correct and core.is_fast(req.qtype, req.time_limit, req.remain)
     now_ms = int(time.time() * 1000)
     now = int(time.time())
+    # 单局记录：答错时首次标记（留给它 1 次重现），run_state 随响应回传
+    run_state = req.run_state or {"wrong": {}, "seen": {}}
+    if not is_correct:
+        run_state = core.mark_run_wrong(run_state, req.word)
 
     with get_db() as db:
         row = db.execute(
@@ -280,7 +287,7 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
             "grade": core.grade_of(new_wrong) if new_wrong else 0,
             "theta": new_theta, "due_min": interval_min,
             "step": new_rec["step"], "graduated": new_rec["graduated"],
-            "stage": new_rec["stage"]}
+            "stage": new_rec["stage"], "run_state": run_state}
 
 
 # ---------------- 错词本 ----------------
