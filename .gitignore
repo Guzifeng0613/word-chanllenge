@@ -6,3 +6,5 @@ android/build/
 android/capacitor-cordova-android-plugins/build/
 server/word_dungeon.db
 node_modules/
+__pycache__/
+*.pyc
