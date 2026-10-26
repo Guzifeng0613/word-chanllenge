@@ -3,7 +3,7 @@
  * 全部用 Web Audio API 实时合成，无外部音频文件，可离线、零体积
  * ============================================================ */
 const AUDIO_KEY='word_dungeon_audio_v1';
-let AUD={sfx:true,bgm:true,vibrate:true,sfxVol:0.85,bgmVol:0.5};
+let AUD={sfx:true,bgm:true,vibrate:true,speak:true,sfxVol:0.85,bgmVol:0.5};
 function loadAudioSettings(){ try{Object.assign(AUD,JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}'));}catch(e){} }
 function saveAudioSettings(){ try{localStorage.setItem(AUDIO_KEY,JSON.stringify(AUD));}catch(e){} }
 loadAudioSettings();
@@ -174,3 +174,35 @@ function unlockAudioOnce(){
   AudioEngine.startBgm(s==='battle'?(G.battle&&G.battle.kind==='boss'?'boss':'battle'):'home');
 }
 document.addEventListener('pointerdown',()=>{ unlockAudioOnce(); },{once:true});
+
+/* ============================================================
+ * V6.1 单词真人发音（美式）：进入新单词卡片自动发音
+ * 联网→在线发音；离线→不发音；全程异步、非阻塞，用户无卡顿感知
+ * 主源 有道词典 dictvoice（type=2 美音，URL 直出 MP3，无需 key、覆盖全）
+ * ============================================================ */
+const WordSpeaker=(()=>{
+  let el=null;
+  function ensureEl(){
+    if(el) return el;
+    el=new Audio();
+    el.preload='auto';
+    // 仅播放、不读取数据，不设 crossOrigin：媒体元素跨域播放天然支持，设置反而要求对方返回 CORS 头
+    return el;
+  }
+  function urlFor(w){
+    return 'https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(w)+'&type=2';
+  }
+  function speak(word){
+    if(!word) return;
+    if(AUD.speak===false) return;          // 发音开关关闭
+    if(navigator.onLine===false) return;   // 离线：不发音
+    const a=ensureEl();
+    try{ a.pause(); a.currentTime=0; }catch(e){}
+    a.src=urlFor(word);
+    const p=a.play();                      // 异步加载并播放，不阻塞渲染/交互
+    if(p&&p.catch) p.catch(()=>{});        // 自动播放策略/网络失败：静默，不影响游戏
+  }
+  function stop(){ if(el){ try{el.pause();}catch(e){} } }
+  return {speak,stop};
+})();
+

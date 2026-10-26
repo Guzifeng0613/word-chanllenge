@@ -47,6 +47,22 @@ CONFIG = {
         "tierEvery": 3,
         "timeStart": 4, "timeEvery": 3, "timeMax": 3,
         "championEvery": 5, "championHp": 1.25, "championAtk": 3},
+    # V5.0 快速刷题模式：普通/困难/地狱三档，词频 + 错误驱动动态权重
+    "quick": {
+        "levels": [
+            {"id": "normal", "name": "普通", "freqPow": 1.0, "spellBias": 0.0,
+             "spellTimeAdd": 0, "baseFreq": 1.0},
+            {"id": "hard", "name": "困难", "freqPow": 0.5, "spellBias": 0.35,
+             "spellTimeAdd": 1, "baseFreq": 0.6},
+            {"id": "hell", "name": "地狱", "freqPow": 0.2, "spellBias": 0.75,
+             "spellTimeAdd": 3, "baseFreq": 0.3}],
+        "levelFactor": {"normal": 1.0, "hard": 1.5, "hell": 2.0},
+        "qtypeFactor": {"judge": 1.0, "en2cn": 1.0, "cn2en": 1.3, "spell": 1.6},
+        "errorCoeff": 1.0,
+        "passSuppress": {"hard": 0.08, "hell": 0.05},
+        "carousel": 0.03, "freqRef": 10000, "noFreqScore": 0.05,
+        "floor": 0.05, "enemyHp": {"normal": 30, "hard": 45, "hell": 60},
+        "choiceT": 8},
 }
 
 # 无尽深度 → 敌人 HP/ATK 缩放（线性，单调）
@@ -419,6 +435,179 @@ def mark_run_wrong(run_state, word):
         run_state["wrong"][word] = True
         run_state["seen"][word] = run_state["seen"].get(word, 0)
     return run_state
+
+
+# ============================================================
+# V5.0 快速刷题模式（Quick Drill）
+# 词频 + 错误驱动动态权重；普通高频优先快刷、困难进阶、地狱拼写为主
+# ============================================================
+import math
+QUICK_LEVELS = {l["id"]: l for l in CONFIG["quick"]["levels"]}
+
+
+def freq_score(word):
+    """词频排名 f（1=最高频）→ 高频度分 0~1，越高频越接近 1。"""
+    f = WMAP[word].get("f", 999999)
+    if f is None or f >= 999999:
+        return CONFIG["quick"]["noFreqScore"]
+    ref = CONFIG["quick"]["freqRef"]
+    return max(0.0, 1.0 - math.log10(max(1, f)) / math.log10(ref))
+
+
+def empty_wrong_by():
+    return {l: {"judge": 0, "en2cn": 0, "cn2en": 0, "spell": 0}
+            for l in ("normal", "hard", "hell")}
+
+
+def norm_wrong_by(wb):
+    """补齐错误分级记录（按档位 × 题型）。"""
+    base = empty_wrong_by()
+    if isinstance(wb, dict):
+        for l in base:
+            if isinstance(wb.get(l), dict):
+                for t in base[l]:
+                    try:
+                        base[l][t] = int(wb[l].get(t, 0) or 0)
+                    except (TypeError, ValueError):
+                        base[l][t] = 0
+    return base
+
+
+def has_any_error(wrong_by):
+    return any(any(v for v in wrong_by[l].values()) for l in wrong_by)
+
+
+def error_boost(wrong_by):
+    """错误累计权重：错误所在档位越高、越接近拼写，权重越大；错误跟随到后续档。"""
+    q = CONFIG["quick"]
+    total = 0.0
+    for g, lf in q["levelFactor"].items():
+        for t, tf in q["qtypeFactor"].items():
+            total += wrong_by[g][t] * lf * tf
+    return total * q["errorCoeff"]
+
+
+def mark_quick_wrong(rec, level, qtype):
+    """错误分级：记录在哪个档、哪个题型错过；错过即取消"一次过"抑制。"""
+    rec = norm_rec(rec)
+    wb = norm_wrong_by(rec.get("wrong_by"))
+    if qtype in wb.get(level, {}):
+        wb[level][qtype] += 1
+    rec["wrong_by"] = wb
+    rec["quick_pass"] = False
+    return rec
+
+
+def mark_quick_pass(rec):
+    """普通档首次出现即答对（一次过）：在困难/地狱大幅降权，仅偶尔轮播。"""
+    rec = norm_rec(rec)
+    wb = norm_wrong_by(rec.get("wrong_by"))
+    if not has_any_error(wb):
+        rec["quick_pass"] = True
+    rec["wrong_by"] = wb
+    return rec
+
+
+def _can_spell(rec, word):
+    """是否已具备拼写条件（先认后背：走完识别阶梯才拼写）。"""
+    if len(word) > 8:
+        return False
+    rec = norm_rec(rec)
+    if rec["graduated"]:
+        return type_for_word(rec) == "spell"
+    return rec["step"] >= 3
+
+
+def _quick_weight(word, rec, lcfg, level):
+    """计算一个词在指定档位的出题权重（词频 × 错误加权 × 答对抑制 + 轮播）。"""
+    q = CONFIG["quick"]
+    fs = freq_score(word)
+    base = q["floor"] + lcfg["baseFreq"] * (max(fs, 0.0) ** lcfg["freqPow"])
+    wb = norm_wrong_by((rec or {}).get("wrong_by"))
+    eb = error_boost(wb)
+    w = base * (1.0 + eb)
+    if not has_any_error(wb) and (rec or {}).get("quick_pass"):
+        supp = q["passSuppress"].get(level, 1.0)
+        w = base * supp + q["carousel"]
+    return max(0.0, w)
+
+
+def draw_quick(level="normal", progress=None, book=None, run_state=None, now=None):
+    """快速刷题出一道题。
+    普通：高频优先、识别为主快速刷；困难：进阶、错词加权；地狱：拼写为主、拼写压轴。
+    """
+    progress = progress or {}
+    now_ms = now if now is not None else int(time.time() * 1000)
+    if run_state is None:
+        run_state = {"wrong": {}, "seen": {}}
+    lcfg = QUICK_LEVELS[level]
+
+    pool = [o for o in BANK_WORDS if (not book or book in o.get("b", []))]
+
+    def run_cap(w):
+        return not (run_state["wrong"].get(w)
+                    and run_state["seen"].get(w, 0) >= 1)
+
+    # 已具备拼写条件的词（地狱优先从中抽，形成"拼写为主"）
+    spell_cands = [(o["w"], _quick_weight(o["w"], progress.get(o["w"]), lcfg, level))
+                   for o in pool if run_cap(o["w"]) and _can_spell(progress.get(o["w"]), o["w"])]
+    spell_cands = [(w, wt) for w, wt in spell_cands if wt > 0]
+
+    use_spell = spell_cands and random.random() < lcfg["spellBias"]
+    if use_spell:
+        word = weighted_pick([w for w, _ in spell_cands],
+                             [wt for _, wt in spell_cands])
+        qtype = "spell"
+    else:
+        cands = [(o["w"], _quick_weight(o["w"], progress.get(o["w"]), lcfg, level))
+                 for o in pool if run_cap(o["w"])]
+        cands = [(w, wt) for w, wt in cands if wt > 0]
+        if not cands:
+            cands = [(o["w"], 1.0) for o in pool if run_cap(o["w"])]
+        word = weighted_pick([w for w, _ in cands], [wt for _, wt in cands])
+        qtype = type_for_word(progress.get(word))
+        if qtype == "spell" and not _can_spell(progress.get(word), word):
+            qtype = "cn2en"
+        if qtype == "spell" and len(word) > 8:
+            qtype = "cn2en"
+
+    if run_state["wrong"].get(word):
+        run_state["seen"][word] = run_state["seen"].get(word, 0) + 1
+
+    entry = WMAP[word]
+    rec = progress.get(word)
+    q = {"qtype": qtype, "word": word, "pos": entry.get("p", ""),
+         "mean": entry["m"], "review": False,
+         "step": (rec or {}).get("step", 0),
+         "graduated": (rec or {}).get("graduated", False),
+         "quickLevel": level, "run_state": run_state}
+
+    if qtype in ("en2cn", "cn2en"):
+        if qtype == "en2cn":
+            opts = make_distractors(word) + [entry["m"]]
+            correct = entry["m"]
+        else:
+            opts = _distractor_words(word) + [word]
+            correct = word
+        random.shuffle(opts)
+        q.update(options=opts, correct=correct,
+                 timeLimit=CONFIG["quick"]["choiceT"])
+    elif qtype == "spell":
+        limit = (CONFIG["spell"]["base"] + len(word) * CONFIG["spell"]["perChar"]
+                 + lcfg["spellTimeAdd"])
+        q.update(correct=word, hint=entry["m"], timeLimit=limit)
+    else:  # judge
+        is_first = rec is None or (not rec.get("graduated")
+                                   and rec.get("step", 0) == 0)
+        if is_first:
+            shown, correct = entry["m"], "yes"
+        elif random.random() < 0.5:
+            shown, correct = entry["m"], "yes"
+        else:
+            shown, correct = random.choice(make_distractors(word, 1)), "no"
+        q.update(judgeShown=shown, correct=correct,
+                 timeLimit=CONFIG["quick"]["choiceT"])
+    return q
 
 
 def _distractor_words(word, n=3):

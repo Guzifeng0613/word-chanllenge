@@ -29,7 +29,9 @@
   .center{text-align:center;}
 
   /* 顶部进度 */
-  .topbar{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+  .quick-exit{color:var(--cyan); font-size:13px; font-weight:700; cursor:pointer;}
+ .quick-stat{color:var(--mut); font-size:12px; margin-left:auto;}
+ .topbar{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
   .layer-tag{font-size:13px; font-weight:700; color:var(--cyan); white-space:nowrap;}
   .dots{display:flex; gap:5px; flex:1; justify-content:flex-end;}
   .dot{width:11px; height:11px; border-radius:50%; background:#2a4066; border:1px solid var(--line);}
@@ -53,12 +55,15 @@
   .ghostbtn{display:block; width:100%; padding:12px; border-radius:10px; border:1px solid var(--line);
     background:transparent; color:var(--mut); font-size:14px; margin-top:8px;}
   .bigbtn.ghost{background:linear-gradient(90deg,#0e2a4a,#123a5c); color:var(--gold); border:1px solid rgba(251,191,36,.35); box-shadow:none; padding:13px;}
-  .wblist{display:flex; align-items:baseline; gap:8px; padding:9px 2px; border-bottom:1px dashed var(--line); font-size:15px;}
+  .wblist{display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; padding:9px 2px; border-bottom:1px dashed var(--line); font-size:15px;}
   .wblist:last-child{border-bottom:none;}
   .wbword{font-weight:700; white-space:nowrap;}
   .wpos{color:var(--mut); font-size:12px; font-weight:400;}
   .wbmean{flex:1; color:var(--mut); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .wbcnt{font-weight:700; white-space:nowrap;}
+  .wbtags{flex-basis:100%; display:flex; flex-wrap:wrap; gap:5px; margin-top:5px;}
+  .wbtag{font-size:10px; color:var(--orange); background:rgba(251,146,60,.12);
+    border:1px solid rgba(251,146,60,.3); padding:2px 7px; border-radius:9px;}
   .seg-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;}
   .seg-grid5{grid-template-columns:repeat(5,1fr);}
   .seg-grid5 .seg{font-size:12.5px; padding:9px 2px;}
@@ -505,7 +510,7 @@
 
  .launch-card{margin-top:12px; border-radius:16px; padding:13px; background:linear-gradient(180deg,var(--card),var(--card2));
    border:1px solid var(--line);}
- .mode-tabs{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+ .mode-tabs{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
  .mode-tab{display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:12px; text-align:left;
    border:1.5px solid var(--line); background:#0e2238; color:var(--mut);}
  .mode-tab .tic{width:34px; height:34px; border-radius:9px; flex:none; display:flex; align-items:center; justify-content:center;
@@ -519,8 +524,20 @@
  .mode-tab.endless.sel{border-color:#db2777; background:linear-gradient(135deg,rgba(124,58,237,.4),rgba(219,39,119,.18));
    box-shadow:0 0 13px rgba(219,39,119,.28);}
  .mode-tab.endless.sel .tic{background:linear-gradient(140deg,#7c3aed,#db2777);}
+ .mode-tab.quick.sel{border-color:var(--gold); background:linear-gradient(135deg,rgba(217,119,6,.4),rgba(251,191,36,.18));
+   box-shadow:0 0 13px rgba(251,191,36,.28);}
+ .mode-tab.quick.sel .tic{background:linear-gradient(140deg,#d97706,#fbbf24);}
  .mode-tab.sel{animation:tabpop .25s ease;}
  @keyframes tabpop{0%{transform:scale(.96)}60%{transform:scale(1.02)}100%{transform:scale(1)}}
+
+ .quick-levels{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px;}
+ .quick-lvl{display:flex; flex-direction:column; gap:4px; padding:11px 8px; border-radius:12px;
+   border:1.5px solid var(--line); background:#0e2238; color:var(--mut); text-align:center;}
+ .quick-lvl b{font-size:14px; color:var(--txt); font-weight:800;}
+ .quick-lvl small{font-size:9.5px; line-height:1.35; color:var(--mut);}
+ .quick-lvl.sel{border-color:var(--gold); background:linear-gradient(160deg,rgba(217,119,6,.32),rgba(251,191,36,.12));
+   box-shadow:0 0 12px rgba(251,191,36,.25);}
+ .quick-lvl:active{transform:scale(.96);}
 
  .launch-settings{margin-top:12px; border-top:1px solid var(--line); padding-top:12px;}
  .ls-label{display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:7px;}
@@ -576,11 +593,28 @@
    background:#22385e; border-left:1px solid #3b5d8f; border-top:1px solid #3b5d8f;
    transform:rotate(45deg);}
  #tipbox b{color:var(--gold);}
-
+ .backconfirm{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;
+   background:rgba(5,10,20,.72);}
+ .backconfirm.show{display:flex;}
+ .bc-card{width:min(86%,320px);padding:20px 18px 16px;border-radius:14px;text-align:center;
+   background:linear-gradient(180deg,#22385e,#1a2c4b);border:1px solid #3b5d8f;
+   box-shadow:0 16px 40px -10px rgba(0,0,0,.6);animation:bcpop .2s ease;}
+ @keyframes bcpop{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+ .bc-title{font-size:17px;font-weight:800;color:var(--txt);}
+ .bc-sub{font-size:12px;color:var(--mut);margin:8px 0 16px;line-height:1.7;}
+ .bc-btns{display:flex;gap:10px;}
+ .bc-btn{flex:1;padding:11px 0;border-radius:10px;font-size:14px;font-weight:700;border:1px solid var(--line);
+   background:var(--card2);color:var(--txt);touch-action:manipulation;}
+ .bc-btn.danger{background:linear-gradient(140deg,#b91c1c,#f87171);border-color:#ef4444;color:#fff;}
+ .bc-btn:active{transform:scale(.97);}
  .set-sec{margin-top:12px;}
  .set-sec .sec-h{margin:4px 0 8px;}
  .set-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0;
    border-bottom:1px solid rgba(51,80,122,.45); font-size:13.5px;}
+ .api-line{margin-top:6px;}
+ .api-input{width:100%; box-sizing:border-box; padding:10px 12px; border-radius:9px; font-size:12.5px;
+   color:var(--txt); background:#13243c; border:1px solid var(--line);}
+ .api-input::placeholder{color:#6b84a6;}
  .set-row:last-child{border-bottom:none;}
  .set-row .v{color:var(--mut); font-weight:600; font-size:12.5px;}
  .set-row .v b{color:var(--cyan);}
@@ -615,13 +649,23 @@
 <div id="app"></div>
 <div class="vignette" id="vignette"></div>
 <div id="tipbox"></div>
+<div class="backconfirm" id="backconfirm">
+  <div class="bc-card">
+    <div class="bc-title">放弃本层战斗？</div>
+    <div class="bc-sub">当前层的敌人与进度将重置，返回主页后可重新开始。</div>
+    <div class="bc-btns">
+      <button class="bc-btn ghost" id="bc-cancel">继续战斗</button>
+      <button class="bc-btn danger" id="bc-ok">返回主页</button>
+    </div>
+  </div>
+</div>
 <script>
 /* ============================================================
  * V4.8 音频引擎：程序化合成音效 + 音序器 BGM + 震动
  * 全部用 Web Audio API 实时合成，无外部音频文件，可离线、零体积
  * ============================================================ */
 const AUDIO_KEY='word_dungeon_audio_v1';
-let AUD={sfx:true,bgm:true,vibrate:true,sfxVol:0.85,bgmVol:0.5};
+let AUD={sfx:true,bgm:true,vibrate:true,speak:true,sfxVol:0.85,bgmVol:0.5};
 function loadAudioSettings(){ try{Object.assign(AUD,JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}'));}catch(e){} }
 function saveAudioSettings(){ try{localStorage.setItem(AUDIO_KEY,JSON.stringify(AUD));}catch(e){} }
 loadAudioSettings();
@@ -793,6 +837,37 @@ function unlockAudioOnce(){
 }
 document.addEventListener('pointerdown',()=>{ unlockAudioOnce(); },{once:true});
 
+/* ============================================================
+ * V6.1 单词真人发音（美式）：进入新单词卡片自动发音
+ * 联网→在线发音；离线→不发音；全程异步、非阻塞，用户无卡顿感知
+ * 主源 有道词典 dictvoice（type=2 美音，URL 直出 MP3，无需 key、覆盖全）
+ * ============================================================ */
+const WordSpeaker=(()=>{
+  let el=null;
+  function ensureEl(){
+    if(el) return el;
+    el=new Audio();
+    el.preload='auto';
+    // 仅播放、不读取数据，不设 crossOrigin：媒体元素跨域播放天然支持，设置反而要求对方返回 CORS 头
+    return el;
+  }
+  function urlFor(w){
+    return 'https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(w)+'&type=2';
+  }
+  function speak(word){
+    if(!word) return;
+    if(AUD.speak===false) return;          // 发音开关关闭
+    if(navigator.onLine===false) return;   // 离线：不发音
+    const a=ensureEl();
+    try{ a.pause(); a.currentTime=0; }catch(e){}
+    a.src=urlFor(word);
+    const p=a.play();                      // 异步加载并播放，不阻塞渲染/交互
+    if(p&&p.catch) p.catch(()=>{});        // 自动播放策略/网络失败：静默，不影响游戏
+  }
+  function stop(){ if(el){ try{el.pause();}catch(e){} } }
+  return {speak,stop};
+})();
+
 </script>
 <script>
 /* ============================================================
@@ -829,6 +904,21 @@ const C = {
     timeEvery:3,        // 每 3 深度 -1 秒
     timeMax:3,          // 限时最多收紧 3 秒
     championEvery:5     // 每 5 深度为“冠军 Boss”（额外强化 + 额外奖励）
+  },
+  // V5.0 快速刷题：普通/困难/地狱，词频+错误驱动动态权重
+  quick:{
+    levels:[
+      {id:'normal',name:'普通',freqPow:1.0,spellBias:0.0,spellTimeAdd:0,baseFreq:1.0},
+      {id:'hard',name:'困难',freqPow:0.5,spellBias:0.35,spellTimeAdd:1,baseFreq:0.6},
+      {id:'hell',name:'地狱',freqPow:0.2,spellBias:0.75,spellTimeAdd:3,baseFreq:0.3}],
+    levelFactor:{normal:1.0,hard:1.5,hell:2.0},
+    qtypeFactor:{judge:1.0,en2cn:1.0,cn2en:1.3,spell:1.6},
+    errorCoeff:1.0,
+    passSuppress:{hard:0.08,hell:0.05},
+    carousel:0.03,freqRef:10000,noFreqScore:0.05,
+    floor:0.05,
+    enemyHp:{normal:30,hard:45,hell:60},
+    choiceT:8
   }
 };
 
@@ -1154,21 +1244,25 @@ function applySrs(word,correct,fast){
  * ============================================================ */
 let G=null;
 let homeMode='campaign';   /* 主页模式 tab 当前选中，不随单局重置 */
+let quickLevel=(function(){try{return localStorage.getItem('wd_quick_level')||'normal';}catch(e){return 'normal';}})();
+function setQuickLevel(l){ quickLevel=l; try{localStorage.setItem('wd_quick_level',l);}catch(e){} }
 const MIN=60*1000, DAY=24*60*60*1000;
 
 /* ═══ 前后端接入层（V4.8）：后端可达→API 模式；不可达→本地内嵌逻辑兜底 ═══ */
 const API={
-  base:(localStorage.getItem('wd_api_base')||'http://127.0.0.1:8011').replace(/\/+$/,''),
+  base:(localStorage.getItem('wd_api_base')||'').replace(/\/+$/,''),
   token:null, on:false, checking:true,
   async init(){
     this.token=localStorage.getItem('wd_api_token')||null;
+    if(!this.base){ this.on=false; this.checking=false; return false; }   /* 纯离线：未配置后端地址，完全不联网 */
+    const race=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('api-timeout')),ms))]);
     try{
       if(!this.token){
-        const r=await fetch(this.base+'/auth/guest',{method:'POST'});
+        const r=await race(fetch(this.base+'/auth/guest',{method:'POST'}),5000);
         const j=await r.json();
         if(j&&j.token){ this.token=j.token; localStorage.setItem('wd_api_token',j.token); }
       }
-      const r=await fetch(this.base+'/review/due',{headers:{Authorization:'Bearer '+this.token}});
+      const r=await race(fetch(this.base+'/review/due',{headers:{Authorization:'Bearer '+this.token}}),5000);
       this.on=r.ok;
     }catch(e){ this.on=false; }
     this.checking=false;
@@ -1177,7 +1271,8 @@ const API={
   async req(path,opt){
     opt=opt||{};
     opt.headers=Object.assign({'Authorization':'Bearer '+this.token,'Content-Type':'application/json'},opt.headers||{});
-    const r=await fetch(this.base+path,opt);
+    const race=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('api-timeout')),ms))]);
+    const r=await race(fetch(this.base+path,opt),8000);
     if(!r.ok) throw new Error(path+' '+r.status);
     return r.json();
   },
@@ -1406,6 +1501,24 @@ function startBattle(kind){
   G.cards.forEach(id=>{ const c=CMAP[id]; if(c.onStart)c.onStart(); });
   nextQuestion();
 }
+/* V5.0 快速刷题：连续战斗，敌人 HP 按档位，击杀后立刻下一个（不抽卡） */
+function startQuickBattle(){
+  const level=G.quickLevel;
+  const hp=C.quick.enemyHp[level];
+  const tpl=ENEMY.normal[0];
+  const enemy={tpl,name:QUICK_LEVELS[level].name+'词妖',maxHp:hp,hp,atk:8,boss:false,quick:true};
+  G.battle={kind:'normal',enemy,q:null,locked:false,answered:0,tick:0,fire:0,fog:false,blur:false,
+    goal:{prog:0,done:false,quick:true}};
+  G.screen='battle';
+  G.shield=0;
+  nextQuestion();
+}
+function winQuickBattle(){
+  G.stats.kills++;
+  G.quickKills=(G.quickKills||0)+1;
+  G.battle=null;
+  startQuickBattle();   // 内部设置新 battle 并 render，避免 battle=null 时 viewBattle 读取报错
+}
 function questionLimit(qtype,wordLen){
   // 拼写题限时按单词长度动态计算并预留反应余量；选择题/判断题固定 12 秒
   let lim = qtype==='spell' ? (C.spell.base + wordLen*C.spell.perChar) : C.question.timeout;
@@ -1493,12 +1606,135 @@ function pickWordAndType(prefer){
   if(qtype==='spell'&&word.length>maxLen) qtype='cn2en';
   return {word,qtype,review,bucket:isAdaptive()?'match':'normal'};
 }
+/* ════════════════════════════════════════════════════════
+ * V5.0 快速刷题本地逻辑（与后端 core.draw_quick 等价，离线兜底）
+ * ════════════════════════════════════════════════════════ */
+const QUICK_LEVELS={};
+C.quick.levels.forEach(l=>{QUICK_LEVELS[l.id]=l;});
+function freqScore(word){
+  const f=WMAP[word].f||999999;
+  if(f>=999999) return C.quick.noFreqScore;
+  return Math.max(0,1-Math.log10(Math.max(1,f))/Math.log10(C.quick.freqRef));
+}
+function emptyWrongBy(){
+  const e={judge:0,en2cn:0,cn2en:0,spell:0};
+  return {normal:Object.assign({},e),hard:Object.assign({},e),hell:Object.assign({},e)};
+}
+function normWrongBy(wb){
+  const base=emptyWrongBy();
+  if(wb){['normal','hard','hell'].forEach(l=>{
+    if(wb[l]){['judge','en2cn','cn2en','spell'].forEach(t=>{
+      base[l][t]=(Number(wb[l][t]||0)||0);
+    });}
+  });}
+  return base;
+}
+function hasAnyError(wb){
+  return ['normal','hard','hell'].some(l=>['judge','en2cn','cn2en','spell'].some(t=>wb[l][t]>0));
+}
+function errorBoost(wb){
+  const q=C.quick; let total=0;
+  ['normal','hard','hell'].forEach(g=>{
+    ['judge','en2cn','cn2en','spell'].forEach(t=>{
+      total+=wb[g][t]*q.levelFactor[g]*q.qtypeFactor[t];
+    });
+  });
+  return total*q.errorCoeff;
+}
+function markQuickWrong(rec,level,qtype){
+  rec=normRec(rec);
+  const wb=normWrongBy(rec.wrong_by);
+  wb[level][qtype]++;
+  rec.wrong_by=wb; rec.quick_pass=false;
+  return rec;
+}
+function markQuickPass(rec){
+  rec=normRec(rec);
+  const wb=normWrongBy(rec.wrong_by);
+  if(!hasAnyError(wb)) rec.quick_pass=true;
+  rec.wrong_by=wb;
+  return rec;
+}
+function canSpellQuick(rec,w){
+  if(w.length>8) return false;
+  rec=normRec(rec);
+  if(rec.graduated) return typeForWord(rec)==='spell';
+  return rec.step>=3;
+}
+function quickWeight(word,rec,level){
+  const q=C.quick, lcfg=QUICK_LEVELS[level];
+  const fs=freqScore(word);
+  const base=q.floor+lcfg.baseFreq*Math.pow(Math.max(fs,0),lcfg.freqPow);
+  const wb=normWrongBy((rec||{}).wrong_by);
+  const eb=errorBoost(wb);
+  let w=base*(1+eb);
+  if(!hasAnyError(wb)&&(rec||{}).quick_pass){
+    const supp=(q.passSuppress[level]!==undefined)?q.passSuppress[level]:1;
+    w=base*supp+q.carousel;
+  }
+  return Math.max(0,w);
+}
+function drawQuickLocal(level){
+  const b=G.battle, lcfg=QUICK_LEVELS[level];
+  const pool=G.layerWords.slice();
+  const runCap=w=>!(G.runWrong[w]&&(G.runWrongSeen[w]||0)>=1);
+  const spellC=pool.filter(w=>runCap(w)&&canSpellQuick(P.words[w],w))
+    .map(w=>[w,quickWeight(w,P.words[w],level)]).filter(x=>x[1]>0);
+  let word,qtype;
+  if(spellC.length&&rnd()<lcfg.spellBias){
+    word=weightedPick(spellC.map(x=>x[0]),spellC.map(x=>x[1])); qtype='spell';
+  }else{
+    let c=pool.filter(runCap).map(w=>[w,quickWeight(w,P.words[w],level)]).filter(x=>x[1]>0);
+    if(!c.length) c=pool.filter(runCap).map(w=>[w,1]);
+    word=weightedPick(c.map(x=>x[0]),c.map(x=>x[1]));
+    qtype=typeForWord(P.words[word]);
+    if(qtype==='spell'&&!canSpellQuick(P.words[word],word)) qtype='cn2en';
+    if(qtype==='spell'&&word.length>8) qtype='cn2en';
+  }
+  if(G.runWrong[word]) G.runWrongSeen[word]=(G.runWrongSeen[word]||0)+1;
+  const o=WMAP[word];
+  const limit=(qtype==='spell')
+    ? (C.spell.base+word.length*C.spell.perChar+lcfg.spellTimeAdd)
+    : C.quick.choiceT;
+  const q={word,qtype,options:null,correct:word,start:performance.now(),limit,quickLevel:level};
+  if(qtype==='en2cn'){
+    const g=groupOf(word); let distract=[];
+    const p2=G.layerWords.filter(x=>x!==word&&(!g||!g.includes(x)));
+    rshuffle(p2);
+    p2.forEach(x=>{if(distract.length<3&&!distract.includes(WMAP[x].m))distract.push(WMAP[x].m);});
+    q.options=rshuffle([o.m,...distract.slice(0,3)]); q.correct=o.m;
+  }else if(qtype==='cn2en'){
+    const g=groupOf(word); let distract=[];
+    const p2=G.layerWords.filter(x=>x!==word&&(!g||!g.includes(x)));
+    rshuffle(p2);
+    p2.forEach(x=>{if(distract.length<3&&!distract.includes(x))distract.push(x);});
+    q.options=rshuffle([word,...distract.slice(0,3)]); q.correct=word;
+  }else if(qtype==='judge'){
+    const rec=P.words[word];
+    const isFirst=!rec||(!rec.graduated&&rec.step===0);
+    if(isFirst||rnd()<0.5){ q.judgeShown=o.m; q.correct='yes'; }
+    else{
+      const others=G.layerWords.filter(x=>x!==word);
+      q.judgeShown=WMAP[rpick(others)].m; q.correct='no';
+    }
+    q.options=['yes','no'];
+  }
+  return q;
+}
+
 function nextQuestion(){
   const b=G.battle;
   b.locked=false;
   const enemy=b.enemy;
   /* API 模式：出题交给后端（题型阶梯/θ/词书难度/单局封顶/复习队列全部在服务端） */
   if(API.on){
+    if(G.mode==='quick'){
+      apiDrawAndBuild({
+        layer:G.layer, mode:'quick', quick_level:G.quickLevel,
+        book:SETTINGS.book,
+        run_state:G.apiRunState||{wrong:{},seen:{}}});
+      return;
+    }
     const forceSpell=G.spellChainNext;
     G.spellChainNext=false;
     if(forceSpell) G.spellChainBonus=true;
@@ -1510,6 +1746,17 @@ function nextQuestion(){
       run_state:G.apiRunState||{wrong:{},seen:{}}
     };
     apiDrawAndBuild(payload);
+    return;
+  }
+  /* 快速刷题本地模式：词频+错误驱动动态权重 */
+  if(G.mode==='quick'){
+    const q=drawQuickLocal(G.quickLevel);
+    G.battle.q=q;
+    if(G.focus) G.battle.focusUsed=true;
+    G.focus=false;
+    G.screen='battle';
+    render();
+    startTimer();
     return;
   }
   // boss 机制标记
@@ -1564,7 +1811,7 @@ function apiDrawAndBuild(payload){
     render();
     startTimer();
   }).catch(()=>{
-    API.on=false;
+    API.on=false; apiToast('后端不可达 · 已切换离线模式');
     G.screen='home'; render();
   });
 }
@@ -1666,6 +1913,8 @@ function resolve(choice,isTimeout,forceCorrect,apiRes){
       time_limit:q.limit, remain,
       combo:G.combo, crit:false, card_mult:1.0,
       shown:q.judgeShown||null,
+      mode:G.mode||'campaign',
+      quick_level:G.mode==='quick'?G.quickLevel:undefined,
       run_state:G.apiRunState||{wrong:{},seen:{}}
     }).then(res=>{
       if(!G.battle||G.battle.q!==q){ b.locked=false; return; }
@@ -1674,7 +1923,7 @@ function resolve(choice,isTimeout,forceCorrect,apiRes){
       b.locked=false;                // 解锁后重入结算（表现层）
       resolve(choice,isTimeout,res.correct,res);
     }).catch(()=>{
-      API.on=false; b.locked=false; resolve(choice,isTimeout,forceCorrect);
+      API.on=false; b.locked=false; apiToast('网络异常 · 已切换离线模式'); resolve(choice,isTimeout,forceCorrect);
     });
     return;
   }
@@ -1747,6 +1996,10 @@ function resolve(choice,isTimeout,forceCorrect,apiRes){
     G.cards.forEach(id=>{ const c=CMAP[id]; if(c.onCorrect)c.onCorrect(ctx); });
     G.spellChainBonus=false;   // 连锁加成仅作用于被强制的那一题
     applySrs(word,true,fast);
+    if(G.mode==='quick'){
+      P.words[word]=markQuickPass(P.words[word]);
+      Save.write();
+    }
     G.wrongWords[word]=false;
     markOptions(true,q.correct);
     // 微目标 + 掌握成就
@@ -1775,6 +2028,10 @@ function resolve(choice,isTimeout,forceCorrect,apiRes){
     if(b.enemy.boss&&b.enemy.tpl.mech==='rage'&&b.enemy.hp<=b.enemy.maxHp*0.5) dmg+=4;
     hurtPlayer(dmg);
     if(!apiRes) applySrs(word,false,false);   // API 模式调度已在服务端完成
+    if(!apiRes && G.mode==='quick'){
+      P.words[word]=markQuickWrong(P.words[word],G.quickLevel,q.qtype);
+      Save.write();
+    }
     G.wrongWords[word]=true;
     G.wrongCount[word]=(G.wrongCount[word]||0)+1;
     // 单局记录：首次答错标记，留给它 1 次重现；之后仅归档、本局不再抽
@@ -1798,7 +2055,7 @@ function enemyDeathThenWin(){
   if(card){
     card.classList.add('enemydie');
   }
-  setTimeout(()=>winBattle(),520);
+  setTimeout(()=>{ if(G.mode==='quick') winQuickBattle(); else winBattle(); },520);
 }
 function markOptions(isCorrect,choice){
   document.querySelectorAll('.opt').forEach(el=>{
@@ -2237,6 +2494,11 @@ function buy(kind,id){
  * ============================================================ */
 const app=document.getElementById('app');
 function topbar(){
+  if(G.mode==='quick'){
+    return `<div class="topbar">
+      <span class="quick-exit" data-act="quickexit">‹ 退出快刷</span>
+      <span class="quick-stat">已刷 ${G.quickKills||0} 词</span></div>`;
+  }
   const seq=activeNodeSeq();
   const dots=seq.map((k,i)=>{
     let cls=i<G.node?'done':(i===G.node&&G.screen!=='home'?'cur':'');
@@ -2276,10 +2538,11 @@ function viewHome(){
   const bookPct=Math.round(bookMastered/bookTotal*1000)/10;
   const wrongCnt=wrongBookData().length;
   const dueCnt=dueLearning(Date.now()).length+dueGraduated(Date.now()).length;
-  const modeName=homeMode==='endless'?'无尽':'远征';
+  const modeName=homeMode==='endless'?'无尽':homeMode==='quick'?'快刷':'远征';
   const modeDesc=homeMode==='endless'
     ? (m.endlessBest>0?`最高纪录 第 ${m.endlessBest} 层`:'无上限下潜')
-    : '3 层闯关';
+    : homeMode==='quick' ? '高频词快速刷' : '3 层闯关';
+  const quickLevelCfg=C.quick.levels.find(l=>l.id===quickLevel)||C.quick.levels[0];
   return `
    <div class="home-banner">
      <div class="hb-top">
@@ -2306,15 +2569,27 @@ function viewHome(){
          <span class="tic">🌀</span>
          <span class="tt"><b>无尽</b></span>
        </button>
+       <button class="mode-tab quick ${homeMode==='quick'?'sel':''}" data-mode="quick">
+         <span class="tic">⚡</span>
+         <span class="tt"><b>快刷</b></span>
+       </button>
      </div>
 
+     ${homeMode==='quick' ? `
+     <div class="quick-levels">
+       ${C.quick.levels.map(l=>`
+         <button class="quick-lvl ${quickLevel===l.id?'sel':''}" data-quick-level="${l.id}">
+           <b>${l.name}</b>
+           <small>${l.id==='normal'?'高频优先·识别快刷':l.id==='hard'?'错词加权·进阶':'拼写为主·拼写压轴'}</small>
+         </button>`).join('')}
+     </div>` : `
      <button class="cfg-line" data-act="settings">
        <span>词书 <b>${curBook.name}</b> · 难度 <b>${isAdaptive()?'自适应 · θ 配比':curDiff.name}</b></span>
        <span class="cc">${rangeCount} 词 <span class="cgo">改 ›</span></span>
-     </button>
+     </button>`}
 
      <button class="launch-btn" data-act="launch">开始${modeName}
-       <small>${modeDesc}${m.endlessBest>0&&homeMode==='endless'?` · 纪录第 ${m.endlessBest} 层`:''}</small>
+       <small>${homeMode==='quick'?`${quickLevelCfg.name}档 · ${modeDesc}`:modeDesc}${m.endlessBest>0&&homeMode==='endless'?` · 纪录第 ${m.endlessBest} 层`:''}</small>
      </button>
    </div>
 
@@ -2353,7 +2628,7 @@ function viewSettings(){
    <div class="subhead">
      <button class="back" data-act="homeback">‹</button>
      <span class="st">设置</span>
-     <span class="smut">V4.8 · 单词地下城</span>
+     <span class="smut">V6.1 · 美式发音版</span>
    </div>
 
    <div class="card">
@@ -2392,6 +2667,10 @@ function viewSettings(){
      <div class="audio-row">
        <span class="lab">震动触感<span class="sub">命中、暴击、受击时震动（需设备支持）</span></span>
        <button class="switch ${AUD.vibrate?'on':''}" data-audio="vibrate" aria-label="震动开关"><i></i></button>
+     </div>
+     <div class="audio-row">
+       <span class="lab">单词发音<span class="sub">进入新卡片自动读美式发音（需联网）</span></span>
+       <button class="switch ${AUD.speak?'on':''}" data-audio="speak" aria-label="单词发音开关"><i></i></button>
      </div>
      <div class="vol-row">
        <span class="vt">音效音量</span>
@@ -2435,6 +2714,14 @@ function viewSettings(){
    </div>
 
    <div class="card set-sec">
+     <div class="sec-h">云端后端（可选）<span class="info-tip" data-tip="默认<b>完全离线</b>：全部 7388 词已内置本地，无需网络。若需多设备同步进度，可填入自建 FastAPI 服务地址后点「连接后端」；留空即纯离线。">?</span></div>
+     <div class="api-line">
+       <input id="apiBaseInput" class="api-input" placeholder="留空=纯离线，如 http://192.168.1.5:8011" value="${API.base}">
+     </div>
+     <button class="bigbtn" data-act="api-connect" style="margin-top:8px;">${API.on?'✓ 后端已连接':'连接后端（可选）'}</button>
+   </div>
+
+   <div class="card set-sec">
      <div class="sec-h">怎么玩</div>
      <div class="howto">
        · 答对单词攻击敌人，<b>答得越快伤害越高</b>，连击还会再加成。<br>
@@ -2450,7 +2737,7 @@ function viewSettings(){
      <div class="about-line">词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）<br>
        学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）<br>
        模式：远征 3 层闯关 · 无尽下潜挑战 · 错词 2 次封顶<br>
-       版本：V4.7（深色地下城 · 打击动效 · 无内购）</div>
+       版本：V6.1 · 美式发音（7388 词已内置；联网时自动读单词，离线不发音）</div>
    </div>
 
    <button class="ghostbtn" data-act="reset" style="margin-top:12px;">清空所有学习进度</button>`;
@@ -2551,6 +2838,22 @@ function wrongBookBtn(){
   return `<button class="bigbtn ghost" data-act="wrongbook" style="margin-top:10px;">
     错词本（${total} 词${cnt?` · 顽固 ${cnt}`:''}）</button>`;
 }
+/* V5.0 错词本：把“在哪个档/哪个题型错过”渲染成标签 */
+function wrongByTags(w){
+  const rec=P.words[w];
+  if(!rec||!rec.wrong_by) return '';
+  const wb=normWrongBy(rec.wrong_by);
+  const lname={normal:'普通',hard:'困难',hell:'地狱'};
+  const tname={judge:'判断',en2cn:'选义',cn2en:'选词',spell:'拼写'};
+  const tags=[];
+  ['normal','hard','hell'].forEach(l=>{
+    ['judge','en2cn','cn2en','spell'].forEach(t=>{
+      if(wb[l][t]>0) tags.push(`${lname[l]}${tname[t]}×${wb[l][t]}`);
+    });
+  });
+  if(!tags.length) return '';
+  return `<div class="wbtags">${tags.map(t=>`<span class="wbtag">${t}</span>`).join('')}</div>`;
+}
 function viewWrongBook(){
   const list=wrongBookData();
   const gName={3:'顽固',2:'易错',1:'生疏'};
@@ -2571,6 +2874,7 @@ function viewWrongBook(){
          <span class="wbword">${esc(x.w)} <span class="wpos">${WMAP[x.w]?WMAP[x.w].p:''}</span></span>
          <span class="wbmean">${esc(WMAP[x.w]?WMAP[x.w].m:'')}</span>
          <span class="wbcnt" style="color:${gColor[g]}">×${x.n}</span>
+         ${wrongByTags(x.w)}
        </div>`).join('')}
      </div>`;
    }).join('')}
@@ -2643,11 +2947,11 @@ function viewBattle(){
        <div class="bar enemybar ${rage?'rage':''}"><i style="width:${hpPct}%"></i></div>
        <div class="hpnum">${e.hp} / ${e.maxHp}</div>
      </div>
-     <div class="mini-goal ${g.done?'done':''}">
+     ${g.quick?'':`<div class="mini-goal ${g.done?'done':''}">
        <span class="gico">${g.ico}</span>
        <span>${g.label}</span>
        <span class="gprog">${goalState}</span>
-     </div>
+     </div>`}
    </div>
 
    <div class="combo-line">
@@ -2854,7 +3158,7 @@ function render(){
   let html='';
   switch(G.screen){
     case 'home': html=viewHome(); break;
-    case 'battle': html=viewBattle(); break;
+    case 'battle': html=G.battle?viewBattle():viewHome(); break;
     case 'choice': html=viewChoice(); break;
     case 'spring': html=viewSpring(); break;
     case 'shop': html=viewShop(); break;
@@ -2869,12 +3173,21 @@ function render(){
   app.innerHTML=html;
   afterRender();
   sceneBgm();
+  maybePronounce();
+}
+/* 新单词卡片：自动美式发音（在线发音/离线不发音，非阻塞）；同一题不重复发音 */
+function maybePronounce(){
+  if(G.screen!=='battle') return;
+  const b=G.battle;
+  if(!b||!b.q||b.q.__spoken) return;
+  b.q.__spoken=true;
+  WordSpeaker.speak(b.q.word);
 }
 /* BGM 随场景切换：战斗/Boss 紧张，主页/泉水/商店/结算舒缓 */
 function sceneBgm(){
   const s=G.screen;
   let mode='home';
-  if(s==='battle') mode=G.battle.kind==='boss'?'boss':'battle';
+  if(s==='battle'&&G.battle) mode=G.battle.kind==='boss'?'boss':'battle';
   else if(s==='choice') mode='battle';
   AudioEngine.switchBgm(mode);
 }
@@ -2891,6 +3204,9 @@ function afterRender(){
         if(tab){ homeMode=tab.getAttribute('data-mode'); AudioEngine.play('tap'); render(); }
       });
     }
+    document.querySelectorAll('[data-quick-level]').forEach(el=>el.addEventListener('click',()=>{
+      setQuickLevel(el.getAttribute('data-quick-level')); AudioEngine.play('tap'); render();
+    }));
   }
   if(G.screen==='settings'){
     document.querySelectorAll('[data-book]').forEach(el=>el.addEventListener('click',()=>{
@@ -3037,6 +3353,7 @@ function afterRender(){
       if(a==='start-campaign'){ rnd=mulberry32(Date.now()%2147483647); newRun('campaign'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='start-endless'){ rnd=mulberry32(Date.now()%2147483647); newRun('endless'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='restart'){ const mode=G.mode; rnd=mulberry32(Date.now()%2147483647); newRun(mode); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
+      if(a==='quickexit'){ G.battle=null; G.screen='home'; render(); }
       if(a==='wrongbook'){
         if(API.on){ loadApiData().then(()=>{ G.screen='wrongbook'; render(); }); return; }
         G.screen='wrongbook'; render();
@@ -3050,9 +3367,26 @@ function afterRender(){
       if(a==='launch'){
         const mode=homeMode;
         rnd=mulberry32(Date.now()%2147483647); newRun(mode);
-        rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer();
+        rnd=mulberry32(Date.now()%2147483647);
+        if(mode==='quick'){
+          G.quickLevel=quickLevel;
+          G.layerWords=bookWords();
+          G.runWrong={}; G.runWrongSeen={};
+          startQuickBattle();
+        } else {
+          G.screen='map'; enterLayer();
+        }
       }
-      if(a==='reset'){ if(confirm('确定清空所有学习进度？')){ Save.reset(); P={words:{}}; newRun(); render(); } }
+      if(a==='api-connect'){
+      const inp=document.getElementById('apiBaseInput');
+      const v=(inp?inp.value:'').trim().replace(/\/+$/,'');
+      if(v){ localStorage.setItem('wd_api_base',v); }
+      else { localStorage.removeItem('wd_api_base'); localStorage.removeItem('wd_api_token'); }
+      API.base=v; API.token=localStorage.getItem('wd_api_token');
+      API.init().then(on=>{ if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); } else { apiToast('连接失败 · 保持离线'); render(); } });
+      return;
+    }
+    if(a==='reset'){ if(confirm('确定清空所有学习进度？')){ Save.reset(); P={words:{}}; newRun(); render(); } }
     });
   });
 }
@@ -3069,6 +3403,18 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ⓘ 弹窗：显示/关闭（只绑定一次，不随 render 累积） */
+function apiToast(msg){
+  const t=document.getElementById('tipbox');
+  if(!t) return;
+  t.innerHTML='<span style="color:var(--gold)">'+msg+'</span>';
+  t.style.display='block';
+  t.style.left=Math.max(8,(window.innerWidth-220)/2)+'px';
+  t.style.top='38%';
+  t.style.background='linear-gradient(180deg,#b45309,#92400e)';
+  clearTimeout(apiToast._t);
+  apiToast._t=setTimeout(()=>{ t.style.display='none'; t.style.background=''; },2400);
+}
+
 function showTip(el){
   const tipbox=document.getElementById('tipbox');
   const r=el.getBoundingClientRect();
@@ -3082,9 +3428,41 @@ document.addEventListener('click',()=>{
   if(tipbox) tipbox.style.display='none';
 });
 
+/* Android 返回键：返回上一级；主页再按才退出；战斗中先确认防误触 */
+function handleAndroidBack(){
+  if(!G) return;
+  switch(G.screen){
+    case 'settings': case 'wrongbook': case 'achievements': case 'stats': case 'howto':
+    case 'result':
+      G.screen='home'; render(); break;
+    case 'battle': {
+      const bc=document.getElementById('backconfirm');
+      if(bc && bc.classList.contains('show')){ G.screen='home'; bc.classList.remove('show'); render(); break; }
+      if(bc) bc.classList.add('show');
+      break;
+    }
+    case 'choice': case 'spring': case 'shop':
+      G.screen='battle'; render(); break;
+    default:
+      if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App){
+        window.Capacitor.Plugins.App.exitApp();
+      }
+  }
+}
+function initAndroidBack(){
+  if(!(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App)) return;
+  window.Capacitor.Plugins.App.addListener('backButton',()=>handleAndroidBack());
+  const bc=document.getElementById('backconfirm');
+  const cancel=document.getElementById('bc-cancel');
+  const ok=document.getElementById('bc-ok');
+  if(cancel) cancel.addEventListener('click',()=>{ if(bc)bc.classList.remove('show'); });
+  if(ok) ok.addEventListener('click',()=>{ if(bc)bc.classList.remove('show'); G.screen='home'; render(); });
+}
+
 /* 启动 */
 newRun();
 render();
+initAndroidBack();
 API.init().then(on=>{ if(on){ loadApiData().then(()=>render()); } });
 </script>
 </body>

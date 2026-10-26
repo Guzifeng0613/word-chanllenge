@@ -139,6 +139,7 @@ class DrawReq(BaseModel):
     adaptive: bool = True
     mode: str = "campaign"
     run_state: Optional[dict] = None
+    quick_level: Optional[str] = None
 
 
 def _progress_map(db, uid):
@@ -168,6 +169,9 @@ def quiz_draw(req: DrawReq, user=Depends(current_user)):
     with get_db() as db:
         prog = _progress_map(db, user["id"])
         new_today = _new_today(db, user["id"], today0)
+    if req.mode == "quick" and req.quick_level:
+        return core.draw_quick(req.quick_level, prog, req.book,
+                               run_state=req.run_state)
     theta = user["theta"] if req.adaptive else None
     q = core.draw_question(req.layer, prog, req.force,
                           req.book, req.difficulty, theta, new_today,
@@ -209,6 +213,8 @@ class AnswerReq(BaseModel):
     card_mult: float = 1.0
     shown: Optional[str] = None
     run_state: Optional[dict] = None
+    mode: str = "campaign"
+    quick_level: Optional[str] = None
 
 
 @app.post("/quiz/answer")
@@ -263,6 +269,12 @@ def quiz_answer(req: AnswerReq, user=Depends(current_user)):
 
         # 题型阶梯 / SM-2 调度 + θ 更新
         new_rec = core.schedule(old_rec, is_correct, fast, now_ms)
+        # V5.0 快速刷题：错误分级（记录在哪个档/题型错过）与普通档一次答对标记
+        if req.mode == "quick" and req.quick_level:
+            if not is_correct:
+                new_rec = core.mark_quick_wrong(new_rec, req.quick_level, req.qtype)
+            elif req.quick_level == "normal":
+                new_rec = core.mark_quick_pass(new_rec)
         new_theta = core.update_theta(user["theta"], is_correct, fast)
         interval_min = max(1, (new_rec["due"] - now_ms) // 60000)
         new_wrong = new_rec["wrong_count"]
