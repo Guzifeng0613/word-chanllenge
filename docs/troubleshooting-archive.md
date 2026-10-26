@@ -154,3 +154,8 @@
 - 定案架构（V9.2，纸片项目同构）：MainActivity 弃用 Capacitor，继承 AppCompatActivity 自建 WebView；WebViewClient 拦截 https://app.local/ 返回 assets/public/index.html；addJavascriptInterface(JsBridge) 直连桥（自建即生效）；返回键 onBackPressed → __wdBack；前端 IS_APP 主判 window.WordDungeon；发音用 HTML5 Audio。
 - 验证：playwright 无 Capacitor 环境下 JS 桥端到端 PASS（3674 词）。
 - 教训：Capacitor 壳在 Android 上引入的"注入/时序/网络策略"黑盒问题难远程排查；纯本地单文件应用直接自建 WebView + addJavascriptInterface 最可靠（纸片 v3→v15 背书）。
+
+## 21. 定案：全原生重构（V10.0）——物理消除"后端不可达"
+- V9.2 自建 WebView+JS 桥仍未连通（真机页面可见但数据层不可达，原因不可远程定位）。
+- 最终方案：**全原生 Android**。UI 原生 View，后端 Java 引擎内存直调，词库/SQLite 本地直读写，无任何进程间/网络通道——"词书不可用"从物理上不可能出现。
+- 教训：本地单进程应用反复引入 Web 容器（Capacitor→自建 WebView）均为过度工程；纯原生直接调库最可靠。

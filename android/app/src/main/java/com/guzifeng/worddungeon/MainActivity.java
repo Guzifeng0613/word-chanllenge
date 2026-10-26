@@ -1,174 +1,135 @@
 package com.guzifeng.worddungeon;
 
-import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.Toast;
+import android.widget.FrameLayout;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.guzifeng.worddungeon.bridge.JsBridge;
-import com.guzifeng.worddungeon.server.LocalServer;
+import com.guzifeng.worddungeon.server.BackendRouter;
+import com.guzifeng.worddungeon.ui.AchievementsView;
+import com.guzifeng.worddungeon.ui.BattleView;
+import com.guzifeng.worddungeon.ui.HomeView;
+import com.guzifeng.worddungeon.ui.ResultView;
+import com.guzifeng.worddungeon.ui.SettingsView;
+import com.guzifeng.worddungeon.ui.Ui;
+import com.guzifeng.worddungeon.ui.WrongbookView;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-
-import fi.iki.elonen.NanoHTTPD;
+import org.json.JSONObject;
 
 /**
- * 主入口（V9.2 架构重构 + 启动加固）：
- * 自建 WebView + shouldInterceptRequest 加载本地页面 + addJavascriptInterface 直连桥（纸片同构）。
- * 加固：① 全流程 try/catch，失败 Toast 而非崩溃；② 未捕获异常写 crash.log，下次启动页面自诊断。
+ * 全原生版主入口（V10.0）：
+ * 彻底移除 WebView / JS 桥 / Capacitor / HTTP 通道，
+ * UI 全部为 Android 原生 View，直接内存调用 BackendRouter（复用全部后端引擎与 SQLite）。
  */
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "WordDungeon";
-    private static final String APP_HOST = "https://app.local/";
-    private static final String CRASH_LOG = "crash.log";
-    public static MainActivity instance = null;
-    private WebView web;
-    private LocalServer server;
+    public static MainActivity instance;
+
+    private FrameLayout root;
+    private BackendRouter router;
+    private volatile boolean backendReady = false;
+    private String backendErr = null;
+    private final Handler main = new Handler(Looper.getMainLooper());
+
+    // 全局游戏状态（跨页面）
+    public String mode = "campaign";        // campaign / endless / quick
+    public String book = "gaokao";          // 词书 id 或 "all"
+    public String difficulty = "adaptive";  // adaptive / 普通 / 困难 / 地狱
+    public boolean speak = true;
+    public JSONObject bankMeta = null;
+
+    private HomeView home;
+    private BattleView battle;
+    private ResultView result;
+    private WrongbookView wrongbook;
+    private SettingsView settings;
+    private AchievementsView achievements;
+
+    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS }
+    private Screen screen = Screen.HOME;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
-        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-            try {
-                saveCrash(e);
-            } catch (Throwable ignore) {}
-        });
-        try {
-            web = new WebView(this);
-            WebSettings s = web.getSettings();
-            s.setJavaScriptEnabled(true);
-            s.setDomStorageEnabled(true);
-            s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-            s.setSafeBrowsingEnabled(false);
-            s.setAllowFileAccess(true);
-            s.setAllowContentAccess(true);
-            s.setDefaultTextEncodingName("UTF-8");
-            s.setTextZoom(100);
-            web.setWebViewClient(new WebViewClient() {
-                @Override
-                public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                    if (request != null && request.getUrl() != null && "app.local".equals(request.getUrl().getHost())) {
-                        try {
-                            InputStream is = getAssets().open("public/index.html");
-                            return new WebResourceResponse("text/html", "UTF-8", is);
-                        } catch (IOException e) {
-                            return new WebResourceResponse("text/plain", "UTF-8",
-                                    new ByteArrayInputStream("页面加载失败".getBytes()));
-                        }
-                    }
-                    return super.shouldInterceptRequest(view, request);
-                }
-            });
-            web.addJavascriptInterface(new JsBridge(getApplicationContext(), web, this), "WordDungeon");
-            setContentView(web);
-            web.loadUrl(APP_HOST);
-            Log.i(TAG, "WebView 就绪，JS 桥已注册（window.WordDungeon）");
-            // 上次崩溃自诊断
-            final String crash = readCrash();
-            if (crash != null && !crash.isEmpty()) {
-                Log.e(TAG, "检测到上次崩溃:\n" + crash);
-                web.postDelayed(() -> {
-                    try { Toast.makeText(this, "上次启动异常：" + crash, Toast.LENGTH_LONG).show(); } catch (Throwable ignore) {}
-                }, 2000);
-                deleteCrash();
-            }
-        } catch (Throwable e) {
-            Log.e(TAG, "WebView 初始化失败", e);
-            try { saveCrash(e); } catch (Throwable ignore) {}
-            try {
-                Toast.makeText(this, "初始化失败：" + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
-            } catch (Throwable ignore) {}
-        }
-        // 本地 HTTP 服务（浏览器/调试通道；App 内主通道为 JS 桥）
-        new Thread(this::startLocalServer, "worddungeon-backend").start();
-    }
+        root = new FrameLayout(this);
+        root.setBackgroundColor(Ui.BG0);
+        setContentView(root);
 
-    private void startLocalServer() {
-        int port = 8080;
-        for (int attempt = 0; attempt < 10; attempt++) {
+        home = new HomeView(this);
+        battle = new BattleView(this);
+        result = new ResultView(this);
+        wrongbook = new WrongbookView(this);
+        settings = new SettingsView(this);
+        achievements = new AchievementsView(this);
+
+        show(Screen.HOME);
+
+        // 后端后台线程初始化（词库解析 + SQLite），不阻塞 UI
+        new Thread(() -> {
             try {
-                server = new LocalServer(getApplicationContext(), port);
-                server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-                Log.i(TAG, "本地后端已启动 127.0.0.1:" + port);
-                return;
+                router = new BackendRouter(getApplicationContext());
+                backendReady = true;
+                Log.i(TAG, "原生后端就绪（词库/SQLite）");
             } catch (Throwable e) {
-                Log.e(TAG, "端口 " + port + " 启动失败: " + e, e);
-                try { if (server != null) server.stop(); } catch (Throwable ignore) {}
-                server = null;
-                port++;
+                backendErr = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "" : e.getMessage());
+                Log.e(TAG, "后端初始化失败: " + backendErr, e);
             }
-        }
-        Log.e(TAG, "本地后端全部端口启动失败");
+            main.post(() -> {
+                home.onBackendState(backendReady, backendErr);
+                if (backendReady) home.refreshMeta();
+            });
+        }, "wd-backend-init").start();
     }
 
-    /** 返回键：交给前端按层级处理（主页默认=退出，其余返回上一级）；前端无处理时退出 */
+    public BackendRouter router() {
+        return router;
+    }
+
+    public boolean backendReady() {
+        return backendReady;
+    }
+
+    public void show(Screen s) {
+        screen = s;
+        root.removeAllViews();
+        switch (s) {
+            case HOME: root.addView(home); break;
+            case BATTLE:
+                root.addView(battle);
+                battle.startRun();
+                break;
+            case RESULT: root.addView(result); break;
+            case WRONGBOOK: root.addView(wrongbook); wrongbook.refresh(); break;
+            case SETTINGS: root.addView(settings); break;
+            case ACHIEVEMENTS: root.addView(achievements); break;
+        }
+    }
+
+    public ResultView result() { return result; }
+
+    public Screen screen() { return screen; }
+
+    /** 返回键：按层级返回；主页默认退出 */
     @Override
     public void onBackPressed() {
-        if (web != null) {
-            try {
-                web.evaluateJavascript("window.__wdBack && window.__wdBack()", null);
-                return;
-            } catch (Throwable ignore) {}
-        }
-        super.onBackPressed();
-    }
-
-    private void saveCrash(Throwable e) {
-        StringWriter sw = new StringWriter();
-        e.printStackTrace(new PrintWriter(sw));
-        String text = Thread.currentThread().getName() + " :: " + sw.toString();
-        try {
-            File f = new File(getFilesDir(), CRASH_LOG);
-            try (FileOutputStream os = new FileOutputStream(f, true)) {
-                os.write(text.getBytes("UTF-8"));
-                os.write('\n');
-            }
-        } catch (Throwable ignore) {}
-    }
-
-    private String readCrash() {
-        try {
-            File f = new File(getFilesDir(), CRASH_LOG);
-            if (!f.exists()) return null;
-            byte[] b = new byte[(int) Math.min(f.length(), 2000)];
-            try (InputStream is = new FileInputStream(f)) {
-                int n = is.read(b);
-                return n > 0 ? new String(b, 0, n, "UTF-8") : null;
-            }
-        } catch (Throwable ignore) {
-            return null;
+        switch (screen) {
+            case BATTLE:
+                battle.onBack(); return;
+            case RESULT:
+            case WRONGBOOK:
+            case SETTINGS:
+            case ACHIEVEMENTS:
+                show(Screen.HOME); return;
+            case HOME:
+            default:
+                super.onBackPressed();
         }
     }
 
-    private void deleteCrash() {
-        try {
-            File f = new File(getFilesDir(), CRASH_LOG);
-            if (f.exists()) f.delete();
-        } catch (Throwable ignore) {}
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (server != null) { server.stop(); server = null; }
-        if (web != null) { web.destroy(); web = null; }
-        instance = null;
-    }
+    public Handler main() { return main; }
 }
