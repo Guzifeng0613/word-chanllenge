@@ -68,6 +68,7 @@ public class BackendRouter {
         if ("/reward/xp".equals(route)) return rewardXp(body == null ? new JSONObject() : body);
         if ("/card/draw".equals(route)) return cardDraw(body == null ? new JSONObject() : body);
         if ("/shop/buy".equals(route)) return shopBuy(body == null ? new JSONObject() : body);
+        if ("/shop/souls".equals(route)) return shopSouls();
         throw new RuntimeException("未知路由: " + route);
     }
 
@@ -137,6 +138,13 @@ public class BackendRouter {
         boolean crit = b.optBoolean("crit", false);
         double critMult = b.optDouble("crit_mult", 2.0);
         double cardMult = b.optDouble("card_mult", 1.0);
+        // 卡效果入参（R2-A）：暴击率（未显式指定 crit 时由后端掷骰）/汲词回血比例
+        double critChance = b.optDouble("crit_chance", 0.0);
+        double lifestealPct = b.optDouble("lifesteal_pct", 0.0);
+        // 击杀即入账：本答是否为击杀 + 敌人类型（普通15/精英35/Boss60，冠军×1.5）
+        boolean kill = b.optBoolean("kill", false);
+        String killKind = b.optString("kill_kind", "normal");
+        boolean champion = b.optBoolean("champion", false);
         String shown = b.isNull("shown") ? null : b.optString("shown", null);
         String mode = b.optString("mode", "campaign");
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
@@ -167,11 +175,22 @@ public class BackendRouter {
         int runMisses = runState.runMisses(word);
 
         int dmg = 0;
+        int healBack = 0;
         DamageCalc.Result dr = null;
         if (isCorrect) {
+            if (!crit && critChance > 0 && WordBank.get().rnd.nextDouble() < critChance) crit = true;
             dr = DamageCalc.calc(word, state, combo, qtype, timeLimit, remain,
                     runMisses, crit, critMult, cardMult);
             dmg = dr.total;
+            if (lifestealPct > 0) healBack = (int) Math.round(dmg * lifestealPct);
+        }
+
+        // 击杀词魂即时入账 DB（V7.0 C.gold：普通15/精英35/Boss60，冠军×1.5）
+        int souls = store.getMeta().optInt("souls", 0);
+        if (isCorrect && kill && !"quick".equals(mode)) {
+            int reward = "boss".equals(killKind) ? 60 : "elite".equals(killKind) ? 35 : 15;
+            if (champion) reward = Math.round(reward * 1.5f);
+            souls = store.addSouls(reward);
         }
 
         WordRec newRec = oldRec == null ? new WordRec() : oldRec;
@@ -222,7 +241,9 @@ public class BackendRouter {
         out.put("xp", meta.optInt("xp", 0));
         out.put("xp_gained", xpGain);
         out.put("level", meta.optInt("level", 1));
-        out.put("souls", meta.optInt("souls", 0));
+        out.put("crit", crit);
+        out.put("heal_back", healBack);
+        out.put("souls", souls);
         out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
         meta.remove("new_ach");
         return out;
@@ -437,15 +458,8 @@ public class BackendRouter {
         if (mastered >= 30) unlock(meta, "master30");
         if (mastered >= 60) unlock(meta, "master60");
 
-        int souls = meta.optInt("souls", 0);
-        if (win && !"quick".equals(mode)) {
-            // 词魂击杀奖励：普通15/精英35/Boss60（V7.0 C.gold）
-            String kind = b.optString("kind", "normal");
-            int reward = "boss".equals(kind) ? 60 : "elite".equals(kind) ? 35 : 15;
-            if (b.optBoolean("champion", false)) reward = Math.round(reward * 1.5f);
-            souls = store.addSouls(reward);
-            meta.put("souls", souls);
-        }
+        // 词魂已在击杀时（/quiz/answer kill=true）即时入账 DB；此处只读回，不重复发放
+        int souls = store.getMeta().optInt("souls", 0);
 
         if ("endless".equals(mode)) {
             int best = meta.optInt("endless_best", 0);
@@ -566,6 +580,13 @@ public class BackendRouter {
         return out;
     }
 
+    /** 读回词魂余额（冷启/进商店/抽卡前对账）。 */
+    private JSONObject shopSouls() throws Exception {
+        JSONObject o = new JSONObject();
+        o.put("souls", store.getMeta().optInt("souls", 0));
+        return o;
+    }
+
     /** 商店购买：扣词魂并返回余额；血药/祝福为道具，卡按 rarity 发卡数据。 */
     private JSONObject shopBuy(JSONObject b) throws Exception {
         String item = b.optString("item", "");
@@ -581,8 +602,7 @@ public class BackendRouter {
             case "reroll": price = CardCatalog.REROLL_COST; break;
             default: throw new RuntimeException("未知商品: " + item);
         }
-        JSONObject meta = store.getMeta();
-        int souls = meta.optInt("souls", 0);
+        int souls = store.getMeta().optInt("souls", 0);
         if (souls < price) {
             JSONObject o = new JSONObject();
             o.put("ok", false);
@@ -591,6 +611,15 @@ public class BackendRouter {
             return o;
         }
         souls = store.addSouls(-price);
+        if (souls < 0) {   // 并发/异常兜底：余额扣穿则回滚，不允许负余额
+            store.addSouls(price);
+            souls = store.getMeta().optInt("souls", 0);
+            JSONObject o = new JSONObject();
+            o.put("ok", false);
+            o.put("reason", "souls_not_enough");
+            o.put("souls", souls);
+            return o;
+        }
         JSONObject o = new JSONObject();
         o.put("ok", true);
         o.put("item", item);
