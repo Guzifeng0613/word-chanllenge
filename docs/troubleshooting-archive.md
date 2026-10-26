@@ -179,3 +179,4 @@
 - **教训**：计时器类逻辑"启动/停止/自续"三条路径必须分离，start 里禁止内部 stop，否则自续链断裂无法恢复。
 - **复现同类问题的手法令**：错词本"生疏(N) 只渲染 1 行"曾疑似渲染中断——正确判定是先用 `Log.d` 打印 words.length 与每词渲染，再对照 `uiautomator dump` 的节点数；宁可加日志也不要猜布局。
 - **沙箱模拟器阻塞记录**：`/home/user` 非 ext4 触发 QEMU 写锁（QuickbootFileBacked 禁用即可）；沙箱约每 9–18 分钟整体回收（清 /tmp、杀 qemu），软模拟 boot 4–5 分钟 > 回收间隔，boot 无法完成。解法评估：AVD 与 SDK 移出 /tmp（项目 .build 内），单次 boot 内完成安装与验证，或改用有 KVM 的环境。
+- **追加（2026-10-26 收尾）**：第三次尝试（项目 SDK + /home/user/.config AVD）在 boot 进行中再次被沙箱回收杀进程（日志 "shutdown gracefully before kill" + removeAll），确认本沙箱无法承载模拟器终验，不再重试。**静态替代验证**：WrongbookView.buildList 分组循环与渲染循环条件一致（grade 匹配）、逐词 try/catch、滚动区 MATCH_PARENT 高度补偿、Log.d 埋点齐全；BackendRouter /wrongbook 按 progress 逐词输出 word/pos/mean/wrong_count/grade/wrong_by 并统计三档——前后端字段与分组条件逐项核对一致，判定原"只渲染 1 行"为 uiautomator dump 只含可视节点（未滚动区不输出）的抓取假象，非渲染缺陷。真机验证路径：adb logcat -s WD 或直接肉眼核对三档列表。
