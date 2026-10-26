@@ -3632,18 +3632,18 @@ function initAndroidBack(){
 newRun();
 render();
 initAndroidBack();
-function bootWithRetry(){
+function bootWithRetry(fast){
   API.init().then(on=>{
     if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); }
     else{
       const why=API.jsiFail ? (' · '+API.jsiFail) : (API.capFail ? (' · '+API.capFail) : (IS_APP ? ' · HTTP 探测失败' : ' · 未配置后端'));
-      apiToast('本地后端未启动 · 词书不可用（15 秒后自动重试）'+why);
+      apiToast('本地后端未启动 · 词书不可用（'+(fast?'3':'15')+' 秒后自动重试）'+why);
       render();
-      setTimeout(bootWithRetry, 15000);
+      setTimeout(()=>bootWithRetry(false), fast?3000:15000);
     }
   });
 }
-bootWithRetry();
+bootWithRetry(true);
 </script>
 </body>
 </html>
