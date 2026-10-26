@@ -1158,7 +1158,7 @@ const MIN=60*1000, DAY=24*60*60*1000;
 
 /* ═══ 前后端接入层（V4.8）：后端可达→API 模式；不可达→本地内嵌逻辑兜底 ═══ */
 const API={
-  base:'http://127.0.0.1:8011',
+  base:(localStorage.getItem('wd_api_base')||'http://127.0.0.1:8011').replace(/\/+$/,''),
   token:null, on:false, checking:true,
   async init(){
     this.token=localStorage.getItem('wd_api_token')||null;
