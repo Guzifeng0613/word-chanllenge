@@ -3,6 +3,13 @@
 > 项目：单词地下城（Word Dungeon）｜定位：应试学生向背单词战斗 Roguelike（完全离线）
 > 版本规则：**小改动 +0.1，大改动 +1**（用户锁定，见偏好）
 
+## V9.0 · 后端通道架构重构：Capacitor 插件桥（2026-10-26）
+- **根因定位**：真机"本地后端未启动"的根因是前端 HTTP fetch 本地端口整条链路在 WebView 中不可靠（页面 scheme 与 mixed content、CORS、WebView 网络限制任一环都可能阻断，无 logcat 无法精确定位）；已排除词库丢失、NanoHTTPD 未打包、cleartext 未放行、CSP、minify。
+- **根治方案**：新增 `bridge/WordDungeonPlugin`（@CapacitorPlugin + call 方法），前端通过 `Capacitor.Plugins.WordDungeon.call({route,payload})` **直调 Java 后端**，彻底绕开 HTTP/端口/cleartext/CORS/mixed-content 网络层。
+- **单一逻辑源**：新增 `server/BackendRouter`（纯逻辑分发，不依赖 NanoHTTPD），插件与 HTTP 服务共用；`LocalServer` 精简为委托 BackendRouter（保留浏览器调试/云端通道）。
+- `MainActivity.onCreate` 注册插件桥；HTTP 服务仍启动（后台线程）。
+- 前端 API 层：App 内优先插件桥（init/req 全部走 call），浏览器仍走 HTTP 配置；等待/重试逻辑保留。
+- JVM 编译通过；APK 内已确认含插件桥代码。版本 9.0 / versionCode 10（大改动 +1）。
 ## V8.0.2 · 后端本地部署确认 + 失败诊断（2026-10-26）
 - 用户确认：后端必须本地部署（App 内 NanoHTTPD + SQLite），**不上云**——架构方向不变，完全离线。
 - 真机后端仍连不上（V8.0.1 后 toast 显示"本地后端未启动"）：为定位根因，加固诊断能力：

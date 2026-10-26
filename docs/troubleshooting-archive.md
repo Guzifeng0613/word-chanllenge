@@ -135,3 +135,10 @@
 - 依赖 Android 的 `LocalServer`/`ProgressStore`（SQLite、HTTP 层）需 Robolectric 或真机/模拟器验证，不能纯 JVM。
 - **适用版本**：V8.0+ 自动化验证。
 - **关键词**：JVM 测试、android.jar、stub、loadForTest、org.json、Robolectric。
+
+## 18. 真机"本地后端未启动"——HTTP fetch 本地端口链路不可靠（V9.0 根治）
+- **现象**：V8.0/V8.0.1/V8.0.2 真机（一加13）前端始终提示"本地后端未启动·词书不可用"，系统 Toast 未能捕获有效信息。
+- **已排除**：assets/data 词库完好（653,704 B）、NanoHTTPD 已入 dex（640 处引用）、INTERNET 权限、networkSecurityConfig 放行 127.0.0.1/localhost、index.html 无 CSP、minifyEnabled=false、androidScheme=http + allowMixedContent=true 均在 APK 内确认。
+- **未证实的可能**：WebView 页面 scheme（http vs https）与 mixed content 拦截、WebView 对 127.0.0.1 fetch 的网络限制、CORS/预检。
+- **根治**：不再依赖 HTTP。新增 Capacitor 原生插件桥 WordDungeonPlugin（@CapacitorPlugin + call 方法），前端 Capacitor.Plugins.WordDungeon.call 直调 Java 后端 BackendRouter；绕开端口/cleartext/CORS/mixed-content 整条网络链路。LocalServer 保留并委托 BackendRouter。
+- **教训**：Android WebView 中前端 JS 与本地服务的 HTTP 通信链路环节多、难调试；App 内首选用原生插件桥（Capacitor registerPlugin），HTTP 仅作浏览器调试通道。

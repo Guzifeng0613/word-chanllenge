@@ -7,13 +7,15 @@ import android.webkit.WebView;
 import android.widget.Toast;
 
 import com.getcapacitor.BridgeActivity;
+import com.guzifeng.worddungeon.bridge.WordDungeonPlugin;
 import com.guzifeng.worddungeon.server.LocalServer;
 
 import fi.iki.elonen.NanoHTTPD;
 
 /**
  * 主入口：Capacitor 壳 + 启动本地 Java 后端（NanoHTTPD，127.0.0.1:8080）
- * 服务在后台线程启动，解析词库不阻塞 UI；前端通过 http://127.0.0.1:8080 调用。
+ * 服务在后台线程启动，解析词库不阻塞 UI；前端默认走 WordDungeon 插件桥（App 内），
+ * HTTP 服务保留供浏览器调试/未来云端。
  */
 public class MainActivity extends BridgeActivity {
 
@@ -26,7 +28,14 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // 页面为 http://localhost，fetch http://127.0.0.1 需放行混合内容
+        // 注册本地插件桥（前端 Capacitor.Plugins.WordDungeon 直接调 Java 后端）
+        try {
+            registerPlugin(WordDungeonPlugin.class);
+            Log.i(TAG, "WordDungeon 插件桥已注册");
+        } catch (Throwable e) {
+            Log.e(TAG, "注册插件桥失败", e);
+        }
+        // 页面为 http://localhost，fetch http://127.0.0.1 需放行混合内容（HTTP 调试通道用）
         try {
             WebView wv = getBridge() != null ? getBridge().getWebView() : null;
             if (wv != null) {
