@@ -1,19 +1,25 @@
 package com.guzifeng.worddungeon.ui;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
-import com.guzifeng.worddungeon.core.RunState;
 
 import org.json.JSONObject;
 
-/** 结算页（V7.0：result-face + level-card + statgrid + 新学/错词 chips + 金色再来一局） */
-public class ResultView extends LinearLayout {
+import static android.widget.LinearLayout.HORIZONTAL;
+import static android.widget.LinearLayout.VERTICAL;
+
+/**
+ * 结算页（V11.3：FrameLayout 承载 body + 庆祝粒子层；模块逐项入场、数据计数、胜利彩带）。
+ */
+public class ResultView extends FrameLayout {
 
     private final MainActivity act;
     private LinearLayout body;
@@ -33,7 +39,7 @@ public class ResultView extends LinearLayout {
     public ResultView(Context c) {
         super(c);
         act = (MainActivity) c;
-        setOrientation(VERTICAL);
+        setBackground(new AmbientBackground(28));   // V11.3 地下城氛围底
 
         ScrollView sv = new ScrollView(c);
         sv.setFillViewport(true);
@@ -41,8 +47,7 @@ public class ResultView extends LinearLayout {
         body.setOrientation(VERTICAL);
         body.setPadding(dp(16), dp(24), dp(16), dp(20));
         sv.addView(body);
-        addView(sv, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        addView(sv, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     }
 
     public void onFinish(boolean w, String m, int lay, int wr, int cb,
@@ -57,7 +62,10 @@ public class ResultView extends LinearLayout {
         maxCombo = mc;
         kills = k;
         rebuild();
-        if (w) Ui.vibrate(getContext(), new long[]{0, 60, 50, 90, 60, 120});   // 胜利结算反馈
+        if (w) {
+            Ui.vibrate(getContext(), new long[]{0, 60, 50, 90, 60, 120});
+            postDelayed(this::confetti, 350);   // V11.3 胜利彩带
+        }
         // 后端结算：每日目标 / 无尽纪录 / 成就
         new Thread(() -> {
             try {
@@ -103,7 +111,7 @@ public class ResultView extends LinearLayout {
         TextView badge = Ui.goldBadge(getContext(), "1", 40);
         lv.addView(badge);
         LinearLayout lvinfo = new LinearLayout(getContext());
-        lvinfo.setOrientation(LinearLayout.VERTICAL);
+        lvinfo.setOrientation(VERTICAL);
         TextView ll = Ui.text(getContext(), "词灵使 Lv.1 · 0/120 XP", 12, Ui.MUT, false);
         LinearLayout barl = new LinearLayout(getContext());
         barl.setOrientation(LinearLayout.HORIZONTAL);
@@ -119,17 +127,17 @@ public class ResultView extends LinearLayout {
         // statgrid
         statGridHost = new LinearLayout(getContext());
         statGridHost.setOrientation(LinearLayout.HORIZONTAL);
-        addStat(statGridHost, questions + "", "答题数");
-        addStat(statGridHost, acc + "%", "正确率");
-        addStat(statGridHost, maxCombo + "", "最高连击");
-        if (!endless) addStat(statGridHost, String.valueOf(Math.max(0, questions - wrong)), "新学词");
-        if (endless) addStat(statGridHost, kills + "", "击败敌人");
+        addStat(statGridHost, questions + "", "答题数", true);
+        addStat(statGridHost, acc + "%", "正确率", false);
+        addStat(statGridHost, maxCombo + "", "最高连击", true);
+        if (!endless) addStat(statGridHost, String.valueOf(Math.max(0, questions - wrong)), "新学词", false);
+        if (endless) addStat(statGridHost, kills + "", "击败敌人", true);
         body.addView(statGridHost);
         body.addView(spacer(10));
 
         // 词卡（新学/错词）
         wordCardHost = new LinearLayout(getContext());
-        wordCardHost.setOrientation(LinearLayout.VERTICAL);
+        wordCardHost.setOrientation(VERTICAL);
         wordCardHost.setPadding(dp(14), dp(12), dp(14), dp(12));
         wordCardHost.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
         wordCardHost.addView(Ui.text(getContext(), "本次新学的词", 13, Ui.TXT, true));
@@ -151,6 +159,7 @@ public class ResultView extends LinearLayout {
                 new int[]{0xFFFCD34D, 0xFFF59E0B});
         g.setCornerRadius(dp(13));
         againBtn.setBackground(g);
+        Ui.ctaGlow(againBtn);
         againBtn.setOnClickListener(v -> act.show(MainActivity.Screen.BATTLE));
         body.addView(againBtn);
         body.addView(spacer(8));
@@ -158,7 +167,7 @@ public class ResultView extends LinearLayout {
         home.setGravity(Gravity.CENTER);
         home.setPadding(dp(10), dp(10), dp(10), dp(10));
         home.setBackground(Ui.card(12, Ui.CARD2, 1, Ui.LINE));
-        home.setClickable(true);
+        Ui.pressable(home);
         home.setOnClickListener(v -> act.show(MainActivity.Screen.HOME));
         body.addView(home);
 
@@ -174,11 +183,18 @@ public class ResultView extends LinearLayout {
             bigSub.setText(win ? "你击败了三层词魇，词库又厚了一页。" : "别灰心，错词已经全部保留，会在复习中再出现。");
         }
         fillLevelCard(badge, ll, barl);
+
+        // V11.3 逐项入场
+        Ui.entrance(face, 60);
+        Ui.entrance(lv, 200);
+        Ui.entrance(statGridHost, 330);
+        Ui.entrance(wordCardHost, 460);
+        Ui.entrance(againBtn, 590);
     }
 
-    private void addStat(LinearLayout row, String v, String l) {
+    private void addStat(LinearLayout row, String v, String l, boolean count) {
         LinearLayout cell = new LinearLayout(getContext());
-        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setOrientation(VERTICAL);
         cell.setGravity(Gravity.CENTER);
         cell.setPadding(dp(6), dp(12), dp(6), dp(12));
         cell.setBackground(Ui.card(12, Ui.BG1, 1, Ui.LINE));
@@ -188,6 +204,44 @@ public class ResultView extends LinearLayout {
         cell.addView(ll);
         row.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
         row.addView(spacer(6));
+        if (count) {
+            int target = 0;
+            try { target = Integer.parseInt(v); } catch (Throwable ignore) {}
+            countUp(vv, target, 200);
+        }
+    }
+
+    /** 数字计数动画。 */
+    private void countUp(TextView t, int target, long delay) {
+        ValueAnimator a = ValueAnimator.ofInt(0, target);
+        a.setStartDelay(delay);
+        a.setDuration(650);
+        a.addUpdateListener(v -> t.setText(String.valueOf(v.getAnimatedValue())));
+        a.start();
+    }
+
+    /** 胜利彩带：顶部下落的彩色纸条，下落 + 旋转 + 淡出（V11.3）。 */
+    private void confetti() {
+        try {
+            int[] colors = {0xFFFBBF24, 0xFF38BDF8, 0xFFC084FC, 0xFF34D399, 0xFFDB2777};
+            int w = getWidth();
+            for (int i = 0; i < 34; i++) {
+                View p = new View(getContext());
+                int cw = dp(5 + (float) Math.random() * 5);
+                int ch = dp(8 + (float) Math.random() * 9);
+                p.setBackground(Ui.card(1, colors[(int) (Math.random() * colors.length)], 0, 0));
+                LayoutParams lp = new LayoutParams(cw, ch);
+                lp.leftMargin = (int) (Math.random() * Math.max(1, w));
+                lp.topMargin = -dp(20);
+                addView(p, lp);
+                float fall = getHeight() + dp(40);
+                int dur = 1500 + (int) (Math.random() * 1300);
+                p.animate().translationY(fall).rotation(360 + (float) Math.random() * 360)
+                        .translationX((float) (Math.random() * dp(40) - dp(20)))
+                        .alpha(0.9f).setDuration(dur)
+                        .withEndAction(() -> { try { removeView(p); } catch (Throwable ignore) {} }).start();
+            }
+        } catch (Throwable ignore) {}
     }
 
     private TextView chipsOf(String text, int color) {
@@ -207,6 +261,12 @@ public class ResultView extends LinearLayout {
             View[] bar = Ui.bar(getContext(), (float) xp / Math.max(1, xpNeed), 0xFF22C55E, 0xFF4ADE80, 6);
             barl.addView(bar[0]);
         } catch (Throwable ignore) {}
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (getBackground() instanceof AmbientBackground) ((AmbientBackground) getBackground()).stop();
+        super.onDetachedFromWindow();
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }

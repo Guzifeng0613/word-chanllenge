@@ -8,7 +8,9 @@ import android.os.Vibrator;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.OvershootInterpolator;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import com.guzifeng.worddungeon.App;
@@ -162,7 +164,7 @@ public final class Ui {
     public static void vibrate(Context c, long[] wav) {
         try {
             SharedPreferences sp = c.getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
-            if (!sp.getBoolean("vibrate", false)) return;   // 用户开关：默认关
+            if (!sp.getBoolean("vibrate", true)) return;   // V11.3 用户开关：默认开（可在设置关闭）
             Vibrator vb = (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE);
             if (vb == null || !vb.hasVibrator()) return;
             if (Build.VERSION.SDK_INT >= 26) {
@@ -192,5 +194,71 @@ public final class Ui {
         int px = dp(c, dpH);
         v.setLayoutParams(new android.widget.LinearLayout.LayoutParams(px, px));
         return v;
+    }
+
+    // ── V11.3 动效工具 ─────────────────────────
+
+    /** 按压反馈：按下缩小、抬起回弹（onTouch 返回 false，不消费事件，OnClickListener 照常触发）。 */
+    public static void pressable(View v) {
+        v.setClickable(true);
+        v.setOnTouchListener((view, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(0.95f).scaleY(0.95f).setDuration(80).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                    view.animate().scaleX(1f).scaleY(1f).setDuration(180)
+                            .setInterpolator(new OvershootInterpolator(3f)).start();
+                    break;
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+                    break;
+            }
+            return false;
+        });
+    }
+
+    /** 持续呼吸脉动（开始按钮 / 主 CTA 吸引），可配缩放幅度。 */
+    public static void pulseLoop(View v, float amp, long period) {
+        android.animation.ObjectAnimator a = android.animation.ObjectAnimator
+                .ofFloat(v, "scaleX", 1f, amp);
+        a.setDuration(period);
+        a.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+        a.setRepeatMode(android.animation.ObjectAnimator.REVERSE);
+        a.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        a.start();
+        android.animation.ObjectAnimator ay = android.animation.ObjectAnimator
+                .ofFloat(v, "scaleY", 1f, amp);
+        ay.setDuration(period);
+        ay.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+        ay.setRepeatMode(android.animation.ObjectAnimator.REVERSE);
+        ay.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        ay.start();
+    }
+
+    /** 入场：从下方淡入上浮，带 overshoot，delay 逐项错开。 */
+    public static void entrance(View v, long delay) {
+        v.setAlpha(0f);
+        v.setTranslationY(dp(App.ctx(), 22));
+        v.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(420)
+                .setInterpolator(new OvershootInterpolator(0.8f)).start();
+    }
+
+    /** 主 CTA：持续发光脉动（scale）+ 按压变暗（alpha 反馈，不与 scale 脉动冲突）。 */
+    public static void ctaGlow(View v) {
+        pulseLoop(v, 1.035f, 1100);
+        v.setClickable(true);
+        v.setOnTouchListener((view, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().alpha(0.82f).setDuration(70).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().alpha(1f).setDuration(170).start();
+                    break;
+            }
+            return false;
+        });
     }
 }

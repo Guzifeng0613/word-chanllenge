@@ -6,6 +6,8 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -54,6 +56,10 @@ public class BattleView extends FrameLayout {
     private JSONObject quiz;
     private boolean answering = false;
     private boolean defeated = false;
+    private int playerLevel = 1;
+    // V11.3 战利品增益
+    private double bonusDamageMult = 1.0;   // 作用于下一个敌人
+    private int bonusTime = 0;             // 下题时间 +秒
 
     // UI
     private TextView topTxt, enemyName, enemyEmoji, playerEmoji, playerName;
@@ -66,6 +72,8 @@ public class BattleView extends FrameLayout {
     private ValueAnimator fillAnim;
     private TextView feedbackLayer;
     private LinearLayout enemyCard;
+    private View enemyGlow;
+    private ObjectAnimator idleAnim;
     private TextView dmgPop;
     private EditText spellInput;
     private TextView confirmBtn;
@@ -81,7 +89,7 @@ public class BattleView extends FrameLayout {
     public BattleView(Context c) {
         super(c);
         act = (MainActivity) c;
-        setBackgroundColor(Ui.BG0);
+        setBackground(new AmbientBackground(34));   // V11.3 地下城氛围底（战斗页粒子略多）
         build();
     }
 
@@ -110,8 +118,15 @@ public class BattleView extends FrameLayout {
         ebox.setGravity(Gravity.CENTER);
         ebox.setPadding(dp(12), dp(10), dp(12), dp(10));
         ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.LINE));
+        // V11.3 敌人面部：径向光晕（类型色）+ emoji，光晕随类型变化
+        FrameLayout faceWrap = new FrameLayout(getContext());
+        enemyGlow = new View(getContext());
+        int glowSize = dp(98);
+        enemyGlow.setLayoutParams(new FrameLayout.LayoutParams(glowSize, glowSize, Gravity.CENTER));
         enemyEmoji = Ui.text(getContext(), "👹", 46, Ui.TXT, false);
-        ebox.addView(enemyEmoji);
+        faceWrap.addView(enemyGlow);
+        faceWrap.addView(enemyEmoji, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        ebox.addView(faceWrap);
         enemyName = Ui.text(getContext(), "词魔", 15, Ui.TXT, true);
         enemyName.setGravity(Gravity.CENTER);
         ebox.addView(enemyName);
@@ -263,8 +278,10 @@ public class BattleView extends FrameLayout {
             boolean elite = e.optBoolean("elite", false);
             enemyTag.setText(boss ? "Boss 战" : elite ? "精英战" : "普通战");
             enemyTag.setTextColor(boss ? Ui.RED : elite ? Ui.ORANGE : Ui.CYAN);
+            applyEnemyGlow(boss, elite, e.optBoolean("champion", false));
+            idleFloat();
             warnTxt.setText("答错 / 超时将受到 " + atk + " 点伤害");
-            if (e.optBoolean("champion", false)) enemyName.setTextColor(Ui.GOLD);
+            enemyName.setTextColor(e.optBoolean("champion", false) ? Ui.GOLD : Ui.TXT);
             topTxt.setText(modeLabel() + " · 第" + layer + "层" + ("quick".equals(mode) ? " · " + act.quickLevel + "档" : ""));
         } catch (Throwable e) {
             showFeed("敌人召唤失败", Ui.RED);
@@ -394,6 +411,8 @@ public class BattleView extends FrameLayout {
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 TextView yes = Ui.button(getContext(), "✓ 对", Ui.GREEN, Ui.BG0, false);
                 TextView no = Ui.button(getContext(), "✗ 错", Ui.RED, Ui.BG0, false);
+                Ui.pressable(yes);
+                Ui.pressable(no);
                 yes.setOnClickListener(v -> submitJudge("yes"));
                 no.setOnClickListener(v -> submitJudge("no"));
                 row.addView(yes, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -488,6 +507,7 @@ public class BattleView extends FrameLayout {
                     TextView v = Ui.text(getContext(), opt, 14, Ui.TXT, false);
                     v.setPadding(dp(8), 0, 0, 0);
                     b.addView(v);
+                    Ui.pressable(b);
                     b.setOnClickListener(vi -> submitOption(opt));
                     row.addView(b, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (j < Math.min(i + 2, options.length()) - 1) row.addView(spacer(8));
@@ -523,7 +543,7 @@ public class BattleView extends FrameLayout {
             body.put("combo", combo);
             body.put("crit", crit);
             body.put("crit_mult", critMult);
-            body.put("card_mult", 1.0);
+            body.put("card_mult", bonusDamageMult);   // V11.3 战利品伤害增益
             body.put("shown", quiz.isNull("judgeShown") ? JSONObject.NULL : quiz.optString("judgeShown"));
             body.put("mode", mode);
             if ("quick".equals(mode)) body.put("quick_level", act.quickLevel);
@@ -535,6 +555,8 @@ public class BattleView extends FrameLayout {
             boolean ok = res.optBoolean("correct", false);
             int damage = res.optInt("damage", 0);
             int wrongCnt = res.optInt("wrong_count", 0);
+            int xpGain = res.optInt("xp_gained", 0);
+            int newLevel = res.optInt("level", 1);
             String correctAnswer = res.optString("correct_answer", "");
 
             if (ok) {
@@ -543,8 +565,9 @@ public class BattleView extends FrameLayout {
                 correctInRun++;
                 maxCombo = Math.max(maxCombo, combo);
                 comboNum.setText(String.valueOf(combo));
-                comboSub.setText(combo >= 5 ? "心流加成中" : combo >= 8 ? "输出高涨！" : "");
+                comboSub.setText(combo >= 8 ? "输出高涨！" : combo >= 5 ? "心流加成中" : "");
                 comboNum.setTextColor(combo >= 5 ? Ui.PURPLE : Ui.GOLD);
+                if (combo > 0 && combo % 5 == 0) ringBurst();   // V11.3 心流里程碑光环
                 // 答对：拼写框立即清空并收键盘，进入打击反馈
                 if (spellInput != null) { spellInput.setText(""); }
                 hideKeyboard();
@@ -556,6 +579,11 @@ public class BattleView extends FrameLayout {
                 } else {
                     showFeed("+" + damage, Ui.GOLD);
                 }
+                if (xpGain > 0) popXp(xpGain);
+                if (newLevel > playerLevel) {
+                    playerLevel = newLevel;
+                    onLevelUp();
+                } else playerLevel = newLevel;
                 hitEnemy(damage, crit, wrongCnt > 0);
             } else {
                 questionsInRun++;
@@ -653,27 +681,90 @@ public class BattleView extends FrameLayout {
 
     private void onKill() {
         killsInRun++;
+        bonusDamageMult = 1.0;   // 上一轮伤害增益作用于刚击杀的敌人，到此结算重置
         Ui.vibrate(getContext(), new long[]{0, 50, 40, 70, 40, 90});   // 击杀胜利反馈
-        if ("endless".equals(mode)) {
-            layer++;
-            main.postDelayed(() -> {
-                showFeed("⚔ 击杀！进入第 " + layer + " 层", Ui.GOLD);
-                spawnEnemy();
-                main.postDelayed(this::nextQuiz, 600);
-            }, 350);
+        // 快刷：一局一个敌人，击杀即结算（保持"快速"节奏，不翻牌）
+        if ("quick".equals(mode)) {
+            finishRun(true);
             return;
         }
-        if ("campaign".equals(mode) && layer < 3) {
-            layer++;
-            main.postDelayed(() -> {
-                showFeed("⚔ 击杀！第 " + layer + " 层", Ui.GOLD);
-                spawnEnemy();
-                main.postDelayed(this::nextQuiz, 600);
-            }, 350);
+        // 远征通关（第 3 层 Boss）→ 结算
+        if ("campaign".equals(mode) && layer >= 3) {
+            finishRun(true);
             return;
         }
-        // 通关/快刷胜利
-        defeated = false;
+        // 精英 / 冠军：翻牌抽卡；其余直接进下一层
+        if (shouldDrawReward()) main.postDelayed(this::openRewardDraw, 380);
+        else main.postDelayed(this::advanceLayer, 380);
+    }
+
+    /** 是否翻牌：远征精英（第 2 层）；无尽冠军（每 5 层）。 */
+    private boolean shouldDrawReward() {
+        if ("campaign".equals(mode)) return layer == 2;
+        if ("endless".equals(mode)) return layer % 5 == 0;
+        return false;
+    }
+
+    /** 进入下一层。 */
+    private void advanceLayer() {
+        layer++;
+        showFeed("⚔ 击杀！进入第 " + layer + " 层", Ui.GOLD);
+        spawnEnemy();
+        main.postDelayed(this::nextQuiz, 500);
+    }
+
+    /** 打开战利品翻牌，确认后应用奖励并进入下一层。 */
+    private void openRewardDraw() {
+        final RewardDrawView[] holder = new RewardDrawView[1];
+        RewardDrawView rw = new RewardDrawView(getContext(), r -> {
+            applyReward(r);
+            if (holder[0] != null) removeView(holder[0]);
+            advanceLayer();
+        });
+        holder[0] = rw;
+        addView(rw, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    }
+
+    /** 应用翻牌奖励。 */
+    private void applyReward(RewardDrawView.Reward r) {
+        try {
+            switch (r.kind) {
+                case "heal":
+                    hp = Math.min(100, hp + r.amount);
+                    playerHp.setRatio(hp / 100f);
+                    showFeed("❤️ 生命 +" + r.amount, Ui.GREEN);
+                    break;
+                case "damage":
+                    bonusDamageMult = 1.0 + r.amount / 100.0;
+                    showFeed("🗡 伤害增益 ×" + bonusDamageMult, r.color);
+                    break;
+                case "time":
+                    bonusTime = r.amount;
+                    showFeed("⏳ 下题时间 +" + r.amount + " 秒", r.color);
+                    break;
+                case "xp":
+                    new Thread(() -> {
+                        try {
+                            JSONObject b = new JSONObject();
+                            b.put("amount", r.amount);
+                            JSONObject res = act.router().dispatch("/reward/xp", "POST", b);
+                            int lv = res.optInt("level", 1);
+                            if (lv > playerLevel) {
+                                playerLevel = lv;
+                                main.postDelayed(this::onLevelUp, 200);
+                            }
+                        } catch (Throwable ignore) {}
+                    }).start();
+                    showFeed("🌟 XP +" + r.amount, r.color);
+                    break;
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    /** 结算本局。 */
+    private void finishRun(boolean win) {
+        defeated = !win;
         act.main().postDelayed(() -> {
             act.result().onFinish(true, mode, layer, wrongInRun, combo,
                     questionsInRun, correctInRun, maxCombo, killsInRun);
@@ -703,6 +794,13 @@ public class BattleView extends FrameLayout {
         act.show(MainActivity.Screen.HOME);
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        if (getBackground() instanceof AmbientBackground) ((AmbientBackground) getBackground()).stop();
+        if (idleAnim != null) idleAnim.cancel();
+        super.onDetachedFromWindow();
+    }
+
     // ── 计时 ─────────────────────────────
 
     private double timeLimit = 6;
@@ -717,7 +815,8 @@ public class BattleView extends FrameLayout {
         // 注意必须先 stopTimer() 再置 timerOn=true，否则旧顺序里 stopTimer() 会把
         // timerOn 重置为 false，导致首个 tick 因 !timerOn 直接 return，计时整条死掉。
         stopTimer();
-        timeLimit = quiz.optDouble("timeLimit", 6);
+        timeLimit = quiz.optDouble("timeLimit", 6) + bonusTime;   // V11.3 战利品时间延长
+        if (bonusTime > 0) bonusTime = 0;
         remainSec = timeLimit;
         timerOn = true;
         timerTxt.setText(secText(remainSec));
@@ -791,6 +890,37 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
+    // ── 敌人光晕 / 待机浮动（V11.3） ─────────────────────
+
+    private void applyEnemyGlow(boolean boss, boolean elite, boolean champion) {
+        int color = boss ? Ui.RED : elite ? Ui.ORANGE : Ui.CYAN;
+        if (champion) color = Ui.GOLD;
+        float centerA = boss ? 0.50f : elite ? 0.38f : 0.22f;
+        if (champion) centerA = 0.46f;
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        g.setGradientRadius(dp(49));
+        g.setColors(new int[]{alphaColor(color, centerA), alphaColor(color, 0f)});
+        enemyGlow.setBackground(g);
+        if (enemyCard != null) enemyCard.setBackground(Ui.card(16, Ui.CARD, boss ? 2 : 1, color));
+    }
+
+    private void idleFloat() {
+        if (idleAnim != null) idleAnim.cancel();
+        boolean boss = enemy != null && enemy.optBoolean("boss", false);
+        idleAnim = ObjectAnimator.ofFloat(enemyEmoji, "translationY", 0f, -dp(7), 0f, dp(4), 0f);
+        idleAnim.setDuration(boss ? 2600 : 2100);
+        idleAnim.setRepeatCount(ObjectAnimator.INFINITE);
+        idleAnim.setInterpolator(new AccelerateDecelerateInterpolator());
+        idleAnim.start();
+    }
+
+    private static int alphaColor(int color, float a) {
+        int alpha = Math.round(255 * Math.max(0f, Math.min(1f, a)));
+        return (alpha << 24) | (color & 0x00FFFFFF);
+    }
+
     // ── 动效 ─────────────────────────────
 
     private void shake(View v, long ms) {
@@ -861,6 +991,52 @@ public class BattleView extends FrameLayout {
                         dmgPop.setVisibility(GONE);
                         dmgPop.setTranslationY(0f);
                     }).start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** XP 飘字：玩家头顶弹出，上浮淡出（V11.3 奖励感）。 */
+    private void popXp(int xp) {
+        try {
+            TextView t = new TextView(getContext());
+            t.setText("✨ +" + xp + " XP");
+            t.setTextSize(13);
+            t.setTextColor(Ui.CYAN);
+            t.setTypeface(Typeface.DEFAULT_BOLD);
+            int[] pc = new int[2];
+            playerEmoji.getLocationInWindow(pc);
+            int[] bc = new int[2];
+            getLocationInWindow(bc);
+            float cx = pc[0] - bc[0] + playerEmoji.getWidth() / 2f;
+            float cy = pc[1] - bc[1];
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2);
+            lp.leftMargin = (int) (cx - dp(30));
+            lp.topMargin = (int) (cy - dp(18));
+            addView(t, lp);
+            t.animate().translationY(-dp(32)).alpha(0f).setDuration(900)
+                    .withEndAction(() -> { try { removeView(t); } catch (Throwable ignore) {} }).start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** 升级：全屏金色光爆 + LEVEL UP + 环粒子 + 强震动（V11.3 成瘾节点）。 */
+    private void onLevelUp() {
+        showFeed("✦ 升级！Lv." + playerLevel + " ✦", Ui.GOLD);
+        burstParticles(getWidth() / 2f, getHeight() / 2f, 22, 0xFFFBBF24, 90);
+        Ui.vibrate(getContext(), new long[]{0, 40, 30, 60, 30, 80, 40, 100});
+    }
+
+    /** 心流里程碑光环：紫色圆环从中心扩散淡出（V11.3）。 */
+    private void ringBurst() {
+        try {
+            View ring = new View(getContext());
+            int size = dp(40);
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(0x00000000);
+            g.setStroke(dp(3), Ui.PURPLE);
+            ring.setBackground(g);
+            addView(ring, new FrameLayout.LayoutParams(size, size, Gravity.CENTER));
+            ring.animate().scaleX(7f).scaleY(7f).alpha(0f).setDuration(620)
+                    .withEndAction(() -> { try { removeView(ring); } catch (Throwable ignore) {} }).start();
         } catch (Throwable ignore) {}
     }
 
