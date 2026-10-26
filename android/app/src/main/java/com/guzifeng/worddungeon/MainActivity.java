@@ -39,7 +39,9 @@ public class MainActivity extends AppCompatActivity {
     // 全局游戏状态（跨页面）
     public String mode = "campaign";        // campaign / endless / quick
     public String book = "gaokao";          // 词书 id 或 "all"
-    public String difficulty = "adaptive";  // adaptive / 普通 / 困难 / 地狱
+    public String difficulty = "adaptive";  // adaptive / easy / normal / hard / hell
+    public String quickLevel = "normal";    // 快刷三档 normal / hard / hell
+    public int lastBest = 0;                // 无尽最高纪录（主页展示）
     public boolean speak = true;
     public JSONObject bankMeta = null;
 
@@ -131,7 +133,10 @@ public class MainActivity extends AppCompatActivity {
         root.removeAllViews();
         switch (s) {
             case HOME:
-                if (home != null) root.addView(home);
+                if (home != null) {
+                    root.addView(home);
+                    try { home.refreshMeta(); } catch (Throwable ignore) {}
+                }
                 break;
             case BATTLE:
                 if (battle != null) { root.addView(battle); battle.startRun(); }
@@ -144,10 +149,16 @@ public class MainActivity extends AppCompatActivity {
                 if (wrongbook != null) { root.addView(wrongbook); wrongbook.refresh(); }
                 break;
             case SETTINGS:
-                if (settings != null) root.addView(settings);
+                if (settings != null) {
+                    root.addView(settings);
+                    try { settings.refresh(); } catch (Throwable ignore) {}
+                }
                 break;
             case ACHIEVEMENTS:
-                if (achievements != null) root.addView(achievements);
+                if (achievements != null) {
+                    root.addView(achievements);
+                    try { achievements.refresh(); } catch (Throwable ignore) {}
+                }
                 break;
         }
     }

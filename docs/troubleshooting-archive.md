@@ -170,3 +170,12 @@
   3. `AchievementsView.card()` 同型重复 addView。
 - **诊断手法**：`adb shell uiautomator dump` 看 View 树与每个节点 bounds，能直接看出"哪个 View 撑满/缺失"；`adb logcat -d | grep 包名` 抓异常栈；`adb exec-out screencap -p > x.png` 截图。
 - **教训**：① 自定义 helper 返回的 View 必须明确"谁负责 addView"，禁止内部 addView 又返回；② 任何 addView 的 View 都要给确定的 LayoutParams，不依赖默认值；③ 软件模拟下操作慢于 6 秒计时会大量超时，测试时要快速，或临时调大计时。
+
+---
+## #23 · V11.0 并行迭代：UI 仿制与计时器死链修复（2026-10-26）
+- **现象**：拼写题输入自动反字/删除键无效/回车不确认；计时条与剩余秒数"一动不动"。
+- **根因**：`BattleView.startTimer()` 内直接调用 `stopTimer()`，把 `timerTick` 链、计时条引用与自动提交回调整条置死（停表后无人再重开表，计时器字段与 UI 永不刷新）。
+- **修复**：startTimer 仅在首次启动时创建 Runnable，后续 tick 用 `postDelayed(this, 100)` 自续，不再内部 stopTimer；计时条改为按剩余比例动态改宽；计时结束自动 `submit("")`（空答案=答错）。
+- **教训**：计时器类逻辑"启动/停止/自续"三条路径必须分离，start 里禁止内部 stop，否则自续链断裂无法恢复。
+- **复现同类问题的手法令**：错词本"生疏(N) 只渲染 1 行"曾疑似渲染中断——正确判定是先用 `Log.d` 打印 words.length 与每词渲染，再对照 `uiautomator dump` 的节点数；宁可加日志也不要猜布局。
+- **沙箱模拟器阻塞记录**：`/home/user` 非 ext4 触发 QEMU 写锁（QuickbootFileBacked 禁用即可）；沙箱约每 9–18 分钟整体回收（清 /tmp、杀 qemu），软模拟 boot 4–5 分钟 > 回收间隔，boot 无法完成。解法评估：AVD 与 SDK 移出 /tmp（项目 .build 内），单次 boot 内完成安装与验证，或改用有 KVM 的环境。

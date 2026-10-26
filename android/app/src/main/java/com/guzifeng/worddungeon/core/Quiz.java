@@ -20,6 +20,9 @@ public class Quiz {
     public boolean review;
     public int step;
     public boolean graduated;
+    public int stage;
+    public int wrongCount;
+    public boolean revEngaged;
     public RunState runState;
 
     public List<String> options;
@@ -44,6 +47,9 @@ public class Quiz {
             o.put("review", review);
             o.put("step", step);
             o.put("graduated", graduated);
+            o.put("stage", stage);
+            o.put("wrongCount", wrongCount);
+            o.put("revEngaged", revEngaged);
             o.put("timeLimit", timeLimit);
             o.put("correct", correct);
             if (options != null) {

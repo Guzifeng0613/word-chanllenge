@@ -17,16 +17,25 @@ import com.guzifeng.worddungeon.store.ProgressStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * 后端路由分发（纯逻辑，不依赖 NanoHTTPD）。
- * 供两条通道共用：① LocalServer（HTTP，浏览器/调试）② WordDungeonPlugin（App 内插件桥，正式通道）。
- * 返回 JSONObject；错误抛 RuntimeException（调用方转成 HTTP 状态或 reject）。
+ * 后端路由分发（V10.1：对齐 V7.0 前端数据口径）
+ * 新增：等级/XP/连续打卡/成就/每日目标/错词分级标签（wrong_by）/无尽纪录。
  */
 public class BackendRouter {
+
+    public static final int DAILY_QUESTIONS = 40;
+    public static final int DAILY_NEW_WORDS = 15;
+    public static final int XP_CORRECT = 2;
+    public static final int XP_NEW_WORD = 5;
+    public static final int XP_MASTER = 10;
+    public static final int XP_BASE = 120;
 
     private final Context ctx;
     private final ProgressStore store;
@@ -55,6 +64,9 @@ public class BackendRouter {
         if ("/stats/daily".equals(route)) return statsDaily();
         if ("/stats/book".equals(route)) return bookStats(body == null ? null : body.optString("book", null));
         if ("/progress/sync".equals(route)) return progressSync(body == null ? new JSONObject() : body);
+        if ("/progress/finish".equals(route))
+            return progressFinish(body == null ? new JSONObject() : body);
+        if ("/progress/reset".equals(route)) return progressReset();
         if ("/enemy/spawn".equals(route)) return enemySpawn(body == null ? new JSONObject() : body);
         throw new RuntimeException("未知路由: " + route);
     }
@@ -165,6 +177,14 @@ public class BackendRouter {
         if ("quick".equals(mode) && quickLevel != null) {
             if (!isCorrect) QuickEngine.markQuickWrong(newRec, quickLevel, qtype);
             else if ("normal".equals(quickLevel)) QuickEngine.markQuickPass(newRec);
+        } else if (!isCorrect) {
+            // 远征/无尽模式的错过计入 normal 档，供错词本“错过地点”标签展示
+            Map<String, Integer> row = newRec.wrongBy.get("normal");
+            if (row == null) {
+                row = new HashMap<>();
+                newRec.wrongBy.put("normal", row);
+            }
+            row.put(qtype, row.getOrDefault(qtype, 0) + 1);
         }
 
         double newTheta = SrsEngine.updateTheta(store.getTheta(), isCorrect, fast);
@@ -174,6 +194,15 @@ public class BackendRouter {
         progress.put(word, newRec);
         store.upsertRec(word, newRec, nowSec);
         store.insertAnswer(word, qtype, isCorrect, dmg, nowSec);
+
+        // XP 与成就
+        JSONObject meta = store.getMeta();
+        boolean isNewWord = oldRec == null;
+        if (isCorrect) {
+            addXp(meta, XP_CORRECT + (isNewWord ? XP_NEW_WORD : 0));
+        }
+        checkAch(meta, combo, isNewWord, qtype, isCorrect);
+        store.saveMeta(meta);
 
         JSONObject out = new JSONObject();
         out.put("correct", isCorrect);
@@ -190,7 +219,45 @@ public class BackendRouter {
         out.put("graduated", newRec.graduated);
         out.put("stage", newRec.stage);
         out.put("run_state", runState.toJson());
+        out.put("xp", meta.optInt("xp", 0));
+        out.put("level", meta.optInt("level", 1));
+        out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
+        meta.remove("new_ach");
         return out;
+    }
+
+    /** XP 累加与升级（xpNeeded = 120 * level）。 */
+    private void addXp(JSONObject meta, int n) throws Exception {
+        int xp = meta.optInt("xp", 0) + n;
+        int level = meta.optInt("level", 1);
+        while (xp >= XP_BASE * level) {
+            xp -= XP_BASE * level;
+            level++;
+        }
+        meta.put("xp", xp);
+        meta.put("level", level);
+    }
+
+    /** 成就解锁：combo10 / master30 / master60。 */
+    private void checkAch(JSONObject meta, int combo, boolean isNewWord, String qtype, boolean isCorrect) throws Exception {
+        if (meta == null) return;
+        if (combo >= 10) unlock(meta, "combo10");
+        int mastered = store.masteredCount();
+        if (mastered >= 30) unlock(meta, "master30");
+        if (mastered >= 60) unlock(meta, "master60");
+    }
+
+    private boolean unlock(JSONObject meta, String id) throws Exception {
+        JSONArray ach = meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach");
+        for (int i = 0; i < ach.length(); i++) {
+            if (id.equals(ach.optString(i))) return false;
+        }
+        ach.put(id);
+        meta.put("ach", ach);
+        JSONArray n = meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach");
+        n.put(id);
+        meta.put("new_ach", n);
+        return true;
     }
 
     private JSONObject reviewDue(String book) throws Exception {
@@ -224,6 +291,19 @@ public class BackendRouter {
             o.put("mean", r.mean);
             o.put("wrong_count", r.wrongCount);
             o.put("grade", r.grade);
+            JSONArray tags = new JSONArray();
+            WordRec rec = progress.get(r.word);
+            if (rec != null) {
+                for (String level : new String[]{"normal", "hard", "hell"}) {
+                    Map<String, Integer> row = rec.wrongBy.get(level);
+                    if (row == null) continue;
+                    for (String qt : new String[]{"judge", "en2cn", "cn2en", "spell"}) {
+                        int n = row.getOrDefault(qt, 0);
+                        if (n > 0) tags.put(level + "/" + qt + ":" + n);
+                    }
+                }
+            }
+            o.put("wrong_by", tags);
             arr.put(o);
             if (r.grade == 3) hard++;
             else if (r.grade == 2) easy++;
@@ -268,14 +348,106 @@ public class BackendRouter {
         return out;
     }
 
+    /** 每日打卡：今日首启时按昨天是否活跃续/断 streak。 */
+    private void ensureDaily(JSONObject meta, long today0Sec) throws Exception {
+        long last = meta.optLong("last_day", 0);
+        if (last == today0Sec) return;
+        long yest0Sec = today0Sec - 86400;
+        int streak = meta.optInt("streak", 0);
+        if (last == yest0Sec) streak++;
+        else streak = 1;
+        meta.put("streak", streak);
+        meta.put("last_day", today0Sec);
+        store.saveMeta(meta);
+    }
+
     private JSONObject statsDaily() throws Exception {
         long nowSec = System.currentTimeMillis() / 1000;
-        int[] s = store.dailyStats(nowSec / 86400 * 86400);
+        long today0Sec = nowSec / 86400 * 86400;
+        int[] s = store.dailyStats(today0Sec);
+        JSONObject meta = store.getMeta();
+        ensureDaily(meta, today0Sec);
+        int streak = meta.optInt("streak", 0);
+        if (streak >= 3) unlock(meta, "streak3");
+        if (streak >= 7) unlock(meta, "streak7");
+        Map<String, WordRec> progress = store.loadProgress();
+        long nowMs = System.currentTimeMillis();
+        int dueLearning = SrsEngine.dueLearning(progress, nowMs).size();
+        int dueGraduated = SrsEngine.dueGraduated(progress, nowMs).size();
+        int newToday = store.newToday(today0Sec);
+
+        JSONObject daily = new JSONObject();
+        daily.put("questions", s[0]);
+        daily.put("correct", s[1]);
+        daily.put("accuracy", s[0] > 0 ? Math.round((double) s[1] / s[0] * 1000.0) / 10.0 : 0);
+        daily.put("new_words", Math.min(newToday, DAILY_NEW_WORDS));
+        daily.put("run", store.dailyRun(today0Sec));
+        daily.put("questions_goal", DAILY_QUESTIONS);
+        daily.put("new_words_goal", DAILY_NEW_WORDS);
+        daily.put("run_goal", 1);
+
         JSONObject out = new JSONObject();
-        out.put("questions", s[0]);
-        out.put("correct", s[1]);
-        out.put("accuracy", s[0] > 0 ? Math.round((double) s[1] / s[0] * 1000.0) / 1000.0 : 0);
-        out.put("daily_goal", 40);
+        out.put("level", meta.optInt("level", 1));
+        out.put("xp", meta.optInt("xp", 0));
+        out.put("xp_needed", XP_BASE * meta.optInt("level", 1));
+        out.put("streak", meta.optInt("streak", 0));
+        out.put("theta", store.getTheta());
+        out.put("endless_best", meta.optInt("endless_best", 0));
+        out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
+        out.put("daily", daily);
+        out.put("due_learning", dueLearning);
+        out.put("due_graduated", dueGraduated);
+        out.put("new_today", newToday);
+        out.put("new_cap", DAILY_NEW_WORDS);
+        out.put("target_rate", 0.85);
+        out.put("mastered_total", store.masteredCount());
+        return out;
+    }
+
+    /** 单局结束：每日远征次数、无尽纪录、Boss/通关/无尽成就。 */
+    private JSONObject progressFinish(JSONObject b) throws Exception {
+        String mode = b.optString("mode", "campaign");
+        int layer = b.optInt("layer", 1);
+        boolean win = b.optBoolean("win", false);
+        int maxCombo = b.optInt("max_combo", 0);
+        long nowSec = System.currentTimeMillis() / 1000;
+        long today0Sec = nowSec / 86400 * 86400;
+
+        JSONObject meta = store.getMeta();
+        ensureDaily(meta, today0Sec);
+
+        // 每日远征目标
+        store.insertAnswer("__run__", "run", true, 0, nowSec);
+
+        if ("endless".equals(mode)) {
+            int best = meta.optInt("endless_best", 0);
+            if (layer > best) {
+                meta.put("endless_best", layer);
+                best = layer;
+            }
+            if (best >= 5) unlock(meta, "endless5");
+            if (best >= 10) unlock(meta, "endless10");
+        }
+        if (win) {
+            if ("campaign".equals(mode)) {
+                unlock(meta, "first_win");
+                if (layer >= 1) unlock(meta, "boss1");
+                if (layer >= 2) unlock(meta, "boss2");
+                if (layer >= 3) unlock(meta, "boss3");
+            }
+        }
+        if (maxCombo >= 10) unlock(meta, "combo10");
+        int correct = b.optInt("correct", 0);
+        if (correct >= 50) unlock(meta, "correct50");
+        store.saveMeta(meta);
+
+        JSONObject out = new JSONObject();
+        out.put("ok", true);
+        out.put("endless_best", meta.optInt("endless_best", 0));
+        out.put("level", meta.optInt("level", 1));
+        out.put("xp", meta.optInt("xp", 0));
+        out.put("streak", meta.optInt("streak", 0));
+        out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         return out;
     }
 
@@ -324,6 +496,14 @@ public class BackendRouter {
         }
         JSONObject out = new JSONObject();
         out.put("merged", merged);
+        return out;
+    }
+
+    /** 清空所有学习进度（设置页入口）。 */
+    private JSONObject progressReset() throws Exception {
+        store.resetAll();
+        JSONObject out = new JSONObject();
+        out.put("ok", true);
         return out;
     }
 

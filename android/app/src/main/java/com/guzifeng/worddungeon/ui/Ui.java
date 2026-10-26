@@ -5,14 +5,14 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import com.guzifeng.worddungeon.App;
 
-/** UI 工具：dp 换算、深蓝系配色、卡片/按钮样式工厂 */
+/** UI 工具：dp 换算、深蓝系配色、卡片/按钮/徽章/开关/进度条样式工厂（V10.1 对齐 V7.0 前端） */
 public final class Ui {
 
-    // 深蓝系（与前端 :root 一致）
+    // 深蓝系（与 V7.0 前端 :root 一致）
     public static final int BG0 = 0xFF0D1828;
     public static final int BG1 = 0xFF16263E;
     public static final int CARD = 0xFF1C3050;
@@ -27,6 +27,9 @@ public final class Ui {
     public static final int ORANGE = 0xFFFB923C;
     public static final int TEAL = 0xFF2DD4BF;
     public static final int PURPLE = 0xFFC084FC;
+    public static final int BLUE = 0xFF3B82F6;
+    public static final int PINK = 0xFFDB2777;
+    public static final int BG_PILL = 0xFF0E2238;
 
     private Ui() {}
 
@@ -34,7 +37,7 @@ public final class Ui {
         return (int) (v * c.getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    /** 圆角卡片背景 */
+    /** 圆角卡片背景（渐变支持：start/end 非 0 时画线性渐变） */
     public static GradientDrawable card(int radiusDp, int fill, int strokeDp, int strokeColor) {
         GradientDrawable g = new GradientDrawable();
         g.setColor(fill);
@@ -42,6 +45,15 @@ public final class Ui {
         if (strokeDp > 0) {
             g.setStroke(dp(App.ctx(), strokeDp), strokeColor);
         }
+        return g;
+    }
+
+    /** 线性渐变卡片（V7.0 发射卡/横幅/选中态用） */
+    public static GradientDrawable gradient(int radiusDp, int start, int end, int angleDeg) {
+        GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{start, end});
+        g.setCornerRadius(dp(App.ctx(), radiusDp));
         return g;
     }
 
@@ -70,6 +82,81 @@ public final class Ui {
         b.setBackground(pill(bg, 0));
         b.setClickable(true);
         return b;
+    }
+
+    /** 金色圆徽章（V7.0 hb-lvl / level-badge） */
+    public static TextView goldBadge(Context c, String s, int sizeDp) {
+        TextView t = text(c, s, sizeDp * 0.4f, 0xFF0B1424, true);
+        t.setGravity(Gravity.CENTER);
+        GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFFFCD34D, 0xFFF59E0B});
+        g.setCornerRadius(dp(c, 999));
+        t.setBackground(g);
+        int px = dp(c, sizeDp);
+        t.setLayoutParams(new LinearLayout.LayoutParams(px, px));
+        return t;
+    }
+
+    /** 进度条容器（bar + 内层 i 填充），return[0]=外层容器 [1]=填充 View */
+    public static View[] bar(Context c, float pct01, int fillStart, int fillEnd, int hDp) {
+        LinearLayout outer = new LinearLayout(c);
+        outer.setOrientation(LinearLayout.HORIZONTAL);
+        outer.setBackground(card(999, BG_PILL, 0, 0));
+        int h = dp(c, hDp);
+        outer.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, h));
+        View fill = new View(c);
+        GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{fillStart, fillEnd});
+        g.setCornerRadius(dp(c, 999));
+        fill.setBackground(g);
+        float p = Math.max(0f, Math.min(1f, pct01));
+        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(0, h, p);
+        fill.setLayoutParams(fp);
+        outer.addView(fill);
+        return new View[]{outer, fill};
+    }
+
+    /** 开关（V7.0 switch：开=青色胶囊内钮右移） */
+    public static View switchBtn(Context c, boolean on) {
+        LinearLayout s = new LinearLayout(c);
+        s.setOrientation(LinearLayout.HORIZONTAL);
+        s.setGravity(Gravity.CENTER_VERTICAL);
+        s.setPadding(dp(c, 4), dp(c, 3), dp(c, 4), dp(c, 3));
+        int w = dp(c, 44), h = dp(c, 26);
+        s.setLayoutParams(new LinearLayout.LayoutParams(w, h));
+        applySwitch(s, on);
+        s.setClickable(true);
+        return s;
+    }
+
+    public static void applySwitch(LinearLayout s, boolean on) {
+        Context c = s.getContext();
+        GradientDrawable g = on
+                ? new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                        new int[]{0xFF1D4ED8, 0xFF38BDF8})
+                : pill(0xFF22385E, LINE);
+        g.setCornerRadius(dp(c, 999));
+        s.setBackground(g);
+        s.removeAllViews();
+        View knob = new View(c);
+        int size = dp(c, 20);
+        knob.setBackground(pill(0xFFFFFFFF, 0));
+        LinearLayout.LayoutParams kp = new LinearLayout.LayoutParams(size, size);
+        kp.leftMargin = on ? dp(c, 44 - 24) : 0;
+        knob.setLayoutParams(kp);
+        s.addView(knob);
+    }
+
+    /** 横分隔线 */
+    public static View divider(Context c) {
+        View v = new View(c);
+        v.setBackgroundColor(LINE);
+        v.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        return v;
     }
 
     /** 占位 View：固定宽高（垂直容器里作竖向间距，水平容器里作横向间距） */

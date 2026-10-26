@@ -1,3 +1,17 @@
+## V11.0 · 按 V7.0 前端 UI 仿制全原生页面 + 并行迭代优化（2026-10-26）
+- **用户目标**：仿照 V7.0（快速刷题版 HTML 前端，commit 5fe92b5）的 UI 重做全原生页面，前后端匹配，结束后迭代优化三轮。
+- **UI 仿制（全部原生 View，零 WebView）**：
+  - 主页：hb-lvl 金色等级圆徽 + 标题 + 🔥连续天数 + XP 条 → launch-card（远征/无尽/快刷三模式 tab 选中发光 + 配置行 + 金色渐变大按钮）→ home-dock 三入口（错词本·成就·设置，含待复习数/成就进度）。
+  - 战斗页：enemy face 大字 + rtag（普通/精英/Boss）+ 反击警告 + 血条 hp 数字 + combo-line 金字 + 题卡（qhead 大字 + 词性徽章 + 复仇徽章 + 题型阶梯 ☑识☑认□写□拼 + 金色计时条 + 动态剩余秒数）+ 四选项格 / 判断对错 / 拼写格 + 玩家 HUD。
+  - 设置页：词书四格（每格词数，选中高亮）+ 难度五格（自适应/全部/简单/中等/困难）+ 范围行 + 掌握进度条 + 声音四开关（打击音效/BGM/震动/发音，SharedPreferences "wd_ui"）+ 数据面板（等级/打卡/θ/今日目标/到期复习）+ 错词本入口 + 成就墙（14 条 2 列网格，未解锁半透明）+ 怎么玩/关于 + 清空进度（/progress/reset）。
+  - 错词本：顽固3/易错2/生疏1 三档分组列表（词+词性+释义+×次数+wrong_by 标签 pill「普通拼写×2」）+ 开始复习（顽固优先）逐词记住/忘记。
+  - 结算页：result-face（远征通关/战败/无尽抵达第 N 层）+ level-card（等级徽+XP 条）+ statgrid（答题数/正确率/最高连击/新学词或击败数）+ 新学/错词 chips + 金色再来一局；onFinish 后台调 /progress/finish。
+- **后端适配（DB_VERSION 2→3）**：users 表加 xp/level/streak/last_day/endless_best/ach；progress 表加 wrong_by（快刷档×题型错误计数 JSON）。/stats/daily 大幅扩展（level/xp/streak/theta/endless_best/ach/daily goals），内含 ensureDaily 打卡与 streak3/7 成就；/wrongbook 返回 wrong_by 标签；新增 /progress/finish（每日目标/无尽纪录/远征成就）、/progress/reset；XP 奖励（新词+5/常规+2）与成就解锁（combo10/master30/master60）。
+- **并行迭代（组织者 + 子 agent，临时分支 feature/v11-parallel）**：
+  - A 轮（UI 稳定）：版本号 V10.1→V11.0；返回键左上对齐；主页 dock 布局固定不抖动（动态文本单行+ellipsize、XP 条只重建填充、配置区固定高度）；错词本加固（滚动高度补偿、逐词 try/catch、渲染日志）。
+  - B 轮（战斗体验）：拼写四项（回车提交收键盘、防自动纠错/反向、系统删除键可用、答错红抖→显示正确答案→1.6s 进下一题）；修复计时器核心 bug（startTimer 内 stopTimer 曾把计时条/自动提交链路置死）。
+- **验证**：debug+release 编译通过；模拟器环境受沙箱周期回收+无 KVM 阻塞，软模拟 boot 无法完成，交互回归未闭环（待有 KVM 环境终验）。版本 11.0 / versionCode 17（大改动 +1）。
+
 # 单词地下城 · 迭代日志（CHANGELOG）
 
 > 项目：单词地下城（Word Dungeon）｜定位：应试学生向背单词战斗 Roguelike（完全离线）

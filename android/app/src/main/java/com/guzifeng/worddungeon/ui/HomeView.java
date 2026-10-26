@@ -1,145 +1,323 @@
 package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
-import android.graphics.Color;
+import android.graphics.Typeface;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.guzifeng.worddungeon.App;
 import com.guzifeng.worddungeon.MainActivity;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** 主页：模式 / 词书 / 难度 / 开始 / 错词本·成就·设置入口 */
+/** 主页（V7.0：home-banner 等级横幅 + launch-card 发射卡 + home-dock 三入口） */
 public class HomeView extends LinearLayout {
 
     private final MainActivity act;
-    private TextView bookBtn, diffBtn, statusTxt;
-    private LinearLayout bookRow, diffRow;
-    private TextView startBtn, wrongBtn, achBtn, setBtn;
 
-    private String[] bookIds = {"gaokao", "cet4", "cet6", "kaoyan", "all"};
-    private String[] bookNames = {"高考", "四级", "六级", "考研", "全部"};
-    private String[] diffIds = {"adaptive", "easy", "normal", "hard", "hell"};
-    private String[] diffNames = {"自适应", "普通", "困难", "地狱", "巅峰"};
+    private TextView lvlBadge, streakTxt, xpLab;
+    private View fillView;
+    private LinearLayout xpBarWrap;
+    private TextView modeDescLab;
+    private LinearLayout tabCampaign, tabEndless, tabQuick;
+    private LinearLayout cfgArea, quickArea;
+    private TextView cfgLineTxt, cfgCountTxt;
+    private TextView launchBtn;
+    private LinearLayout launchWrap;
+    private TextView wrongCntTxt, achCntTxt;
+    private TextView[] quickBtns = new TextView[3];
+    private String[] quickIds = {"normal", "hard", "hell"};
+    private String[] quickNames = {"普通", "困难", "地狱"};
+
+    private String pickMode = "campaign";
 
     public HomeView(Context c) {
         super(c);
         act = (MainActivity) c;
         setOrientation(VERTICAL);
-        setPadding(dp(18), dp(30), dp(18), dp(20));
+        setPadding(dp(18), dp(24), dp(18), dp(20));
 
-        TextView title = Ui.text(c, "⚔ 单词地下城", 26, Ui.GOLD, true);
-        addView(title);
-        addView(Ui.text(c, "应试单词 · 战斗 Roguelike", 13, Ui.MUT, false));
-        addView(spacer(6));
-
-        statusTxt = Ui.text(c, "后端加载中…", 13, Ui.ORANGE, false);
-        addView(statusTxt);
-        addView(spacer(10));
-
-        // 词书
-        bookRow = new LinearLayout(c);
-        bookRow.setOrientation(HORIZONTAL);
-        bookRow.setGravity(Gravity.CENTER_VERTICAL);
-        bookRow.setPadding(dp(12), dp(10), dp(12), dp(10));
-        bookRow.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
-        bookBtn = Ui.text(c, "词书：高考", 15, Ui.TXT, true);
-        bookRow.addView(bookBtn, lp(0, -2, 1f));
-        addView(bookRow);
-        addView(spacer(8));
-
-        // 难度
-        diffRow = new LinearLayout(c);
-        diffRow.setOrientation(HORIZONTAL);
-        diffRow.setGravity(Gravity.CENTER_VERTICAL);
-        diffRow.setPadding(dp(12), dp(10), dp(12), dp(10));
-        diffRow.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
-        diffBtn = Ui.text(c, "难度：自适应", 15, Ui.TXT, true);
-        diffRow.addView(diffBtn, lp(0, -2, 1f));
-        addView(diffRow);
-        addView(spacer(16));
-
-        // 模式选择
-        addView(Ui.text(c, "选择模式", 14, Ui.MUT, true));
-        addView(spacer(6));
-        LinearLayout modes = new LinearLayout(c);
-        modes.setOrientation(HORIZONTAL);
-        addModeBtn(modes, "⚔ 远征", "campaign", "3 层闯关");
-        addModeBtn(modes, "🌀 无尽", "endless", "无限深渊");
-        addModeBtn(modes, "⚡ 快刷", "quick", "刷词冲刺");
-        addView(modes);
-        addView(spacer(18));
-
-        startBtn = Ui.button(c, "开始战斗", Ui.CYAN, Ui.BG0, true);
-        startBtn.setOnClickListener(v -> { act.mode = pickMode; act.show(MainActivity.Screen.BATTLE); });
-        addView(startBtn);
-        addView(spacer(18));
-
-        // 入口
-        LinearLayout row = new LinearLayout(c);
-        row.setOrientation(HORIZONTAL);
-        wrongBtn = Ui.button(c, "📕 错词本", Ui.CARD2, Ui.TXT, false);
-        achBtn = Ui.button(c, "🏆 成就", Ui.CARD2, Ui.TXT, false);
-        setBtn = Ui.button(c, "⚙ 设置", Ui.CARD2, Ui.TXT, false);
-        wrongBtn.setOnClickListener(v -> act.show(MainActivity.Screen.WRONGBOOK));
-        achBtn.setOnClickListener(v -> act.show(MainActivity.Screen.ACHIEVEMENTS));
-        setBtn.setOnClickListener(v -> act.show(MainActivity.Screen.SETTINGS));
-        row.addView(wrongBtn, lp(0, -2, 1f));
-        row.addView(achBtn, lp(0, -2, 1f));
-        row.addView(setBtn, lp(0, -2, 1f));
-        addView(row);
-
-        // 词书/难度点击 → 循环切换
-        int[] bi = {0};
-        bookRow.setOnClickListener(v -> {
-            bi[0] = (bi[0] + 1) % bookIds.length;
-            act.book = bookIds[bi[0]];
-            bookBtn.setText("词书：" + bookNames[bi[0]]);
-        });
-        int[] di = {0};
-        diffRow.setOnClickListener(v -> {
-            di[0] = (di[0] + 1) % diffIds.length;
-            act.difficulty = diffIds[di[0]];
-            diffBtn.setText("难度：" + diffNames[di[0]]);
-        });
+        buildBanner();
+        buildLaunchCard();
+        // 构造期即按默认 campaign 模式落定可见性，保证后端数据加载前后整体高度一致
+        updateLaunchCard();
+        buildDock();
     }
 
-    private String pickMode = "campaign";
+    // ── ① home-banner：等级圆徽 + 标题 + 连续天数 + XP 进度 ──
+    private void buildBanner() {
+        LinearLayout banner = new LinearLayout(getContext());
+        banner.setOrientation(VERTICAL);
+        banner.setPadding(dp(16), dp(16), dp(16), dp(14));
+        banner.setBackground(Ui.card(16, Ui.BG1, 1, Ui.LINE));
 
-    private void addModeBtn(LinearLayout parent, String label, String id, String sub) {
+        LinearLayout top = new LinearLayout(getContext());
+        top.setOrientation(HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        lvlBadge = Ui.goldBadge(getContext(), "1", 42);
+        singleLine(lvlBadge);
+        top.addView(lvlBadge);
+
+        LinearLayout titles = new LinearLayout(getContext());
+        titles.setOrientation(VERTICAL);
+        LinearLayout.LayoutParams tl = lp(0, -2, 1f);
+        titles.setLayoutParams(tl);
+        TextView h1 = Ui.text(getContext(), "单词地下城", 21, Ui.TXT, true);
+        h1.setTypeface(Typeface.DEFAULT_BOLD);
+        titles.addView(h1);
+        TextView sub = Ui.text(getContext(), "词灵使 Lv.1 · 应试单词战斗", 11, Ui.MUT, false);
+        titles.addView(sub);
+        top.addView(titles);
+
+        streakTxt = Ui.text(getContext(), "🔥 0 天", 13, Ui.GOLD, true);
+        singleLine(streakTxt);
+        top.addView(streakTxt);
+        banner.addView(top);
+
+        xpBarWrap = new LinearLayout(getContext());
+        xpBarWrap.setOrientation(HORIZONTAL);
+        xpBarWrap.setPadding(0, dp(4), 0, 0);
+        // 构造期一次性建好固定高度 XP 条容器；刷新只更新内部 fill 的 weight，
+        // 禁止 removeAllViews() 重建，从根上消除条容器高度变化
+        View[] barInit = Ui.bar(getContext(), 0f, 0xFF22C55E, 0xFF4ADE80, 7);
+        xpBarWrap.addView(barInit[0]);
+        fillView = barInit[1];
+        banner.addView(xpBarWrap);
+
+        xpLab = Ui.text(getContext(), "0 / 120 XP · 目标成功率 85%", 10.5f, Ui.MUT, false);
+        xpLab.setPadding(0, dp(5), 0, 0);
+        singleLine(xpLab);
+        banner.addView(xpLab);
+        addView(banner);
+        addView(spacer(12));
+    }
+
+    // ── ② launch-card：模式 tab + 配置行/快刷档 + 金色开始按钮 ──
+    private void buildLaunchCard() {
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(13), dp(13), dp(13), dp(13));
+        card.setBackground(Ui.gradient(16, Ui.CARD, Ui.CARD2, 90));
+
+        // mode-tabs
+        LinearLayout tabs = new LinearLayout(getContext());
+        tabs.setOrientation(HORIZONTAL);
+        tabCampaign = modeTab(tabs, "⚔️", "远征", 0xFF1D4ED8, 0xFF38BDF8);
+        tabEndless = modeTab(tabs, "🌀", "无尽", 0xFF7C3AED, 0xFFDB2777);
+        tabQuick = modeTab(tabs, "⚡", "快刷", 0xFFD97706, 0xFFFBBF24);
+        card.addView(tabs);
+
+        // cfg-line / quick-levels 区（动态）
+        // 两区固定高度 48dp：模式切换时仅 VISIBLE/GONE 互换，总高度恒定
+        cfgArea = new LinearLayout(getContext());
+        cfgArea.setOrientation(VERTICAL);
+        cfgArea.setGravity(Gravity.CENTER_VERTICAL);
+        cfgArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+        cfgLineTxt = Ui.text(getContext(), "词书 高考 · 难度 自适应", 14, Ui.TXT, true);
+        singleLine(cfgLineTxt);
+        cfgCountTxt = Ui.text(getContext(), "3674 词 ›", 12, Ui.GOLD, false);
+        singleLine(cfgCountTxt);
+        LinearLayout cfgRow = new LinearLayout(getContext());
+        cfgRow.setOrientation(HORIZONTAL);
+        cfgRow.setGravity(Gravity.CENTER_VERTICAL);
+        cfgRow.setPadding(dp(12), dp(10), dp(12), dp(10));
+        cfgRow.setBackground(Ui.card(10, Ui.BG_PILL, 1, Ui.LINE));
+        cfgRow.addView(cfgLineTxt, lp(0, -2, 1f));
+        cfgRow.addView(cfgCountTxt);
+        cfgRow.setClickable(true);
+        cfgRow.setOnClickListener(v -> act.show(MainActivity.Screen.SETTINGS));
+        cfgArea.addView(cfgRow);
+        cfgArea.setVisibility(GONE);
+        card.addView(cfgArea);
+
+        // quick-levels 三档
+        quickArea = new LinearLayout(getContext());
+        quickArea.setOrientation(HORIZONTAL);
+        quickArea.setGravity(Gravity.CENTER_VERTICAL);
+        quickArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+        String[] subs = {"高频优先·识别快刷", "错词加权·进阶", "拼写为主·拼写压轴"};
+        for (int i = 0; i < 3; i++) {
+            final int idx = i;
+            LinearLayout box = new LinearLayout(getContext());
+            box.setOrientation(VERTICAL);
+            box.setGravity(Gravity.CENTER);
+            box.setPadding(dp(6), dp(10), dp(6), dp(10));
+            box.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
+            TextView b = Ui.text(getContext(), quickNames[i], 14, Ui.TXT, true);
+            TextView s = Ui.text(getContext(), subs[i], 9.5f, Ui.MUT, false);
+            s.setGravity(Gravity.CENTER);
+            box.addView(b);
+            box.addView(s);
+            box.setOnClickListener(v -> {
+                act.quickLevel = quickIds[idx];
+                for (int j = 0; j < quickBtns.length; j++) {
+                    LinearLayout target = (LinearLayout) quickBtns[j].getParent();
+                    target.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
+                }
+                box.setBackground(Ui.card(12, 0xFF1E2F1E, 2, Ui.GOLD));
+            });
+            quickBtns[i] = b;
+            quickArea.addView(box, lp(0, -2, 1f));
+        }
+        quickArea.setVisibility(GONE);
+        card.addView(quickArea);
+        addView(card);
+        addView(spacer(12));
+
+        // launch-btn 金色大按钮
+        launchWrap = new LinearLayout(getContext());
+        launchWrap.setOrientation(VERTICAL);
+        launchBtn = Ui.text(getContext(), "开始远征", 16.5f, 0xFF081326, true);
+        launchBtn.setGravity(Gravity.CENTER);
+        launchBtn.setPadding(dp(14), dp(14), dp(14), dp(14));
+        GradientBuilder gb = new GradientBuilder(13, new int[]{0xFFFCD34D, 0xFFF59E0B});
+        launchBtn.setBackground(gb.build());
+        modeDescLab = Ui.text(getContext(), "3 层闯关", 10.5f, 0xFF5B4310, false);
+        modeDescLab.setGravity(Gravity.CENTER);
+        singleLine(modeDescLab);
+        launchBtn.setOnClickListener(v -> { act.mode = pickMode; act.show(MainActivity.Screen.BATTLE); });
+        launchWrap.addView(launchBtn);
+        launchWrap.addView(modeDescLab);
+        launchWrap.setPadding(0, dp(13), 0, 0);
+        addView(launchWrap);
+        addView(spacer(16));
+    }
+
+    /** 渐变背景 helper */
+    static class GradientBuilder {
+        private final android.graphics.drawable.GradientDrawable g;
+
+        GradientBuilder(int radius, int[] colors) {
+            g = new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR, colors);
+            g.setCornerRadius(Ui.dp(App.ctx(), radius));
+        }
+
+        android.graphics.drawable.GradientDrawable build() {
+            return g;
+        }
+    }
+
+    // ── ③ home-dock：错词本 / 成就 / 设置 ──
+    private void buildDock() {
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.addView(dockItem("📕", "错词本", "0 词待复习", () -> act.show(MainActivity.Screen.WRONGBOOK), 0), lp(0, -2, 1f));
+        row.addView(dockItem("🏆", "成就", "0/14", () -> act.show(MainActivity.Screen.ACHIEVEMENTS), 1), lp(0, -2, 1f));
+        row.addView(dockItem("⚙️", "设置", "词书·难度·玩法", () -> act.show(MainActivity.Screen.SETTINGS), 2), lp(0, -2, 1f));
+        addView(row);
+    }
+
+    private LinearLayout dockItem(String icon, String name, String sub, Runnable onTap, int idx) {
         Context c = getContext();
         LinearLayout box = new LinearLayout(c);
         box.setOrientation(VERTICAL);
         box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(8), dp(12), dp(8), dp(12));
-        box.setBackground(Ui.card(12, Ui.CARD2, 1, Ui.LINE));
-        TextView t = Ui.text(c, label, 14, Ui.TXT, true);
-        TextView s = Ui.text(c, sub, 11, Ui.MUT, false);
-        box.addView(t);
+        box.setPadding(dp(6), dp(12), dp(6), dp(12));
+        box.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        TextView ic = Ui.text(c, icon, 20, Ui.TXT, false);
+        TextView n = Ui.text(c, name, 13, Ui.TXT, true);
+        TextView s = Ui.text(c, sub, 10.5f, Ui.MUT, false);
+        singleLine(s);
+        box.addView(ic);
+        box.addView(n);
         box.addView(s);
-        int target = modeMap(id);
+        if (idx == 0) wrongCntTxt = s;
+        if (idx == 1) achCntTxt = s;
+        box.setOnClickListener(v -> onTap.run());
+        return box;
+    }
+
+    /** 模式 tab（选中彩色描边发光） */
+    private LinearLayout modeTab(LinearLayout parent, String icon, String name, int c1, int c2) {
+        Context c = getContext();
+        LinearLayout box = new LinearLayout(c);
+        box.setOrientation(HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        box.setPadding(dp(10), dp(10), dp(10), dp(10));
+        box.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
+        TextView ic = Ui.text(c, icon, 18, Ui.TXT, false);
+        box.addView(ic);
+        LinearLayout tt = new LinearLayout(c);
+        tt.setOrientation(VERTICAL);
+        TextView b = Ui.text(c, name, 14.5f, Ui.TXT, true);
+        TextView s = Ui.text(c, subOf(name), 10.5f, Ui.MUT, false);
+        tt.addView(b);
+        tt.addView(s);
+        LinearLayout.LayoutParams tl = lp(0, -2, 1f);
+        tt.setLayoutParams(tl);
+        box.addView(tt);
+        final int sel1 = c1, sel2 = c2;
         box.setOnClickListener(v -> {
-            pickMode = id;
-            parent.getChildCount();
-            for (int i = 0; i < parent.getChildCount(); i++) {
-                parent.getChildAt(i).setBackground(Ui.card(12, Ui.CARD2, 1, Ui.LINE));
-            }
-            box.setBackground(Ui.card(12, Ui.BG1, 2, Ui.CYAN));
+            pickMode = modeIdOf(name);
+            refreshTabs(sel1, sel2);
+            updateLaunchCard();
         });
-        if (target == 0) box.setBackground(Ui.card(12, Ui.BG1, 2, Ui.CYAN));
         parent.addView(box, lp(0, -2, 1f));
+        if ("campaign".equals(modeIdOf(name))) {
+            tabCampaign = box;
+            box.setBackground(selTab(c1, c2));
+        } else if ("endless".equals(modeIdOf(name))) tabEndless = box;
+        else tabQuick = box;
+        return box;
     }
 
-    private int modeMap(String id) {
-        if ("campaign".equals(id)) return 0;
-        if ("endless".equals(id)) return 1;
-        return 2;
+    private String subOf(String name) {
+        if ("远征".equals(name)) return "3 层闯关";
+        if ("无尽".equals(name)) return "无限深渊";
+        return "刷词冲刺";
     }
 
+    private String modeIdOf(String name) {
+        if ("远征".equals(name)) return "campaign";
+        if ("无尽".equals(name)) return "endless";
+        return "quick";
+    }
+
+    private android.graphics.drawable.Drawable selTab(int c1, int c2) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                new int[]{c1, c2});
+        g.setStroke(dp(2), c2);
+        g.setCornerRadius(dp(12));
+        return g;
+    }
+
+    private void refreshTabs(int sel1, int sel2) {
+        tabCampaign.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
+        tabEndless.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
+        tabQuick.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
+        LinearLayout target = "campaign".equals(pickMode) ? tabCampaign : "endless".equals(pickMode) ? tabEndless : tabQuick;
+        target.setBackground(selTab(sel1, sel2));
+    }
+
+    private void updateLaunchCard() {
+        boolean quick = "quick".equals(pickMode);
+        cfgArea.setVisibility(quick ? GONE : VISIBLE);
+        quickArea.setVisibility(quick ? VISIBLE : GONE);
+        if (quick) {
+            launchBtn.setText("开始快刷");
+            modeDescLab.setText(quickNames[indexOf(act.quickLevel)] + "档 · 高频词快速刷");
+        } else {
+            launchBtn.setText("开始" + ("campaign".equals(pickMode) ? "远征" : "无尽"));
+            String desc = "campaign".equals(pickMode) ? "3 层闯关" : "无上限下潜";
+            int best = act.lastBest;
+            if (best > 0 && "endless".equals(pickMode)) desc = "最高纪录 第 " + best + " 层";
+            modeDescLab.setText(desc);
+        }
+    }
+
+    private int indexOf(String id) {
+        for (int i = 0; i < quickIds.length; i++) if (quickIds[i].equals(id)) return i;
+        return 0;
+    }
+
+    // ── 数据刷新 ──
     public void onCrashInfo(String crash) {
         String shortC = crash.replaceAll("[\\r\\n]+", " → ");
         shortC = shortC.length() > 180 ? shortC.substring(0, 180) + "…" : shortC;
@@ -150,29 +328,90 @@ public class HomeView extends LinearLayout {
     }
 
     public void onBackendState(boolean ready, String err) {
-        statusTxt.setText(ready ? "● 后端已就绪 · 词书加载中" : "● 后端异常：" + (err == null ? "未知" : err));
-        statusTxt.setTextColor(ready ? Ui.GREEN : Ui.RED);
+        if (!ready) {
+            TextView c = Ui.text(getContext(), "● 后端异常：" + (err == null ? "未知" : err), 13, Ui.RED, false);
+            c.setPadding(dp(10), dp(8), dp(10), dp(8));
+            c.setBackground(Ui.card(10, Ui.CARD, 1, Ui.RED));
+            addView(c, 1);
+        }
     }
 
     public void refreshMeta() {
+        if (act.router() == null) return;
         try {
+            JSONObject stats = act.router().dispatch("/stats/daily", "GET", null);
+            JSONObject daily = stats.optJSONObject("daily");
             JSONObject meta = act.router().dispatch("/bank/meta", "GET", null);
             act.bankMeta = meta;
             JSONObject counts = meta.getJSONObject("counts");
-            int total = meta.getInt("total");
+            JSONObject wb = act.router().dispatch("/wrongbook", "GET", null);
+            int wrongCnt = wb.optJSONObject("summary") == null ? 0 : wb.optJSONObject("summary").optInt("total", 0);
+            JSONArray ach = stats.optJSONArray("ach");
+            int achCnt = ach == null ? 0 : ach.length();
+            int level = stats.optInt("level", 1);
+            int xp = stats.optInt("xp", 0);
+            int xpNeed = stats.optInt("xp_needed", 120);
+            int streak = stats.optInt("streak", 0);
+            int best = stats.optInt("endless_best", 0);
+            act.lastBest = best;
+
+            lvlBadge.setText(String.valueOf(level));
+            streakTxt.setText("🔥 " + streak + " 天");
+            xpLab.setText(xp + " / " + xpNeed + " XP · 目标成功率 85%");
+            rebuildXpBar((float) xp / Math.max(1, xpNeed));
+
+            // 词书
             JSONArray books = meta.getJSONArray("books");
-            StringBuilder sb = new StringBuilder("● 后端就绪 · 词库共 " + total + " 词 · ");
+            String bookName = "全部";
+            int bookTotal = meta.getInt("total");
             for (int i = 0; i < books.length(); i++) {
                 JSONObject b = books.getJSONObject(i);
-                if (i > 0) sb.append("  ");
-                sb.append(b.getString("name")).append(" ").append(counts.optInt(b.getString("id"), 0));
+                if (act.book.equals(b.optString("id"))) {
+                    bookName = b.optString("name");
+                    bookTotal = counts.optInt(b.optString("id"), 0);
+                }
             }
-            statusTxt.setText(sb.toString());
-            statusTxt.setTextColor(Ui.GREEN);
+            String diffName = diffNameOf(act.difficulty);
+            cfgLineTxt.setText("词书 " + bookName + " · 难度 " + diffName);
+            cfgCountTxt.setText(bookTotal + " 词 ›");
+
+            wrongCntTxt.setText(wrongCnt + " 词待复习");
+            achCntTxt.setText(achCnt + "/14");
+            updateLaunchCard();
         } catch (Throwable e) {
-            statusTxt.setText("● 词库加载失败：" + e.getMessage());
-            statusTxt.setTextColor(Ui.RED);
+            View old = findViewWithTag("meta_err");
+            if (old != null) removeView(old);
+            TextView c = Ui.text(getContext(), "● 数据加载失败：" + e.getMessage(), 12, Ui.RED, false);
+            c.setTag("meta_err");
+            c.setPadding(dp(10), dp(8), dp(10), dp(8));
+            c.setBackground(Ui.card(10, Ui.CARD, 1, Ui.RED));
+            addView(c);
         }
+    }
+
+    private String diffNameOf(String diff) {
+        if ("adaptive".equals(diff)) return "自适应 · θ 配比";
+        if ("easy".equals(diff)) return "简单";
+        if ("normal".equals(diff)) return "中等";
+        if ("hard".equals(diff)) return "困难";
+        if ("hell".equals(diff)) return "地狱";
+        return "全部";
+    }
+
+    private void rebuildXpBar(float pct) {
+        // 不再 removeAllViews 重建：只更新 fill 宽度 weight，容器高度恒定
+        float p = Math.max(0f, Math.min(1f, pct));
+        if (fillView != null) {
+            LinearLayout.LayoutParams fp = (LinearLayout.LayoutParams) fillView.getLayoutParams();
+            fp.weight = p;
+            fillView.setLayoutParams(fp);
+        }
+    }
+
+    /** 动态文案一律单行 END 截断：文案长短只改宽度、不改行高，防数据刷新前后高度抖动 */
+    private static void singleLine(TextView t) {
+        t.setMaxLines(1);
+        t.setEllipsize(TextUtils.TruncateAt.END);
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }
