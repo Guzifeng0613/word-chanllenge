@@ -211,7 +211,10 @@ public class BackendRouter {
         out.put("fast", fast);
         out.put("damage", dmg);
         out.put("detail", dr == null ? new JSONObject() : dr.detail);
-        out.put("correct_answer", "spell".equals(qtype) ? entry.w : entry.m);
+        // V11.5 对错反馈一致性：judge 返回 "yes"/"no" 供前端高亮对/错按钮
+        String correctAnswerVal = "spell".equals(qtype) ? entry.w
+                : ("judge".equals(qtype) ? (entry.m.equals(shown) ? "yes" : "no") : entry.m);
+        out.put("correct_answer", correctAnswerVal);
         out.put("state", newRec.state);
         out.put("wrong_count", newRec.wrongCount);
         out.put("grade", newRec.wrongCount > 0 ? SrsEngine.gradeOf(newRec.wrongCount) : 0);
