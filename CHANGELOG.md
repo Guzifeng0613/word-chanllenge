@@ -3,6 +3,11 @@
 > 项目：单词地下城（Word Dungeon）｜定位：应试学生向背单词战斗 Roguelike（完全离线）
 > 版本规则：**小改动 +0.1，大改动 +1**（用户锁定，见偏好）
 
+## V8.0.1 · 修复真机词书全 0（2026-10-26）
+- **现象**：真机（一加13）安装 V8.0 后设置页词书全部 0 词、掌握进度 0/0、无法开始游戏。
+- **根因**：`capacitor.config.json` 默认 `androidScheme:"https"`——页面运行在 `https://localhost`，WebView 混合内容策略拦截 fetch `http://127.0.0.1:8080`，本地 Java 后端连不上；而 V8.0 已删除前端内嵌词库，词书数据全靠后端 → 全 0、无法出题。
+- **修复**：`androidScheme` 改为 `http`、`allowMixedContent` 置 true；`MainActivity` 额外 `setMixedContentMode(ALWAYS_ALLOW)` 双保险；后端启动/失败写 Logcat（Tag: WordDungeon）；前端版本号更新为 V8.0 · Java 后端版，后端未启动时明确 toast 提示。
+- **验证**：APK 内 `assets/capacitor.config.json` 已确认 http+allowMixedContent；index.html 已同步；release+debug 构建成功。
 ## V8.0 · 原生 Java 后端架构重构（2026-10-26）
 - **核心诉求**：用户要求"不要把代码全部用 HTML 写，要有后端"，并拍板**用 Java**——不引入 Python 运行时，完全离线。
 - **技术架构**：App 内用 **NanoHTTPD**（单依赖 `org.nanohttpd:nanohttpd:2.3.1`）在后台线程启动 `127.0.0.1` 本地 HTTP 服务；前端瘦身为纯 UI + 接口调用；词库放 `assets/data/` 由 Java 读取。
