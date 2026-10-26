@@ -905,7 +905,7 @@ const C = {
     timeMax:3,          // 限时最多收紧 3 秒
     championEvery:5     // 每 5 深度为“冠军 Boss”（额外强化 + 额外奖励）
   },
-  // V5.0 快速刷题：普通/困难/地狱，词频+错误驱动动态权重
+  // V7.0 快速刷题：普通/困难/地狱，词频+错误驱动动态权重
   quick:{
     levels:[
       {id:'normal',name:'普通',freqPow:1.0,spellBias:0.0,spellTimeAdd:0,baseFreq:1.0},
@@ -1501,7 +1501,7 @@ function startBattle(kind){
   G.cards.forEach(id=>{ const c=CMAP[id]; if(c.onStart)c.onStart(); });
   nextQuestion();
 }
-/* V5.0 快速刷题：连续战斗，敌人 HP 按档位，击杀后立刻下一个（不抽卡） */
+/* V7.0 快速刷题：连续战斗，敌人 HP 按档位，击杀后立刻下一个（不抽卡） */
 function startQuickBattle(){
   const level=G.quickLevel;
   const hp=C.quick.enemyHp[level];
@@ -1607,7 +1607,7 @@ function pickWordAndType(prefer){
   return {word,qtype,review,bucket:isAdaptive()?'match':'normal'};
 }
 /* ════════════════════════════════════════════════════════
- * V5.0 快速刷题本地逻辑（与后端 core.draw_quick 等价，离线兜底）
+ * V7.0 快速刷题本地逻辑（与后端 core.draw_quick 等价，离线兜底）
  * ════════════════════════════════════════════════════════ */
 const QUICK_LEVELS={};
 C.quick.levels.forEach(l=>{QUICK_LEVELS[l.id]=l;});
@@ -2628,7 +2628,7 @@ function viewSettings(){
    <div class="subhead">
      <button class="back" data-act="homeback">‹</button>
      <span class="st">设置</span>
-     <span class="smut">V6.1 · 美式发音版</span>
+     <span class="smut">V7.0 · 快速刷题版</span>
    </div>
 
    <div class="card">
@@ -2737,7 +2737,7 @@ function viewSettings(){
      <div class="about-line">词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）<br>
        学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）<br>
        模式：远征 3 层闯关 · 无尽下潜挑战 · 错词 2 次封顶<br>
-       版本：V6.1 · 美式发音（7388 词已内置；联网时自动读单词，离线不发音）</div>
+       版本：V7.0 · 快速刷题（7388 词已内置；新增普通/困难/地狱三档快刷，词频+错误驱动出题；联网时自动读单词，离线不发音）</div>
    </div>
 
    <button class="ghostbtn" data-act="reset" style="margin-top:12px;">清空所有学习进度</button>`;
@@ -2838,7 +2838,7 @@ function wrongBookBtn(){
   return `<button class="bigbtn ghost" data-act="wrongbook" style="margin-top:10px;">
     错词本（${total} 词${cnt?` · 顽固 ${cnt}`:''}）</button>`;
 }
-/* V5.0 错词本：把“在哪个档/哪个题型错过”渲染成标签 */
+/* V7.0 错词本：把“在哪个档/哪个题型错过”渲染成标签 */
 function wrongByTags(w){
   const rec=P.words[w];
   if(!rec||!rec.wrong_by) return '';
