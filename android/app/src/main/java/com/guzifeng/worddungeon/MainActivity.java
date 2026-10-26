@@ -44,6 +44,11 @@ public class MainActivity extends AppCompatActivity {
     public int lastBest = 0;                // 无尽最高纪录（主页展示）
     public boolean speak = true;
     public JSONObject bankMeta = null;
+    // V11.7 对齐 V7.0：词魂钱包（战斗胜利发放，商店消费；持久化依赖 Agent3 后端字段，前端先本地维护）
+    public int souls = 0;
+    // 本局词收集（结算页 chip 展示）
+    public final java.util.List<String> runNewWords = new java.util.ArrayList<>();
+    public final java.util.List<String> runWrongWords = new java.util.ArrayList<>();
 
     private HomeView home;
     private BattleView battle;

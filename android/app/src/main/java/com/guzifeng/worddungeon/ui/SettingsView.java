@@ -58,14 +58,19 @@ public class SettingsView extends LinearLayout {
         reset.setPadding(dp(12), dp(12), dp(12), dp(12));
         reset.setBackground(Ui.card(12, Ui.CARD, 1, Ui.RED));
         reset.setClickable(true);
-        reset.setOnClickListener(v -> {
-            try {
-                act.router().dispatch("/progress/reset", "POST", new JSONObject());
-                refresh();
-            } catch (Throwable e) {
-                android.widget.Toast.makeText(c, "清空失败：" + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
-            }
-        });
+        reset.setOnClickListener(v -> new android.app.AlertDialog.Builder(c)
+                .setTitle("清空所有学习进度？")
+                .setMessage("等级 / XP / 词书进度 / 错词本 / 成就将全部重置，此操作不可恢复。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认清空", (d, w) -> {
+                    try {
+                        act.router().dispatch("/progress/reset", "POST", new JSONObject());
+                        refresh();
+                    } catch (Throwable e) {
+                        android.widget.Toast.makeText(c, "清空失败：" + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .show());
         LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         rl.topMargin = dp(12);
@@ -96,7 +101,7 @@ public class SettingsView extends LinearLayout {
         card.setOrientation(VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
         card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
-        TextView secTitle = Ui.text(getContext(), "词书选择  ?", 14, Ui.TXT, true);
+        TextView secTitle = tipTitle("词书选择 ⓘ", "切换后即时过滤出题范围；一词可属多本词书。");
         card.addView(secTitle);
 
         LinearLayout grid = new LinearLayout(getContext());
@@ -122,7 +127,7 @@ public class SettingsView extends LinearLayout {
         card.addView(grid);
         card.addView(spacer(8));
 
-        TextView dh = Ui.text(getContext(), "难度选择  ?", 14, Ui.TXT, true);
+        TextView dh = tipTitle("难度选择 ⓘ", "自适应按能力 θ 抽词；选具体档则锁定 tier。");
         card.addView(dh);
         LinearLayout dgrid = new LinearLayout(getContext());
         dgrid.setOrientation(HORIZONTAL);
@@ -174,15 +179,46 @@ public class SettingsView extends LinearLayout {
         card.setOrientation(VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
         card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
-        card.addView(Ui.text(getContext(), "声音与触感  ?", 14, Ui.TXT, true));
+        card.addView(tipTitle("声音与触感 ⓘ", "全部本地合成，无外部音频文件；发音为离线 TTS 美式。"));
 
         SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
         card.addView(audioRow("打击音效", "命中 / 暴击 / 复仇 / 受击", "sfx", sp));
         card.addView(audioRow("背景音乐 BGM", "主页 / 战斗 / Boss 三种场景", "bgm", sp));
         card.addView(audioRow("震动触感", "命中、暴击、受击时震动", "vibrate", sp));
-        card.addView(audioRow("单词发音", "进入新卡片自动读美式发音", "speak", sp));
+        card.addView(audioRow("单词发音", "进入新卡片自动读美式发音（离线 TTS）", "speak", sp));
+        // V7.0 音量滑条（音效 / BGM 两条；纯展示侧持久化，音频引擎在前端合成层）
+        card.addView(volumeRow("音效音量", "vol_sfx", sp, 85));
+        card.addView(volumeRow("BGM 音量", "vol_bgm", sp, 50));
         body.addView(card);
         body.addView(spacer(10));
+    }
+
+    private LinearLayout volumeRow(String name, String key, SharedPreferences sp, int def) {
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(7), 0, dp(7));
+        TextView n = Ui.text(getContext(), name, 13.5f, Ui.TXT, false);
+        row.addView(n, lp(0, -2, 1f));
+        final android.widget.SeekBar bar = new android.widget.SeekBar(getContext());
+        bar.setMax(100);
+        int v = sp.getInt(key, def);
+        bar.setProgress(v);
+        TextView num = Ui.text(getContext(), String.valueOf(v), 12, Ui.GOLD, true);
+        bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar sb, int progress, boolean fromUser) {
+                sp.edit().putInt(key, progress).apply();
+                num.setText(String.valueOf(progress));
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar sb) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar sb) {}
+        });
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, -2, 1f);
+        bl.leftMargin = dp(10);
+        bl.rightMargin = dp(8);
+        row.addView(bar, bl);
+        row.addView(num);
+        return row;
     }
 
     private LinearLayout audioRow(String name, String sub, String key, SharedPreferences sp) {
@@ -230,7 +266,7 @@ public class SettingsView extends LinearLayout {
         card.setOrientation(VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
         card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
-        card.addView(Ui.text(getContext(), "错词本  ?", 14, Ui.TXT, true));
+        card.addView(tipTitle("错词本 ⓘ", "按错误次数分顽固/易错/生疏三组，开始复习顽固优先。"));
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -422,6 +458,13 @@ public class SettingsView extends LinearLayout {
         int n = 0;
         for (boolean b : a) if (b) n++;
         return n;
+    }
+
+    private TextView tipTitle(String s, String tip) {
+        TextView t = Ui.text(getContext(), s, 14, Ui.TXT, true);
+        t.setClickable(true);
+        t.setOnClickListener(v -> android.widget.Toast.makeText(getContext(), tip, android.widget.Toast.LENGTH_LONG).show());
+        return t;
     }
 
     private String diffNameOf(String diff) {
