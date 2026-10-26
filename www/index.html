@@ -1110,18 +1110,28 @@ function schedule(rec,correct,fast,now){
   return learnStep(rec,correct,fast,now);
 }
 function dueLearning(now){
+  if(API.on&&apiData&&apiData.due) return apiData.due.due_learning;
   return Object.keys(P.words).filter(w=>{
     const r=P.words[w]; return !r.graduated && r.due && r.due<=now;
   });
 }
 function dueGraduated(now){
+  if(API.on&&apiData&&apiData.due) return apiData.due.due_graduated;
   return Object.keys(P.words).filter(w=>{
     const r=P.words[w]; return r.graduated && r.due && r.due<=now;
   });
 }
 function newToday(){
+  if(API.on&&apiData&&apiData.due) return apiData.due.new_today;
   const today0=Math.floor(Date.now()/86400000)*86400000;
   return Object.keys(P.words).filter(w=>(P.words[w].created||0)>=today0).length;
+}
+/* 拉取后端复习/错词/统计缓存（API 模式页面数据源） */
+async function loadApiData(){
+  try{
+    const [due,wb,st]=await Promise.all([API.due(SETTINGS.book),API.wrongbook(),API.stats()]);
+    apiData={due,wb,st};
+  }catch(e){ apiData=null; API.on=false; }
 }
 function gradeOf(wrongCount){ return wrongCount>=3?3:wrongCount===2?2:1; }
 function isFastAnswer(q,elapsed,remainFrac){
@@ -1145,6 +1155,42 @@ function applySrs(word,correct,fast){
 let G=null;
 let homeMode='campaign';   /* 主页模式 tab 当前选中，不随单局重置 */
 const MIN=60*1000, DAY=24*60*60*1000;
+
+/* ═══ 前后端接入层（V4.8）：后端可达→API 模式；不可达→本地内嵌逻辑兜底 ═══ */
+const API={
+  base:'http://127.0.0.1:8011',
+  token:null, on:false, checking:true,
+  async init(){
+    this.token=localStorage.getItem('wd_api_token')||null;
+    try{
+      if(!this.token){
+        const r=await fetch(this.base+'/auth/guest',{method:'POST'});
+        const j=await r.json();
+        if(j&&j.token){ this.token=j.token; localStorage.setItem('wd_api_token',j.token); }
+      }
+      const r=await fetch(this.base+'/review/due',{headers:{Authorization:'Bearer '+this.token}});
+      this.on=r.ok;
+    }catch(e){ this.on=false; }
+    this.checking=false;
+    return this.on;
+  },
+  async req(path,opt){
+    opt=opt||{};
+    opt.headers=Object.assign({'Authorization':'Bearer '+this.token,'Content-Type':'application/json'},opt.headers||{});
+    const r=await fetch(this.base+path,opt);
+    if(!r.ok) throw new Error(path+' '+r.status);
+    return r.json();
+  },
+  async draw(d){ return this.req('/quiz/draw',{method:'POST',body:JSON.stringify(d)}); },
+  async answer(a){ return this.req('/quiz/answer',{method:'POST',body:JSON.stringify(a)}); },
+  async due(book){ return this.req('/review/due'+(book?'?book='+book:'')); },
+  async wrongbook(){ return this.req('/wrongbook'); },
+  async wrongReview(w,remembered){ return this.req('/wrongbook/review',{method:'POST',body:JSON.stringify({word:w,remembered})}); },
+  async stats(){ return this.req('/stats/daily'); },
+  async bankMeta(){ return this.req('/bank/meta'); }
+};
+let apiData=null;   // API 模式下的复习/错词/统计缓存
+
 function newRun(mode){
   G={
     screen:'home', mode:mode||'campaign', layer:1, node:0,
@@ -1451,6 +1497,21 @@ function nextQuestion(){
   const b=G.battle;
   b.locked=false;
   const enemy=b.enemy;
+  /* API 模式：出题交给后端（题型阶梯/θ/词书难度/单局封顶/复习队列全部在服务端） */
+  if(API.on){
+    const forceSpell=G.spellChainNext;
+    G.spellChainNext=false;
+    if(forceSpell) G.spellChainBonus=true;
+    const payload={
+      layer:G.layer, mode:G.mode||'campaign',
+      book:SETTINGS.book, adaptive:isAdaptive(),
+      difficulty:isAdaptive()?undefined:(typeof SETTINGS.difficulty==='number'?SETTINGS.difficulty:undefined),
+      force:forceSpell?'spell':undefined,
+      run_state:G.apiRunState||{wrong:{},seen:{}}
+    };
+    apiDrawAndBuild(payload);
+    return;
+  }
   // boss 机制标记
   if(enemy.boss){
     const t=enemy.tpl;
@@ -1486,6 +1547,26 @@ function nextQuestion(){
   if(G.runWrong[pick.word]) G.runWrongSeen[pick.word]=(G.runWrongSeen[pick.word]||0)+1;
   G.curBucket=pick.bucket;
   buildQuestion(pick.word,pick.qtype);
+}
+/* 后端出题并渲染题目（API 模式） */
+function apiDrawAndBuild(payload){
+  API.draw(payload).then(apiQ=>{
+    const b=G.battle;
+    if(!b) return;
+    const q={word:apiQ.word,qtype:apiQ.qtype,start:performance.now(),
+      limit:apiQ.timeLimit||6, options:apiQ.options||null,
+      correct:apiQ.correct, judgeShown:apiQ.judgeShown||null};
+    b.q=q;
+    G.apiRunState=apiQ.run_state||G.apiRunState||{wrong:{},seen:{}};
+    if(G.focus) b.focusUsed=true;
+    G.focus=false;
+    G.screen='battle';
+    render();
+    startTimer();
+  }).catch(()=>{
+    API.on=false;
+    G.screen='home'; render();
+  });
 }
 function buildQuestion(word,qtype){
   const b=G.battle, o=WMAP[word];
@@ -1572,10 +1653,31 @@ function answer(choice){
   const correct = (choice===G.battle.q.correct);
   resolve(choice,false,correct);
 }
-function resolve(choice,isTimeout,forceCorrect){
+function resolve(choice,isTimeout,forceCorrect,apiRes){
   const b=G.battle; if(b.locked) return; b.locked=true; stopTimer();
   const q=b.q, word=q.word;
   const elapsed=(performance.now()-q.start)/1000;
+  /* API 模式：先把结果交给后端结算（判定/伤害/θ/SM-2），回来再走表现层 */
+  if(API.on && !apiRes){
+    const remain=Math.max(0,(q.start+q.limit*1000-performance.now())/1000);
+    API.answer({
+      word, qtype:q.qtype,
+      answer: isTimeout?'__timeout__':(choice===null?'':choice),
+      time_limit:q.limit, remain,
+      combo:G.combo, crit:false, card_mult:1.0,
+      shown:q.judgeShown||null,
+      run_state:G.apiRunState||{wrong:{},seen:{}}
+    }).then(res=>{
+      if(!G.battle||G.battle.q!==q){ b.locked=false; return; }
+      if(res.theta) P.meta.theta=res.theta;
+      G.apiRunState=res.run_state||G.apiRunState;
+      b.locked=false;                // 解锁后重入结算（表现层）
+      resolve(choice,isTimeout,res.correct,res);
+    }).catch(()=>{
+      API.on=false; b.locked=false; resolve(choice,isTimeout,forceCorrect);
+    });
+    return;
+  }
   const isCorrect = isTimeout?false:(forceCorrect!==undefined?forceCorrect:choice===q.correct);
   G.stats.questions++; b.answered++; G.answeredThisLayer++;
   const mstate=wState(word);
@@ -1590,6 +1692,24 @@ function resolve(choice,isTimeout,forceCorrect){
     if(isNew) P.meta.daily.newWords++;
     const leveled=addXP(C.xp.correct+(isNew?C.xp.newWord:0));
     if(leveled) showLevelUp(P.meta.level);
+    /* API 模式：伤害/暴击/复仇由后端结算（detail 含各倍率），本地只做表现 */
+    if(apiRes && apiRes.damage!==undefined){
+      const d=apiRes.detail||{};
+      dealDamage(b.enemy,apiRes.damage,!!d.crit,!!d.revenge);
+      G.combo++; if(G.combo>G.stats.maxCombo)G.stats.maxCombo=G.combo;
+      const comboEl=document.querySelector('.combo-num');
+      if(comboEl){comboEl.textContent=G.combo;}
+      G.wrongStreak=0;
+      if(!G.flow && G.combo>=C.flow.threshold){ G.flow=true; AudioEngine.fx('flow',20); floatText('fheal','心流开启',50); }
+      if(G.flow){ G.gold+=C.flow.bonusGold; AudioEngine.play('reward'); floatText('fdmg','+'+C.flow.bonusGold,72); }
+      G.spellChainBonus=false;
+      G.wrongWords[word]=false;
+      markOptions(true,q.correct);
+      updateGoal(true);
+      checkMasterAch();
+      if(G.combo>=10) unlockAch('combo10');
+      if(G.stats.correct>=50) unlockAch('correct50');
+    } else {
     // 伤害
     const ctx={time:elapsed,qtype:q.qtype,mstate,word};
     const isRevenge=G.wrongWords[word]===true;   // 之前错过的词：复仇
@@ -1634,6 +1754,7 @@ function resolve(choice,isTimeout,forceCorrect){
     checkMasterAch();
     if(G.combo>=10) unlockAch('combo10');
     if(G.stats.correct>=50) unlockAch('correct50');
+    }
   } else {
     G.stats.wrong++;
     dailyProgress().questions++;
@@ -1653,7 +1774,7 @@ function resolve(choice,isTimeout,forceCorrect){
     // boss3 狂暴
     if(b.enemy.boss&&b.enemy.tpl.mech==='rage'&&b.enemy.hp<=b.enemy.maxHp*0.5) dmg+=4;
     hurtPlayer(dmg);
-    applySrs(word,false,false);
+    if(!apiRes) applySrs(word,false,false);   // API 模式调度已在服务端完成
     G.wrongWords[word]=true;
     G.wrongCount[word]=(G.wrongCount[word]||0)+1;
     // 单局记录：首次答错标记，留给它 1 次重现；之后仅归档、本局不再抽
@@ -2066,8 +2187,14 @@ function startSpring(from){
 }
 function springAnswer(ok){
   const s=G.springData;
-  if(ok){ s.bonus+=C.spring.reviewHeal; G.hp=Math.min(C.player.maxHp,G.hp+C.spring.reviewHeal); applySrs(s.list[s.idx],true,false); G.wrongWords[s.list[s.idx]]=false; }
-  else { applySrs(s.list[s.idx],false,false); }
+  if(ok){ s.bonus+=C.spring.reviewHeal; G.hp=Math.min(C.player.maxHp,G.hp+C.spring.reviewHeal); }
+  const w=s.list[s.idx];
+  if(API.on&&w){
+    API.wrongReview(w,ok).then(()=>{ if(ok) G.wrongWords[w]=false; }).catch(()=>{ API.on=false; });
+  } else if(w){
+    if(ok){ applySrs(w,true,false); G.wrongWords[w]=false; }
+    else { applySrs(w,false,false); }
+  }
   s.idx++;
   if(s.idx>=s.list.length){ s.done=true; }
   render();
@@ -2173,11 +2300,11 @@ function viewHome(){
      <div class="mode-tabs">
        <button class="mode-tab campaign ${homeMode==='campaign'?'sel':''}" data-mode="campaign">
          <span class="tic">⚔️</span>
-         <span class="tt"><b>远征<span class="info-tip" data-tip="<b>远征</b>：3 层闯关，每层经历 普通战 → 精英 → 泉水 → 商店 → Boss，击败三层词魇即通关，约 11 分钟。">?</span></span></span>
+         <span class="tt"><b>远征</b></span>
        </button>
        <button class="mode-tab endless ${homeMode==='endless'?'sel':''}" data-mode="endless">
          <span class="tic">🌀</span>
-         <span class="tt"><b>无尽<span class="info-tip" data-tip="<b>无尽</b>：无上限下潜，每 5 层出现冠军 Boss，死亡即结束；难度与限时随深度递增。">?</span></span></span>
+         <span class="tt"><b>无尽</b></span>
        </button>
      </div>
 
@@ -2407,6 +2534,9 @@ function viewHowto(){
 
 /* 错词本：按错误次数分级（顽固 3+ / 易错 2 / 生疏 1），常驻复习入口 */
 function wrongBookData(){
+  if(API.on&&apiData&&apiData.wb){
+    return apiData.wb.words.map(x=>({w:x.word,n:x.wrong_count,g:x.grade}));
+  }
   const set={};
   Object.keys(G.wrongWords).forEach(w=>{ if(G.wrongWords[w]) set[w]=G.wrongCount[w]||1; });
   Object.keys(P.words).forEach(w=>{ if(P.words[w].state==='LEARNING'&&!(w in set)) set[w]=1; });
@@ -2907,7 +3037,11 @@ function afterRender(){
       if(a==='start-campaign'){ rnd=mulberry32(Date.now()%2147483647); newRun('campaign'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='start-endless'){ rnd=mulberry32(Date.now()%2147483647); newRun('endless'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='restart'){ const mode=G.mode; rnd=mulberry32(Date.now()%2147483647); newRun(mode); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
-      if(a==='wrongbook'){ G.screen='wrongbook'; render(); }
+      if(a==='wrongbook'){
+        if(API.on){ loadApiData().then(()=>{ G.screen='wrongbook'; render(); }); return; }
+        G.screen='wrongbook'; render();
+      }
+      if(a==='home'){ if(API.on){ loadApiData().then(()=>render()); return; } G.screen='home'; render(); }
       if(a==='settings'){ G.screen='settings'; render(); }
       if(a==='achievements'){ G.screen='achievements'; render(); }
       if(a==='stats'){ G.screen='stats'; render(); }
@@ -2951,6 +3085,7 @@ document.addEventListener('click',()=>{
 /* 启动 */
 newRun();
 render();
+API.init().then(on=>{ if(on){ loadApiData().then(()=>render()); } });
 </script>
 </body>
 </html>

@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import core
@@ -62,7 +63,13 @@ def get_db():
 
 
 init_db()
-app = FastAPI(title="单词地下城 API", version="4.3")
+app = FastAPI(title="单词地下城 API", version="4.8")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------- 认证（设备令牌） ----------------
