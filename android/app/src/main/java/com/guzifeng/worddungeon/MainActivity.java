@@ -1,5 +1,6 @@
 package com.guzifeng.worddungeon;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.WebResourceRequest;
@@ -7,6 +8,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -15,22 +17,26 @@ import com.guzifeng.worddungeon.bridge.JsBridge;
 import com.guzifeng.worddungeon.server.LocalServer;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import fi.iki.elonen.NanoHTTPD;
 
 /**
- * 主入口（V9.2 架构重构）：
- * 不再依赖 Capacitor 的 BridgeActivity（其 getBridge() 初始化时机导致 JS 桥注册不可靠），
- * 改为自建 WebView + shouldInterceptRequest 加载本地页面 + addJavascriptInterface 直连桥。
- * 与「纸片」项目同构：WebView + JS 桥是几十个真机版本验证过的成熟路径。
- * 本地服务（NanoHTTPD/SQLite）保留，供浏览器/调试用；App 内主通道是 JS 桥。
+ * 主入口（V9.2 架构重构 + 启动加固）：
+ * 自建 WebView + shouldInterceptRequest 加载本地页面 + addJavascriptInterface 直连桥（纸片同构）。
+ * 加固：① 全流程 try/catch，失败 Toast 而非崩溃；② 未捕获异常写 crash.log，下次启动页面自诊断。
  */
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "WordDungeon";
     private static final String APP_HOST = "https://app.local/";
+    private static final String CRASH_LOG = "crash.log";
     public static MainActivity instance = null;
     private WebView web;
     private LocalServer server;
@@ -39,6 +45,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try {
+                saveCrash(e);
+            } catch (Throwable ignore) {}
+        });
         try {
             web = new WebView(this);
             WebSettings s = web.getSettings();
@@ -53,12 +64,11 @@ public class MainActivity extends AppCompatActivity {
             web.setWebViewClient(new WebViewClient() {
                 @Override
                 public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                    if (request != null && "app.local".equals(request.getUrl() != null ? request.getUrl().getHost() : null)) {
+                    if (request != null && request.getUrl() != null && "app.local".equals(request.getUrl().getHost())) {
                         try {
                             InputStream is = getAssets().open("public/index.html");
                             return new WebResourceResponse("text/html", "UTF-8", is);
                         } catch (IOException e) {
-                            Log.e(TAG, "读取页面失败", e);
                             return new WebResourceResponse("text/plain", "UTF-8",
                                     new ByteArrayInputStream("页面加载失败".getBytes()));
                         }
@@ -66,13 +76,25 @@ public class MainActivity extends AppCompatActivity {
                     return super.shouldInterceptRequest(view, request);
                 }
             });
-            // 直连桥：前端 window.WordDungeon.call(callId, route, payload) 直调 Java 后端
             web.addJavascriptInterface(new JsBridge(getApplicationContext(), web, this), "WordDungeon");
-            Log.i(TAG, "JavaScriptInterface 直连桥已注册（window.WordDungeon）");
-            web.loadUrl(APP_HOST);
             setContentView(web);
+            web.loadUrl(APP_HOST);
+            Log.i(TAG, "WebView 就绪，JS 桥已注册（window.WordDungeon）");
+            // 上次崩溃自诊断
+            final String crash = readCrash();
+            if (crash != null && !crash.isEmpty()) {
+                Log.e(TAG, "检测到上次崩溃:\n" + crash);
+                web.postDelayed(() -> {
+                    try { Toast.makeText(this, "上次启动异常：" + crash, Toast.LENGTH_LONG).show(); } catch (Throwable ignore) {}
+                }, 2000);
+                deleteCrash();
+            }
         } catch (Throwable e) {
             Log.e(TAG, "WebView 初始化失败", e);
+            try { saveCrash(e); } catch (Throwable ignore) {}
+            try {
+                Toast.makeText(this, "初始化失败：" + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+            } catch (Throwable ignore) {}
         }
         // 本地 HTTP 服务（浏览器/调试通道；App 内主通道为 JS 桥）
         new Thread(this::startLocalServer, "worddungeon-backend").start();
@@ -106,6 +128,40 @@ public class MainActivity extends AppCompatActivity {
             } catch (Throwable ignore) {}
         }
         super.onBackPressed();
+    }
+
+    private void saveCrash(Throwable e) {
+        StringWriter sw = new StringWriter();
+        e.printStackTrace(new PrintWriter(sw));
+        String text = Thread.currentThread().getName() + " :: " + sw.toString();
+        try {
+            File f = new File(getFilesDir(), CRASH_LOG);
+            try (FileOutputStream os = new FileOutputStream(f, true)) {
+                os.write(text.getBytes("UTF-8"));
+                os.write('\n');
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    private String readCrash() {
+        try {
+            File f = new File(getFilesDir(), CRASH_LOG);
+            if (!f.exists()) return null;
+            byte[] b = new byte[(int) Math.min(f.length(), 2000)];
+            try (InputStream is = new FileInputStream(f)) {
+                int n = is.read(b);
+                return n > 0 ? new String(b, 0, n, "UTF-8") : null;
+            }
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    private void deleteCrash() {
+        try {
+            File f = new File(getFilesDir(), CRASH_LOG);
+            if (f.exists()) f.delete();
+        } catch (Throwable ignore) {}
     }
 
     @Override
