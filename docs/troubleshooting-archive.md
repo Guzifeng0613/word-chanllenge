@@ -104,3 +104,34 @@
 - `locked` 标志要有**全部**出口路径的复位（成功/失败/超时/重入）；
 - 降级路径必须可继续游玩（本地词库结算），而不是停在错误状态；
 - 真机与浏览器行为差异点：输入法（keydown vs input）、返回键（Capacitor）、网络（挂起 vs 拒绝）。
+
+## 14. Java 重写父类方法访问权限变弱导致编译失败
+- **现象**：V8.0 构建报 `onDestroy() in MainActivity cannot override onDestroy() in BridgeActivity; attempting to assign weaker access privileges; was public`。
+- **根因**：`BridgeActivity`（Capacitor）的 `onDestroy()` 是 **public**，子类用 `protected` 覆盖等于收窄访问权限，Java 不允许。
+- **解法**：覆盖方法的访问修饰符不得严于父类——改为 `public void onDestroy()`。
+- **验证**：重新 assembleDebug 编译通过。
+- **适用版本**：V8.0+。
+- **关键词**：override、weaker access、onDestroy、public、protected、BridgeActivity。
+
+## 15. 无尽模式冠军（Champion）敌人未强化 / 标记丢失
+- **现象**：JVM 测试中第 5 层（应为冠军层）普通敌人 `champion` 标记为 false，且数值未强化。
+- **根因**：`EnemyModel.spawn` 无尽分支里，普通/精英敌人路径把 `envelope` 的 champion 参数写死 `false`，也没套用冠军 HP/ATK 加成（只有 boss 分支处理了）。
+- **解法**：普通/精英路径同样读取 `champion=isChampionDepth(depth)`，套用 `HP×ENDLESS_CHAMPION_HP(1.25)`、`ATK+ENDLESS_CHAMPION_ATK(3)`，名称加前缀"冠军·"，并把 champion 透传给 envelope。
+- **验证**：JVM 测试第 5 层 `champion=true` 且数值强化；53 项全过。
+- **适用版本**：V8.0+。
+- **关键词**：无尽、endless、冠军、champion、EnemyModel、强化。
+
+## 16. org.json 缺失字段被 optInt 误解析为 0
+- **现象**：出题请求未带 `difficulty` 字段时，后端可能拿到 `difficulty=0`（无效难度档），导致按档抽词落空。
+- **根因**：`JSONObject.isNull(key)` 对**不存在的 key** 返回 false（它只判断值是否为 NULL），`optInt(key)` 对缺失 key 返回默认 0，于是 `isNull?null:optInt` 误得 0。
+- **解法**：先判存在再判空：`b.has(key) && !b.isNull(key) ? b.optInt(key) : null`。字符串字段用带默认值的 `optString(key, null)` 更安全。
+- **验证**：自适应模式（不传 difficulty）走 θ 分支不受影响；非自适应传 1/2/3 正确。
+- **适用版本**：V8.0+。
+- **关键词**：org.json、isNull、optInt、缺失字段、has、difficulty。
+
+## 17. 纯 JVM 验证 Android 工程核心逻辑的方法
+- 后端核心类（引擎/模型）不依赖 Android 运行时，只有 `WordBank` 引用 `Context/AssetManager`。
+- 解法：给 `WordBank` 加 `loadForTest(dir)`（从文件系统读词库）与 `parse(json,json)`；编译时用 SDK 的 `android.jar` 提供 stub 类（仅编译，不执行），运行时 classpath 加真实 `org.json` jar（Maven `org.json:json`）。
+- 依赖 Android 的 `LocalServer`/`ProgressStore`（SQLite、HTTP 层）需 Robolectric 或真机/模拟器验证，不能纯 JVM。
+- **适用版本**：V8.0+ 自动化验证。
+- **关键词**：JVM 测试、android.jar、stub、loadForTest、org.json、Robolectric。

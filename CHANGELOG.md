@@ -3,6 +3,21 @@
 > 项目：单词地下城（Word Dungeon）｜定位：应试学生向背单词战斗 Roguelike（完全离线）
 > 版本规则：**小改动 +0.1，大改动 +1**（用户锁定，见偏好）
 
+## V8.0 · 原生 Java 后端架构重构（2026-10-26）
+- **核心诉求**：用户要求"不要把代码全部用 HTML 写，要有后端"，并拍板**用 Java**——不引入 Python 运行时，完全离线。
+- **技术架构**：App 内用 **NanoHTTPD**（单依赖 `org.nanohttpd:nanohttpd:2.3.1`）在后台线程启动 `127.0.0.1` 本地 HTTP 服务；前端瘦身为纯 UI + 接口调用；词库放 `assets/data/` 由 Java 读取。
+- **Java 后端 14 个类**（包 `com.guzifeng.worddungeon`）：
+  - 模型：`WordEntry`、`WordRec`（含快刷字段）、`Quiz`、`GameConfig`（全部数值常量）。
+  - 引擎：`WordBank`（词库加载/查询/干扰词）、`SrsEngine`（θ 自适应 + SM-2 + 题型阶梯 + 到期队列）、`QuizEngine`（闯关/无尽出题）、`QuickEngine`（快刷三档）、`DamageCalc`（速度/连击/复仇/暴击）、`EnemyModel`（normal/elite/boss + 无尽缩放 + 冠军）、`RunState`（单局错词 2 次封顶）。
+  - 服务/存储：`LocalServer`（NanoHTTPD，13 条路由对齐 FastAPI + Bearer 鉴权）、`ProgressStore`（SQLite，单用户 id=1）、`MainActivity`（启动/停止服务）。
+- **前端瘦身**：`word-dungeon-demo.html` 从 824KB 降到 **174KB**——删除内嵌 7388 词（单行 584KB）；`WMAP` 改为渲染缓存（`cacheEntry`）；App 内自动探测端口（8080–8087）并等待后端就绪；出题/敌人/统计全部走 API。
+- **修复的真实 bug**：
+  - 无尽模式普通/精英敌人在冠军层（每 5 层）未应用冠军强化且标记写死 false → 已应用 HP×1.25、ATK+3、名称前缀"冠军·"。
+  - `MainActivity.onDestroy()` 访问权限弱于父类（protected vs public）导致编译失败 → 改 public。
+  - 非自适应难度字段缺失时被解析为 0（无效档）→ 改为仅在字段存在且非 null 时取值。
+- **验证**：纯 JVM 综合测试 **53 项全部通过**（词库加载、题型阶梯、毕业、回退、到期队列、四题型、无尽难度、快刷三档、伤害各倍率、敌人生成、冠军、单局封顶）；release + debug APK 均构建成功。
+- 版本号：`versionCode 9 / versionName 8.0`、package.json 8.0.0；Python FastAPI 保留作浏览器开发/云端可选。
+
 ## V6.1 · 美式真人发音（2026-10-26）
 - 进入每个新单词卡片时自动播放**美式真人发音**；每题只发音一次，不重复。
 - **联网**→在线发音（有道词典 dictvoice，`type=2` 美音，URL 直出 MP3，无需 key、覆盖全）；**离线**→不发音、不发请求，自动适配，不影响离线游玩。
