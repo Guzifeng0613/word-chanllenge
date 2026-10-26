@@ -24,7 +24,7 @@ import java.util.Set;
 public class ProgressStore extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "word_dungeon.db";
-    private static final int DB_VERSION = 4;
+    private static final int DB_VERSION = 5;
     public static final long LOCAL_USER_ID = 1L;
 
     private static ProgressStore instance;
@@ -43,7 +43,8 @@ public class ProgressStore extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS users(" +
                 "id INTEGER PRIMARY KEY, name TEXT, token TEXT UNIQUE, created INTEGER, theta REAL DEFAULT 1.5, " +
                 "xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1, streak INTEGER DEFAULT 0, " +
-                "last_day INTEGER DEFAULT 0, endless_best INTEGER DEFAULT 0, ach TEXT DEFAULT '[]')");
+                "last_day INTEGER DEFAULT 0, endless_best INTEGER DEFAULT 0, ach TEXT DEFAULT '[]', " +
+                "souls INTEGER DEFAULT 0)");
         db.execSQL("CREATE TABLE IF NOT EXISTS progress(" +
                 "user_id INTEGER, word TEXT, state TEXT DEFAULT 'NEW', " +
                 "step INTEGER DEFAULT 0, graduated INTEGER DEFAULT 0, stage INTEGER DEFAULT 0, " +
@@ -78,6 +79,14 @@ public class ProgressStore extends SQLiteOpenHelper {
             // V11.7：持久化快刷 quick_pass（错词轮播 passSuppress 依赖）
             try {
                 db.execSQL("ALTER TABLE progress ADD COLUMN quick_pass INTEGER DEFAULT 0");
+            } catch (Throwable ignore) {
+                // 列已存在时忽略
+            }
+        }
+        if (oldV < 5) {
+            // V11.7 R2：词魂 souls 钱包持久化（ACC-40）
+            try {
+                db.execSQL("ALTER TABLE users ADD COLUMN souls INTEGER DEFAULT 0");
             } catch (Throwable ignore) {
                 // 列已存在时忽略
             }
@@ -136,7 +145,7 @@ public class ProgressStore extends SQLiteOpenHelper {
     public JSONObject getMeta() {
         JSONObject o = new JSONObject();
         SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT level,xp,streak,last_day,endless_best,ach FROM users WHERE id=?",
+        Cursor c = db.rawQuery("SELECT level,xp,streak,last_day,endless_best,ach,souls FROM users WHERE id=?",
                 new String[]{String.valueOf(LOCAL_USER_ID)});
         if (c.moveToFirst()) {
             try {
@@ -146,12 +155,13 @@ public class ProgressStore extends SQLiteOpenHelper {
                 o.put("last_day", c.getLong(3));
                 o.put("endless_best", c.getInt(4));
                 o.put("ach", new JSONArray(c.getString(5)));
+                o.put("souls", c.getInt(6));
             } catch (Exception ignore) {
             }
         } else {
             try {
                 o.put("level", 1).put("xp", 0).put("streak", 0).put("last_day", 0)
-                        .put("endless_best", 0).put("ach", new JSONArray());
+                        .put("endless_best", 0).put("ach", new JSONArray()).put("souls", 0);
             } catch (Exception ignore) {
             }
         }
@@ -167,7 +177,21 @@ public class ProgressStore extends SQLiteOpenHelper {
         v.put("last_day", meta.optLong("last_day", 0));
         v.put("endless_best", meta.optInt("endless_best", 0));
         v.put("ach", meta.optJSONArray("ach") == null ? "[]" : meta.optJSONArray("ach").toString());
+        v.put("souls", meta.optInt("souls", 0));
         getWritableDatabase().update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+    }
+
+    /** 词魂余额增减（店铺/击杀奖励），返回最新余额。 */
+    public int addSouls(int delta) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.execSQL("UPDATE users SET souls = souls + ? WHERE id=?",
+                new Object[]{delta, LOCAL_USER_ID});
+        Cursor c = db.rawQuery("SELECT souls FROM users WHERE id=?",
+                new String[]{String.valueOf(LOCAL_USER_ID)});
+        int s = 0;
+        if (c.moveToFirst()) s = c.getInt(0);
+        c.close();
+        return s;
     }
 
     /** 读取全部学习记录。 */
@@ -299,6 +323,7 @@ public class ProgressStore extends SQLiteOpenHelper {
         v.put("endless_best", 0);
         v.put("ach", "[]");
         v.put("theta", 1.5);
+        v.put("souls", 0);
         db.update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
     }
 

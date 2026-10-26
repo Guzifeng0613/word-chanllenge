@@ -136,6 +136,9 @@ public class QuizEngine {
         // 用户规则：单词先以非拼写题型出现过一次，才允许拼写（force=用户显式选型，尊重）
         if (a.force == null) qtype = guardSpell(runState, qtype, word);
 
+        // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
+        if (!"spell".equals(qtype)) runState.exposed.put(word, true);
+
         return buildQuiz(qtype, word, rec, runState, fromReview, null, a.book, a.confuse);
     }
 

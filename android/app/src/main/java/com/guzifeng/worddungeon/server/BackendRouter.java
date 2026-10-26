@@ -2,6 +2,7 @@ package com.guzifeng.worddungeon.server;
 
 import android.content.Context;
 
+import com.guzifeng.worddungeon.core.CardCatalog;
 import com.guzifeng.worddungeon.core.DamageCalc;
 import com.guzifeng.worddungeon.core.EnemyModel;
 import com.guzifeng.worddungeon.core.Quiz;
@@ -65,6 +66,8 @@ public class BackendRouter {
         if ("/progress/reset".equals(route)) return progressReset();
         if ("/enemy/spawn".equals(route)) return enemySpawn(body == null ? new JSONObject() : body);
         if ("/reward/xp".equals(route)) return rewardXp(body == null ? new JSONObject() : body);
+        if ("/card/draw".equals(route)) return cardDraw(body == null ? new JSONObject() : body);
+        if ("/shop/buy".equals(route)) return shopBuy(body == null ? new JSONObject() : body);
         throw new RuntimeException("未知路由: " + route);
     }
 
@@ -219,6 +222,7 @@ public class BackendRouter {
         out.put("xp", meta.optInt("xp", 0));
         out.put("xp_gained", xpGain);
         out.put("level", meta.optInt("level", 1));
+        out.put("souls", meta.optInt("souls", 0));
         out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
         meta.remove("new_ach");
         return out;
@@ -402,6 +406,7 @@ public class BackendRouter {
         out.put("endless_best", meta.optInt("endless_best", 0));
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         out.put("daily", daily);
+        out.put("souls", meta.optInt("souls", 0));
         out.put("due_learning", dueLearning);
         out.put("due_graduated", dueGraduated);
         out.put("new_today", newToday);
@@ -426,6 +431,21 @@ public class BackendRouter {
         int cards = b.optInt("cards", 0);
         if (cards >= 5) unlock(meta, "cards5");
         if (cards >= 10) unlock(meta, "cards10");
+
+        // 累计掌握数成就（master30/60，answer 路径外再补一道幂等解锁）
+        int mastered = store.masteredCount();
+        if (mastered >= 30) unlock(meta, "master30");
+        if (mastered >= 60) unlock(meta, "master60");
+
+        int souls = meta.optInt("souls", 0);
+        if (win && !"quick".equals(mode)) {
+            // 词魂击杀奖励：普通15/精英35/Boss60（V7.0 C.gold）
+            String kind = b.optString("kind", "normal");
+            int reward = "boss".equals(kind) ? 60 : "elite".equals(kind) ? 35 : 15;
+            if (b.optBoolean("champion", false)) reward = Math.round(reward * 1.5f);
+            souls = store.addSouls(reward);
+            meta.put("souls", souls);
+        }
 
         if ("endless".equals(mode)) {
             int best = meta.optInt("endless_best", 0);
@@ -456,6 +476,7 @@ public class BackendRouter {
         out.put("level", meta.optInt("level", 1));
         out.put("xp", meta.optInt("xp", 0));
         out.put("streak", meta.optInt("streak", 0));
+        out.put("souls", souls);
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         return out;
     }
@@ -521,7 +542,74 @@ public class BackendRouter {
         String kind = b.optString("kind", "normal");
         int layer = b.optInt("layer", 1);
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
-        if ("quick".equals(mode) && quickLevel != null) return enemy.spawnQuick(quickLevel);
-        return enemy.spawn(mode, kind, layer);
+        JSONObject o;
+        if ("quick".equals(mode) && quickLevel != null) o = enemy.spawnQuick(quickLevel);
+        else o = enemy.spawn(mode, kind, layer);
+        // 本场微目标（V7.0 BATTLE_GOALS 随机抽一）：streak4=连击4 / hit5=答对5 / flawless=无胜
+        String[] goals = {"streak4", "hit5", "flawless"};
+        o.put("goal", goals[WordBank.get().rnd.nextInt(goals.length)]);
+        return o;
+    }
+
+    /** 词典卡三槽抽取（V7.0 drawChoice，pity/epicPity 由前端 run 状态传入，返回新计数）。 */
+    private JSONObject cardDraw(JSONObject b) throws Exception {
+        String kind = b.optString("kind", "normal");
+        int layer = b.optInt("layer", 1);
+        boolean endless = "endless".equals(b.optString("mode", ""));
+        int pity = b.optInt("pity", 0);
+        int epicPity = b.optInt("epic_pity", 0);
+        JSONArray owned = b.optJSONArray("cards");
+        List<String> ownedIds = new java.util.ArrayList<>();
+        if (owned != null) for (int i = 0; i < owned.length(); i++) ownedIds.add(owned.optString(i));
+        JSONObject out = CardCatalog.draw(kind, layer, endless, pity, epicPity, ownedIds, WordBank.get().rnd);
+        out.put("catalog", CardCatalog.catalog());
+        return out;
+    }
+
+    /** 商店购买：扣词魂并返回余额；血药/祝福为道具，卡按 rarity 发卡数据。 */
+    private JSONObject shopBuy(JSONObject b) throws Exception {
+        String item = b.optString("item", "");
+        int rarity = b.optInt("rarity", 0);
+        int price;
+        switch (item) {
+            case "potion": price = CardCatalog.PRICE_POTION; break;
+            case "bless":  price = CardCatalog.PRICE_BLESS; break;
+            case "card":
+                price = rarity == 2 ? CardCatalog.PRICE_CARD_EPIC
+                        : rarity == 1 ? CardCatalog.PRICE_CARD_RARE : CardCatalog.PRICE_CARD_COMMON;
+                break;
+            case "reroll": price = CardCatalog.REROLL_COST; break;
+            default: throw new RuntimeException("未知商品: " + item);
+        }
+        JSONObject meta = store.getMeta();
+        int souls = meta.optInt("souls", 0);
+        if (souls < price) {
+            JSONObject o = new JSONObject();
+            o.put("ok", false);
+            o.put("reason", "souls_not_enough");
+            o.put("souls", souls);
+            return o;
+        }
+        souls = store.addSouls(-price);
+        JSONObject o = new JSONObject();
+        o.put("ok", true);
+        o.put("item", item);
+        o.put("price", price);
+        o.put("souls", souls);
+        if ("card".equals(item)) {
+            // 商店直购卡：按稀有度从目录抽一张返回卡数据
+            CardCatalog.Card c = CardCatalog.byId(randomCardId(rarity));
+            if (c != null) o.put("card", c.toJson());
+        }
+        return o;
+    }
+
+    private String randomCardId(int rarity) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (int i = 0; i < CardCatalog.catalog().length(); i++) {
+            JSONObject co = CardCatalog.catalog().optJSONObject(i);
+            if (co != null && co.optInt("rarity") == rarity) ids.add(co.optString("id"));
+        }
+        return ids.isEmpty() ? "" : ids.get(WordBank.get().rnd.nextInt(ids.size()));
     }
 }
