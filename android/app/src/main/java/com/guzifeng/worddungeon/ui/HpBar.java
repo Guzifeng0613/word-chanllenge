@@ -1,5 +1,6 @@
 package com.guzifeng.worddungeon.ui;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -20,9 +21,20 @@ public class HpBar extends View {
         this.bg = bg;
     }
 
+    private ValueAnimator anim;
+
     public void setRatio(float r) {
-        ratio = Math.max(0f, Math.min(1f, r));
-        invalidate();
+        float target = Math.max(0f, Math.min(1f, r));
+        if (Math.abs(target - ratio) < 0.001f) return;
+        if (anim != null) anim.cancel();
+        final float from = ratio;
+        anim = ValueAnimator.ofFloat(from, target);
+        anim.setDuration(160);
+        anim.addUpdateListener(a -> {
+            ratio = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        anim.start();
     }
 
     public void setColor(int c) {

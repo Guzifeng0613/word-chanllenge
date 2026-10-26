@@ -1,6 +1,7 @@
 package com.guzifeng.worddungeon.ui;
 
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -8,6 +9,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
@@ -21,7 +23,9 @@ import com.guzifeng.worddungeon.core.RunState;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,7 +63,10 @@ public class BattleView extends FrameLayout {
     private FrameLayout answerArea;
     private LinearLayout timerTrack;
     private View timerFill;
+    private ValueAnimator fillAnim;
     private TextView feedbackLayer;
+    private LinearLayout enemyCard;
+    private TextView dmgPop;
     private EditText spellInput;
     private TextView confirmBtn;
     private LinearLayout spellRow;
@@ -120,6 +127,7 @@ public class BattleView extends FrameLayout {
         hpNumTxt = Ui.text(getContext(), "100 / 100", 11, Ui.TXT, true);
         hpNumTxt.setGravity(Gravity.CENTER);
         ebox.addView(hpNumTxt);
+        enemyCard = ebox;
         col.addView(ebox);
         col.addView(spacer(6));
 
@@ -202,6 +210,13 @@ public class BattleView extends FrameLayout {
         feedbackLayer.setGravity(Gravity.CENTER);
         feedbackLayer.setVisibility(GONE);
         addView(feedbackLayer, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER));
+        // 伤害飘字（打击感：紧贴敌人弹出的金色伤害数字）
+        dmgPop = new TextView(getContext());
+        dmgPop.setTextSize(24);
+        dmgPop.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        dmgPop.setGravity(Gravity.CENTER);
+        dmgPop.setVisibility(GONE);
+        addView(dmgPop, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
     }
 
     // ── 战斗流程 ─────────────────────────────
@@ -541,7 +556,7 @@ public class BattleView extends FrameLayout {
                 } else {
                     showFeed("+" + damage, Ui.GOLD);
                 }
-                hitEnemy(damage);
+                hitEnemy(damage, crit, wrongCnt > 0);
             } else {
                 questionsInRun++;
                 combo = 0;
@@ -582,15 +597,28 @@ public class BattleView extends FrameLayout {
 
     // ── 敌人/玩家受击 ─────────────────────────
 
-    private void hitEnemy(int damage) {
+    private void hitEnemy(int damage, boolean crit, boolean revenge) {
         try {
             int left = Math.max(0, enemy.optInt("hp", 0) - damage);
             enemy.put("hp", left);
             enemyHp.setRatio((float) left / enemy.optInt("maxHp", 100));
             hpNumTxt.setText(left + " / " + enemy.optInt("maxHp", 100));
-            // 攻击动效：敌人抖动 + 震屏
-            shake(enemyEmoji, 300);
+            // 攻击动效：命中顿帧（敌人瞬间放大→回弹）+ 整卡震动 + 伤害飘字 + 金色粒子
+            boolean big = crit || revenge;
+            enemyEmoji.animate().scaleX(1.35f).scaleY(1.35f).setDuration(70)
+                    .withEndAction(() -> enemyEmoji.animate().scaleX(1f).scaleY(1f).setDuration(210).start()).start();
+            shake(enemyEmoji, 260);
+            if (enemyCard != null) shake(enemyCard, 220);
             shakePlayer(true);
+            pulse(comboNum);
+            popDmg((crit ? "💥" : "") + "+" + damage, revenge ? Ui.PURPLE : Ui.GOLD);
+            int[] ec = new int[2];
+            enemyEmoji.getLocationInWindow(ec);
+            int[] bc = new int[2];
+            getLocationInWindow(bc);
+            float cx = ec[0] - bc[0] + enemyEmoji.getWidth() / 2f;
+            float cy = ec[1] - bc[1] + enemyEmoji.getHeight() / 2f;
+            burstParticles(cx, cy, big ? 14 : 8, big ? (revenge ? 0xFFC084FC : 0xFFFBBF24) : 0xFFFCD34D, big ? 52 : 36);
             enemyHp.setColor(left <= 0 ? Ui.GOLD : Ui.RED);
             if (left <= 0) {
                 onKill();
@@ -606,7 +634,18 @@ public class BattleView extends FrameLayout {
         hp = Math.max(0, hp - atk);
         playerHp.setRatio((float) hp / 100f);
         flashRed(playerName);
+        if (playerEmoji != null) {
+            playerEmoji.animate().scaleX(1.3f).scaleY(1.3f).setDuration(80)
+                    .withEndAction(() -> playerEmoji.animate().scaleX(1f).scaleY(1f).setDuration(200).start()).start();
+        }
         shakePlayer(false);
+        int[] pc = new int[2];
+        if (playerEmoji != null) playerEmoji.getLocationInWindow(pc);
+        int[] bc = new int[2];
+        getLocationInWindow(bc);
+        burstParticles(pc[0] - bc[0] + (playerEmoji == null ? 0 : playerEmoji.getWidth() / 2f),
+                pc[1] - bc[1] + (playerEmoji == null ? 0 : playerEmoji.getHeight() / 2f),
+                6, 0xFFF87171, 30);
     }
 
     private void onKill() {
@@ -677,7 +716,7 @@ public class BattleView extends FrameLayout {
         timeLimit = quiz.optDouble("timeLimit", 6);
         remainSec = timeLimit;
         timerOn = true;
-        timerTxt.setText(String.format("%.1f", remainSec) + " 秒");
+        timerTxt.setText(secText(remainSec));
         timerTxt.setTextColor(Ui.MUT);
         setTimerFill(1f);
         timerTick = new Runnable() {
@@ -696,7 +735,7 @@ public class BattleView extends FrameLayout {
                     main.postDelayed(autoSubmit, 60);
                     return;
                 }
-                timerTxt.setText(String.format("%.1f", remainSec) + " 秒");
+                timerTxt.setText(secText(remainSec));
                 setTimerFill((float) Math.max(0, remainSec / timeLimit));
                 if (remainSec <= 2.5) timerTxt.setTextColor(Ui.ORANGE);
                 else timerTxt.setTextColor(Ui.MUT);
@@ -706,12 +745,27 @@ public class BattleView extends FrameLayout {
         main.postDelayed(timerTick, 100);
     }
 
+    private String secText(double s) {
+        if (s <= 0) return "0.0 秒";
+        if (s > 3) return (int) Math.ceil(s) + " 秒";   // 前段整数秒，简洁不跳
+        return String.format("%.1f", s) + " 秒";          // 最后 3 秒显示小数，制造紧迫
+    }
+
     private void setTimerFill(float pct) {
         try {
             int trackW = Math.max(dp(2), timerTrack.getWidth());
-            int w = Math.max(dp(2), (int) (trackW * Math.max(0f, Math.min(1f, pct))));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, dp(8));
-            timerFill.setLayoutParams(lp);
+            int target = Math.max(dp(2), (int) (trackW * Math.max(0f, Math.min(1f, pct))));
+            int from = Math.max(dp(2), timerFill.getWidth());
+            if (from == target) return;
+            if (fillAnim != null) fillAnim.cancel();
+            fillAnim = ValueAnimator.ofInt(from, target);
+            fillAnim.setDuration(90);
+            fillAnim.setInterpolator(new LinearInterpolator());
+            fillAnim.addUpdateListener(a -> {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) a.getAnimatedValue(), dp(8));
+                timerFill.setLayoutParams(lp);
+            });
+            fillAnim.start();
         } catch (Throwable ignore) {}
     }
 
@@ -769,6 +823,66 @@ public class BattleView extends FrameLayout {
         feedbackLayer.setScaleY(0.6f);
         feedbackLayer.animate().alpha(0f).scaleX(1.2f).scaleY(1.2f).setDuration(1100).start();
         main.postDelayed(() -> feedbackLayer.setVisibility(GONE), 1150);
+    }
+
+    private void pulse(View v) {
+        try {
+            v.animate().scaleX(1.35f).scaleY(1.35f).setDuration(80)
+                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(160).start()).start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** 伤害飘字：在敌人位置上方弹出，上浮+放大+淡出 */
+    private void popDmg(String txt, int color) {
+        try {
+            dmgPop.setText(txt);
+            dmgPop.setTextColor(color);
+            int[] ec = new int[2];
+            enemyEmoji.getLocationInWindow(ec);
+            int[] bc = new int[2];
+            getLocationInWindow(bc);
+            float cx = ec[0] - bc[0] + enemyEmoji.getWidth() / 2f;
+            float cy = ec[1] - bc[1] + enemyEmoji.getHeight() / 2f;
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) dmgPop.getLayoutParams();
+            lp.leftMargin = (int) (cx - dp(34));
+            lp.topMargin = (int) (cy - dp(44));
+            dmgPop.setLayoutParams(lp);
+            dmgPop.setVisibility(VISIBLE);
+            dmgPop.setAlpha(1f);
+            dmgPop.setScaleX(0.8f);
+            dmgPop.setScaleY(0.8f);
+            dmgPop.animate().translationY(-dp(34)).scaleX(1.25f).scaleY(1.25f).setDuration(260).start();
+            dmgPop.animate().alpha(0f).scaleX(1.1f).scaleY(1.1f).setStartDelay(240).setDuration(360)
+                    .withEndAction(() -> {
+                        dmgPop.setVisibility(GONE);
+                        dmgPop.setTranslationY(0f);
+                    }).start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** 粒子爆发：从给定点向四周飞散的金色（暴击/复仇紫金色）粒子 */
+    private void burstParticles(float cx, float cy, int n, int color, float spread) {
+        try {
+            for (int i = 0; i < n; i++) {
+                View p = new View(getContext());
+                int sz = dp(3f + (float) Math.random() * 4f);
+                p.setBackground(Ui.card(999, color, 0, 0));
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(sz, sz);
+                lp.leftMargin = (int) (cx - sz / 2f);
+                lp.topMargin = (int) (cy - sz / 2f);
+                addView(p, lp);
+                double ang = Math.random() * Math.PI * 2;
+                float dist = dp(spread * (0.5f + (float) Math.random() * 0.7f));
+                float dx = (float) (Math.cos(ang) * dist);
+                float dy = (float) (Math.sin(ang) * dist) - dp(10);
+                final View fv = p;
+                p.animate().translationX(dx).translationY(dy).alpha(0f).scaleX(0.4f).scaleY(0.4f)
+                        .setDuration(380 + (long) (Math.random() * 220))
+                        .withEndAction(() -> {
+                            try { removeView(fv); } catch (Throwable ignore) {}
+                        }).start();
+            }
+        } catch (Throwable ignore) {}
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }
