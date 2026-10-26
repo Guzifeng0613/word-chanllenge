@@ -46,8 +46,11 @@ public class AchievementsView extends LinearLayout {
             double theta = act.router().dispatch("/review/due", "GET", null).optDouble("theta", 1.5);
 
             addView(card("今日答题", questions + " 题", Ui.CYAN));
+            addView(spacer(8));
             addView(card("今日正确率", accuracy + "%", accuracy >= 85 ? Ui.GREEN : Ui.ORANGE));
+            addView(spacer(8));
             addView(card("今日目标", correct + " / " + goal + " 正确", Ui.GOLD));
+            addView(spacer(8));
             addView(card("θ 自适应水平", String.format("%.2f", theta), Ui.PURPLE));
             addView(spacer(10));
             addView(Ui.text(getContext(), "全对 85% 进入心流 · 连续打卡与完整成就系统迭代中", 12, Ui.MUT, false));
@@ -65,12 +68,7 @@ public class AchievementsView extends LinearLayout {
         TextView kb = Ui.text(getContext(), k, 15, Ui.MUT, false);
         box.addView(kb, new LinearLayout.LayoutParams(0, -2, 1f));
         box.addView(Ui.text(getContext(), v, 16, color, true));
-        LinearLayout wrap = new LinearLayout(getContext());
-        wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.addView(box);
-        addView(wrap);
-        addView(spacer(8));
-        return wrap;
+        return box;
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }

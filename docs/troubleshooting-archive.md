@@ -159,3 +159,14 @@
 - V9.2 自建 WebView+JS 桥仍未连通（真机页面可见但数据层不可达，原因不可远程定位）。
 - 最终方案：**全原生 Android**。UI 原生 View，后端 Java 引擎内存直调，词库/SQLite 本地直读写，无任何进程间/网络通道——"词书不可用"从物理上不可能出现。
 - 教训：本地单进程应用反复引入 Web 容器（Capacitor→自建 WebView）均为过度工程；纯原生直接调库最可靠。
+
+## 22. 无 KVM 沙箱用模拟器定位原生闪退：spacer/row/card 三个 View 根因（V10.0.3）
+- **环境搭建（关键经验）**：沙箱无 /dev/kvm，只能 `-no-accel` 软件模拟（x86_64，系统启动约 4-5 分钟，期间反复 ANR 属正常，点 Wait 即可，最终 boot_completed=1）。
+  - **文件锁坑**：`/home/user` 挂在 hpvs_fs，QEMU 拿不到镜像写锁（`Failed to get "write" lock`）；`/tmp/user` 是 ext4（锁正常）。把 system-images 真实复制到 /tmp/user/sdk（cmdline-tools/licenses 可符号链接），AVD 建到 /tmp/user/avd。
+  - 启动参数：`-no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -no-accel -netdelay none -netspeed full`，环境变量 ANDROID_HOME/ANDROID_AVD_HOME 指向 ext4。
+- **三个确定根因（均为 View 被 addView 两次 / 测量异常）**：
+  1. `Ui.spacer` 只设 minHeight 无 LayoutParams → 测量时空 View 撑满剩余高度，主页后续内容全被挤掉（只显示标题）。
+  2. `SettingsView.row()` 内部 addView 又返回子 View，调用处再 addView → `IllegalStateException: The specified child already has a parent`。
+  3. `AchievementsView.card()` 同型重复 addView。
+- **诊断手法**：`adb shell uiautomator dump` 看 View 树与每个节点 bounds，能直接看出"哪个 View 撑满/缺失"；`adb logcat -d | grep 包名` 抓异常栈；`adb exec-out screencap -p > x.png` 截图。
+- **教训**：① 自定义 helper 返回的 View 必须明确"谁负责 addView"，禁止内部 addView 又返回；② 任何 addView 的 View 都要给确定的 LayoutParams，不依赖默认值；③ 软件模拟下操作慢于 6 秒计时会大量超时，测试时要快速，或临时调大计时。

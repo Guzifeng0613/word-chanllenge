@@ -38,29 +38,32 @@ public class SettingsView extends LinearLayout {
         addView(spacer(14));
 
         int[] bi = {Math.max(0, indexOf(bookIds, act.book))};
-        bookBtn = row("📚 词书：" + bookNames[bi[0]]);
-        addView(bookBtn);
+        LinearLayout bookBox = row("📚 词书：" + bookNames[bi[0]]);
+        bookBtn = (TextView) bookBox.getChildAt(0);
+        addView(bookBox);
         addView(spacer(8));
-        bookBtn.setOnClickListener(v -> {
+        bookBox.setOnClickListener(v -> {
             bi[0] = (bi[0] + 1) % bookIds.length;
             act.book = bookIds[bi[0]];
             bookBtn.setText("📚 词书：" + bookNames[bi[0]]);
         });
 
         int[] di = {Math.max(0, indexOf(diffIds, act.difficulty))};
-        diffBtn = row("🎚 难度：" + diffNames[di[0]]);
-        addView(diffBtn);
+        LinearLayout diffBox = row("🎚 难度：" + diffNames[di[0]]);
+        diffBtn = (TextView) diffBox.getChildAt(0);
+        addView(diffBox);
         addView(spacer(8));
-        diffBtn.setOnClickListener(v -> {
+        diffBox.setOnClickListener(v -> {
             di[0] = (di[0] + 1) % diffIds.length;
             act.difficulty = diffIds[di[0]];
             diffBtn.setText("🎚 难度：" + diffNames[di[0]]);
         });
 
-        speakBtn = row("🔊 单词发音：" + (act.speak ? "开" : "关"));
-        addView(speakBtn);
+        LinearLayout speakBox = row("🔊 单词发音：" + (act.speak ? "开" : "关"));
+        speakBtn = (TextView) speakBox.getChildAt(0);
+        addView(speakBox);
         addView(spacer(8));
-        speakBtn.setOnClickListener(v -> {
+        speakBox.setOnClickListener(v -> {
             act.speak = !act.speak;
             speakBtn.setText("🔊 单词发音：" + (act.speak ? "开" : "关"));
         });
@@ -75,16 +78,17 @@ public class SettingsView extends LinearLayout {
         return -1;
     }
 
-    private TextView row(String label) {
+    private LinearLayout row(String label) {
         LinearLayout box = new LinearLayout(getContext());
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
-        box.setPadding(dp(12), dp(12), dp(12), dp(12));
+        box.setPadding(dp(12), dp(14), dp(12), dp(14));
         box.setBackground(Ui.card(12, Ui.CARD, 1, Ui.LINE));
+        box.setClickable(true);
+        box.setFocusable(true);
         TextView vb = Ui.text(getContext(), label, 15, Ui.TXT, true);
         box.addView(vb);
-        addView(box);
-        return vb;
+        return box;
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }

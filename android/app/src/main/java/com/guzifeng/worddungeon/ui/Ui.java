@@ -72,10 +72,11 @@ public final class Ui {
         return b;
     }
 
-    /** 占位 View */
+    /** 占位 View：固定宽高（垂直容器里作竖向间距，水平容器里作横向间距） */
     public static View spacer(Context c, int dpH) {
         View v = new View(c);
-        v.setMinimumHeight(dp(c, dpH));
+        int px = dp(c, dpH);
+        v.setLayoutParams(new android.widget.LinearLayout.LayoutParams(px, px));
         return v;
     }
 }

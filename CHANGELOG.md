@@ -3,6 +3,19 @@
 > 项目：单词地下城（Word Dungeon）｜定位：应试学生向背单词战斗 Roguelike（完全离线）
 > 版本规则：**小改动 +0.1，大改动 +1**（用户锁定，见偏好）
 
+## V10.0.3 · 模拟器定位并修复原生 UI 崩溃三连（2026-10-26）
+- **背景**：V10.0 全原生重构（零 WebView/零网络，UI 全 Android 原生 View，引擎内存直调）后，V10.0/10.0.1/10.0.2 真机（一加13）均"闪退"。沙箱无 KVM，用 Android 14 x86_64 模拟器（-no-accel 软件模拟）复现并定位到**确定的代码根因**。
+- **根因 1（核心）：`Ui.spacer` 未设置 LayoutParams**。旧实现只 `setMinimumHeight`，空 View 被 addView 到 LinearLayout 时拿到默认 LayoutParams，测量异常（一个 spacer 撑满剩余高度，bounds 356→2221），把主页后续所有内容（状态/词书/难度/模式/按钮）挤掉——主页只显示标题。修复：spacer 明确设置 `LinearLayout.LayoutParams(px, px)` 固定宽高（垂直容器作竖向间距、水平容器作横向间距）。
+- **根因 2：`SettingsView.row()` 重复 addView**。row() 内部已把 box 加入容器并返回内部 TextView，调用处又 addView 返回值 → `IllegalStateException: The specified child already has a parent`。修复：row() 返回 box（不 addView），调用处 addView(box) 并通过 getChildAt(0) 取 TextView，监听设到 box。
+- **根因 3：`AchievementsView.card()` 同型重复 addView**。card() 内部 addView 后返回，调用处又 addView。修复：card() 只返回 box，spacer 由调用处补。
+- **模拟器全流程验证（release 真机等同代码）**：主页完整渲染、后端就绪（词库 7388 词，高考3674/四级3846/六级5406/考研4801）、战斗页四题型、答对攻击敌人掉血、答错玩家受击、连击/击杀/进入第2层/精英敌人（金色血条）、词性标注（N./ADV.）、错词归档（按错误次数+难度）、错词复习（记住/再复习）全部正常。
+- 版本 10.0.3 / versionCode 16（小改动 +0.1）。
+
+## V10.0 · 全原生重构（零 WebView/零网络）（2026-10-26）
+- 用户拍板"用全原生的去写"：彻底移除 WebView/JS 桥/HTTP/Capacitor 通道，UI 全部 Android 原生 View（HomeView/BattleView/ResultView/WrongbookView/SettingsView/AchievementsView + Ui/HpBar），后端引擎全部 Java 类内存直调 BackendRouter——物理上不存在"连接"环节。
+- 新增 App.java（Application，未捕获异常落盘 crash.log + takeCrash 自诊断）；MainActivity 改为 FrameLayout 容器 + Screen 枚举切换。
+- V10.0.1：崩溃落盘 + 主页红字 + View 构造 try-catch；V10.0.2：onCreate 全兜底 + show 判空 + Toast。大改动 +1（10.0），修复 +0.1/+0.2。
+
 ## V9.0 · 后端通道架构重构：Capacitor 插件桥（2026-10-26）
 - **根因定位**：真机"本地后端未启动"的根因是前端 HTTP fetch 本地端口整条链路在 WebView 中不可靠（页面 scheme 与 mixed content、CORS、WebView 网络限制任一环都可能阻断，无 logcat 无法精确定位）；已排除词库丢失、NanoHTTPD 未打包、cleartext 未放行、CSP、minify。
 - **根治方案**：新增 `bridge/WordDungeonPlugin`（@CapacitorPlugin + call 方法），前端通过 `Capacitor.Plugins.WordDungeon.call({route,payload})` **直调 Java 后端**，彻底绕开 HTTP/端口/cleartext/CORS/mixed-content 网络层。
