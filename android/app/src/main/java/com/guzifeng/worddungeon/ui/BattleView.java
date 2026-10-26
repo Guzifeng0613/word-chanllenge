@@ -619,6 +619,8 @@ public class BattleView extends FrameLayout {
             float cx = ec[0] - bc[0] + enemyEmoji.getWidth() / 2f;
             float cy = ec[1] - bc[1] + enemyEmoji.getHeight() / 2f;
             burstParticles(cx, cy, big ? 14 : 8, big ? (revenge ? 0xFFC084FC : 0xFFFBBF24) : 0xFFFCD34D, big ? 52 : 36);
+            if (big) Ui.vibrate(getContext(), new long[]{0, 45, 35, 60});
+            else Ui.vibrate(getContext(), 30);
             enemyHp.setColor(left <= 0 ? Ui.GOLD : Ui.RED);
             if (left <= 0) {
                 onKill();
@@ -646,10 +648,12 @@ public class BattleView extends FrameLayout {
         burstParticles(pc[0] - bc[0] + (playerEmoji == null ? 0 : playerEmoji.getWidth() / 2f),
                 pc[1] - bc[1] + (playerEmoji == null ? 0 : playerEmoji.getHeight() / 2f),
                 6, 0xFFF87171, 30);
+        Ui.vibrate(getContext(), 50);
     }
 
     private void onKill() {
         killsInRun++;
+        Ui.vibrate(getContext(), new long[]{0, 50, 40, 70, 40, 90});   // 击杀胜利反馈
         if ("endless".equals(mode)) {
             layer++;
             main.postDelayed(() -> {

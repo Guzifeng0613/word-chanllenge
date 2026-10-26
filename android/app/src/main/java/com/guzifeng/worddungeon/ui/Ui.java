@@ -1,6 +1,10 @@
 package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
@@ -148,6 +152,29 @@ public final class Ui {
         kp.leftMargin = on ? dp(c, 44 - 24) : 0;
         knob.setLayoutParams(kp);
         s.addView(knob);
+    }
+
+    /** 震动反馈（设置页「震动触感」开关联动；wav 形如 {0, 50, 40, 70}：延迟+震动+停顿+震动） */
+    public static void vibrate(Context c, long ms) {
+        vibrate(c, new long[]{0, ms});
+    }
+
+    public static void vibrate(Context c, long[] wav) {
+        try {
+            SharedPreferences sp = c.getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+            if (!sp.getBoolean("vibrate", false)) return;   // 用户开关：默认关
+            Vibrator vb = (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vb == null || !vb.hasVibrator()) return;
+            if (Build.VERSION.SDK_INT >= 26) {
+                vb.vibrate(VibrationEffect.createWaveform(wav, -1));
+            } else {
+                long total = 0;
+                for (long x : wav) total += x;
+                @SuppressWarnings("deprecation")
+                long v = total;
+                vb.vibrate(v);
+            }
+        } catch (Throwable ignore) {}
     }
 
     /** 横分隔线 */

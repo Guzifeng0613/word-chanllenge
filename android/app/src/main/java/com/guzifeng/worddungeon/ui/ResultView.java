@@ -57,6 +57,7 @@ public class ResultView extends LinearLayout {
         maxCombo = mc;
         kills = k;
         rebuild();
+        if (w) Ui.vibrate(getContext(), new long[]{0, 60, 50, 90, 60, 120});   // 胜利结算反馈
         // 后端结算：每日目标 / 无尽纪录 / 成就
         new Thread(() -> {
             try {
