@@ -19,10 +19,12 @@
   body{
     font-family:"PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
     background:radial-gradient(1200px 800px at 50% -10%, #1b3257 0%, var(--bg1) 45%, var(--bg0) 100%);
-    color:var(--txt); min-height:100vh;
+    color:var(--txt); min-height:100vh; min-height:100dvh;
   }
-  #app{max-width:480px; margin:0 auto; min-height:100vh; padding:14px 14px 26px; position:relative;}
-  button{font-family:inherit; cursor:pointer;}
+  #app{width:100%; max-width:520px; margin:0 auto; min-height:100vh; min-height:100dvh; padding:14px 14px 26px; position:relative;}
+  /* 撑满屏幕：手机视口全宽无留白；宽屏才居中限宽 */
+  @media (max-width:600px){ #app{max-width:none;} }
+  button{font-family:inherit; cursor:pointer; touch-action:manipulation; -webkit-user-select:none; user-select:none;}
   .mut{color:var(--mut);}
   .center{text-align:center;}
 
@@ -195,6 +197,48 @@
   .rtag{display:inline-block; font-size:11px; padding:1px 7px; border-radius:5px; margin-left:8px;
     background:#2a4066; color:var(--mut);}
   .rtag.rare{background:rgba(251,191,36,.2); color:var(--gold);}
+
+  /* 翻牌抽卡（3D flip + 稀有度光效） */
+  .flip-row{display:flex; gap:8px; justify-content:center; margin:6px 0 14px;}
+  .flip-card{flex:1; max-width:150px; height:232px; perspective:900px; cursor:pointer;}
+  .flip-card.empty{cursor:default;}
+  .flip-inner{position:relative; width:100%; height:100%; transition:transform .55s cubic-bezier(.2,.8,.25,1); transform-style:preserve-3d;}
+  .flip-card.flipped .flip-inner{transform:rotateY(180deg);}
+  .flip-back,.flip-front{position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+    border-radius:12px; border:1.5px solid var(--line); overflow:hidden;}
+  .flip-back{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    background:linear-gradient(160deg,#16263e,#1c3050);}
+  .flip-back .fb-rune{font-size:34px; font-weight:800; color:var(--mut);}
+  .flip-back .fb-sub{font-size:11px; color:var(--mut);}
+  .flip-front{transform:rotateY(180deg); background:#1a2d4d; padding:10px 8px;
+    display:flex; flex-direction:column; align-items:center; text-align:center;}
+  .r0{border-color:#46608a;}
+  .flip-back.r0 .fb-rune{color:#9db4d0;}
+  .r1{border-color:var(--cyan); box-shadow:0 0 14px rgba(56,189,248,.35);}
+  .flip-back.r1{background:linear-gradient(160deg,#102540,#173a5e);}
+  .flip-back.r1 .fb-rune{color:var(--cyan);}
+  .flip-front.r1{border-color:var(--cyan); background:linear-gradient(160deg,#102540,#173452);}
+  .r2{border-color:var(--gold); animation:epicGlow 1.6s ease-in-out infinite alternate;}
+  .flip-back.r2{background:linear-gradient(160deg,#2a2010,#3a2c12);}
+  .flip-back.r2 .fb-rune{color:var(--gold);}
+  .flip-front.r2{border-color:var(--gold); background:linear-gradient(160deg,#2a2010,#33260f);}
+  @keyframes epicGlow{from{box-shadow:0 0 12px rgba(251,191,36,.4);} to{box-shadow:0 0 26px rgba(251,191,36,.75);}}
+  .pf-rarity{font-size:10px; padding:1px 8px; border-radius:5px; background:#2a4066; color:var(--mut);}
+  .flip-front.r1 .pf-rarity{background:rgba(56,189,248,.2); color:var(--cyan);}
+  .flip-front.r2 .pf-rarity{background:rgba(251,191,36,.25); color:var(--gold);}
+  .pf-name{font-size:15px; font-weight:800; margin:6px 0 4px;}
+  .flip-front.r1 .pf-name{color:var(--cyan);}
+  .flip-front.r2 .pf-name{color:var(--gold);}
+  .pf-tags{display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin-bottom:5px;}
+  .ctag{font-size:9px; padding:1px 5px; border-radius:4px; background:#2a4066; color:var(--mut);}
+  .pf-desc{font-size:10.5px; color:var(--mut); line-height:1.55; flex:1;}
+  .pf-pick{margin-top:6px; width:100%; padding:7px 0; border-radius:8px; border:none; background:var(--cyan); color:#06223a; font-size:12px; font-weight:700;}
+  .flip-front.r2 .pf-pick{background:var(--gold); color:#3a2600;}
+  .choice-actions{display:flex; flex-direction:column; gap:8px;}
+  .ghostbtn.disabled{opacity:.45; pointer-events:none;}
+  .pity-hint{font-size:12px; font-weight:700; margin-top:6px;}
+  .pity-hint.epic{color:var(--gold); animation:epicGlow 1.2s ease-in-out infinite alternate;}
+  .pity-hint.rare{color:var(--cyan);}
 
   /* 泉 / 商店 */
   .panel-title{text-align:center; font-size:19px; font-weight:700; margin:8px 0 4px;}
@@ -383,11 +427,373 @@
    .timer{margin-top:6px;}
    .playerhud{margin-top:8px;}
  }
+ /* ===== V4.6 UI 改版：模式选择卡 / 稳定的题目框 / 紧凑设置 ===== */
+ /* 模式选择：远征 / 无尽 */
+ .mode-select{display:flex; flex-direction:column; gap:10px; margin-top:14px;}
+ .mode-card{display:flex; align-items:center; gap:13px; text-align:left; padding:14px 15px; border-radius:14px;
+   border:1.5px solid var(--line); background:linear-gradient(135deg,var(--card),var(--card2));
+   color:var(--txt); width:100%; box-shadow:0 4px 14px rgba(0,0,0,.28);}
+ .mode-card:active{transform:translateY(1px);}
+ .mode-card .mico{width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+   font-size:23px; flex:none; color:#fff;}
+ .mode-card.campaign .mico{background:linear-gradient(140deg,#1d4ed8,#38bdf8); box-shadow:0 0 14px rgba(56,189,248,.45);}
+ .mode-card.endless .mico{background:linear-gradient(140deg,#7c3aed,#db2777); box-shadow:0 0 14px rgba(219,39,119,.45);}
+ .mode-card .mbody{flex:1; min-width:0;}
+ .mode-card .mtitle{font-size:16.5px; font-weight:800; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+ .mode-card .mdesc{font-size:12.5px; color:var(--mut); margin-top:3px; line-height:1.4;}
+ .mode-card .mgo{font-size:20px; color:var(--mut); flex:none;}
+ .mode-card .mtag{font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:6px; letter-spacing:.5px;}
+ .mode-card.campaign .mtag{background:rgba(56,189,248,.18); color:var(--cyan);}
+ .mode-card.endless .mtag{background:rgba(219,39,119,.2); color:#f0a6c8;}
+ .mode-card .mrecord{font-size:11.5px; color:var(--gold); font-weight:700;}
+
+ /* 词书 / 难度设置：清晰分组 + 词数 */
+ .set-group{margin-top:4px;}
+ .set-label{display:flex; align-items:center; justify-content:space-between; font-size:13px; font-weight:700; margin:12px 0 7px;}
+ .set-label .hint{font-size:11.5px; color:var(--mut); font-weight:400;}
+ .book-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
+ .book-opt{display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:10px; border:1.5px solid var(--line);
+   background:#0e2238; color:var(--txt); text-align:left;}
+ .book-opt .bname{font-size:14.5px; font-weight:700;}
+ .book-opt .bcount{font-size:11px; color:var(--mut); margin-top:2px;}
+ .book-opt.on{border-color:var(--cyan); background:linear-gradient(135deg,rgba(37,99,235,.35),rgba(56,189,248,.18));}
+ .book-opt.on .bcheck{color:var(--cyan);}
+ .book-opt .bcheck{margin-left:auto; color:transparent; font-size:15px; font-weight:900;}
+ .diff-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:6px;}
+ .diff-opt{padding:10px 2px; border-radius:9px; border:1.5px solid var(--line); background:#0e2238;
+   color:var(--mut); font-size:12.5px; font-weight:700;}
+ .diff-opt.on{background:linear-gradient(180deg,#1d4ed8,#2563eb); color:#fff; border-color:#3b82f6;}
+ .range-line{display:flex; align-items:center; gap:8px; margin-top:12px; padding:10px 12px; border-radius:10px;
+   background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.25); font-size:12.5px;}
+ .range-line b{color:var(--cyan);}
+ .range-line .rcount{margin-left:auto; font-weight:800; color:var(--txt);}
+
+ /* 题目框：稳定的入场（淡入上移，不再抖动），qhead 居中对齐 */
+ .qcard{animation:qenter .3s cubic-bezier(.2,.8,.3,1);}
+ .enemy.inbattle{animation:qenter .3s cubic-bezier(.2,.8,.3,1);}
+ @keyframes qenter{0%{opacity:0; transform:translateY(10px);}100%{opacity:1; transform:translateY(0);}}
+ .qhead{align-items:center;}
+ /* 紧凑的玩家状态头部 */
+ .status-head{display:flex; align-items:center; gap:12px; padding:12px 14px;}
+ .status-head .lvl{width:44px; height:44px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+   font-size:18px; font-weight:900; color:#0b1424; background:linear-gradient(160deg,#fcd34d,#f59e0b);
+   box-shadow:0 0 12px rgba(251,191,36,.5);}
+ .status-head .sbody{flex:1; min-width:0;}
+ .status-head .srow{display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700;}
+ .status-head .sxp{font-size:11px; color:var(--mut); font-weight:600;}
+ .status-head .sstreak{display:flex; align-items:center; gap:4px; font-size:13px; color:var(--gold); font-weight:800; white-space:nowrap;}
+ .status-head .xpbar{margin-top:6px;}
+
+ /* ══ V4.7 手绘线框布局：顶部横幅 + 发射卡（模式tab/设置/开始）+ 底部三入口 ══ */
+ .home-banner{border-radius:16px; padding:16px 16px 14px; position:relative; overflow:hidden;
+   background:linear-gradient(150deg,#1c3050 0%,#16263e 60%,#10203a 100%);
+   border:1px solid var(--line);}
+ .home-banner::before{content:""; position:absolute; right:-40px; top:-50px; width:150px; height:150px;
+   background:radial-gradient(circle,rgba(56,189,248,.22),transparent 70%);}
+ .hb-top{display:flex; align-items:center; gap:12px; position:relative;}
+ .hb-lvl{width:42px; height:42px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+   font-size:17px; font-weight:900; color:#0b1424; background:linear-gradient(160deg,#fcd34d,#f59e0b);
+   box-shadow:0 0 12px rgba(251,191,36,.5);}
+ .hb-titles{flex:1; min-width:0;}
+ .hb-titles h1{font-size:21px; font-weight:900; letter-spacing:.5px; margin:0; line-height:1.2;}
+ .hb-titles .sub{font-size:11px; color:var(--mut); margin-top:2px;}
+ .hb-streak{flex:none; font-size:13px; font-weight:800; color:var(--gold); white-space:nowrap;}
+ .hb-xp{margin-top:12px; position:relative;}
+ .hb-xp .bar{height:7px;}
+ .hb-xp .xplab{display:flex; justify-content:space-between; font-size:10.5px; color:var(--mut);
+   margin-top:5px; font-weight:600;}
+
+ .launch-card{margin-top:12px; border-radius:16px; padding:13px; background:linear-gradient(180deg,var(--card),var(--card2));
+   border:1px solid var(--line);}
+ .mode-tabs{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+ .mode-tab{display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:12px; text-align:left;
+   border:1.5px solid var(--line); background:#0e2238; color:var(--mut);}
+ .mode-tab .tic{width:34px; height:34px; border-radius:9px; flex:none; display:flex; align-items:center; justify-content:center;
+   font-size:18px;}
+ .mode-tab .tt{flex:1; min-width:0;}
+ .mode-tab .tt b{display:block; font-size:14.5px; font-weight:800; color:var(--txt);}
+ .mode-tab .tt span{font-size:10.5px; color:var(--mut);}
+ .mode-tab.campaign.sel{border-color:var(--cyan); background:linear-gradient(135deg,rgba(29,78,216,.4),rgba(56,189,248,.18));
+   box-shadow:0 0 13px rgba(56,189,248,.28);}
+ .mode-tab.campaign.sel .tic{background:linear-gradient(140deg,#1d4ed8,#38bdf8);}
+ .mode-tab.endless.sel{border-color:#db2777; background:linear-gradient(135deg,rgba(124,58,237,.4),rgba(219,39,119,.18));
+   box-shadow:0 0 13px rgba(219,39,119,.28);}
+ .mode-tab.endless.sel .tic{background:linear-gradient(140deg,#7c3aed,#db2777);}
+ .mode-tab.sel{animation:tabpop .25s ease;}
+ @keyframes tabpop{0%{transform:scale(.96)}60%{transform:scale(1.02)}100%{transform:scale(1)}}
+
+ .launch-settings{margin-top:12px; border-top:1px solid var(--line); padding-top:12px;}
+ .ls-label{display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:7px;}
+ .ls-label span:last-child{font-size:10.5px; color:var(--mut); font-weight:400;}
+ .book-grid{grid-template-columns:repeat(4,1fr); gap:6px;}
+ .book-opt{flex-direction:column; align-items:stretch; gap:3px; padding:8px 6px; text-align:center;}
+ .book-opt .bcheck{position:absolute; top:3px; right:5px; margin:0;}
+ .book-opt{position:relative;}
+ .book-opt .bname{font-size:12.5px;}
+ .book-opt .bcount{font-size:10px;}
+ .diff-grid{grid-template-columns:repeat(5,1fr);}
+ .range-line{margin-top:10px; padding:8px 10px; font-size:11.5px;}
+
+ .launch-btn{margin-top:13px; width:100%; padding:14px; border:0; border-radius:13px;
+   font-size:16.5px; font-weight:900; letter-spacing:1px; color:#081326;
+   background:linear-gradient(135deg,#fcd34d,#f59e0b); box-shadow:0 8px 20px -8px rgba(251,191,36,.6);}
+ .launch-btn:active{transform:translateY(1px);}
+ .launch-btn small{display:block; font-size:10.5px; font-weight:600; color:#5b4310; letter-spacing:0; margin-top:2px;}
+
+ /* 配置行：主页显示词书/难度，点击进设置修改 */
+ .cfg-line{display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;
+   margin-top:12px; padding:9px 12px; border-radius:10px; border:1px dashed var(--line);
+   background:rgba(56,189,248,.07); font-size:12px; color:var(--mut); text-align:left;}
+ .cfg-line b{color:var(--txt);}
+ .cfg-line .cc{color:var(--cyan); font-weight:700; display:flex; align-items:center; gap:6px; white-space:nowrap;}
+ .cfg-line .cgo{font-size:10.5px; color:var(--gold); font-weight:800;}
+
+ .home-dock{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:12px;}
+ .dock-item{display:flex; flex-direction:column; align-items:center; gap:5px; padding:13px 6px; border-radius:13px;
+   border:1px solid var(--line); background:linear-gradient(180deg,var(--card),var(--card2)); color:var(--txt);}
+ .dock-item .dic{font-size:21px; line-height:1;}
+ .dock-item .dn{font-size:12px; font-weight:700;}
+ .dock-item .db{font-size:10px; color:var(--mut); font-weight:600;}
+ .dock-item:active{transform:translateY(1px);}
+ .home-more{margin-top:11px; text-align:center;}
+
+ /* ══ V4.7.1 设置页 + ⓘ 解释角标 + 点击弹窗 ══ */
+ .subhead{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
+ .subhead .back{width:34px; height:34px; border-radius:10px; border:1px solid var(--line); background:#0e2238;
+   color:var(--txt); font-size:17px; font-weight:700;}
+ .subhead .st{font-size:17px; font-weight:800; flex:1;}
+ .subhead .smut{font-size:11px; color:var(--mut); font-weight:400;}
+
+ .info-tip{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+   border-radius:50%; font-size:10px; font-weight:800; color:var(--mut); background:#22385e;
+   border:1px solid var(--line); margin-left:4px; vertical-align:1px; line-height:1; cursor:pointer;}
+ .info-tip:active{transform:scale(.92);}
+
+ #tipbox{position:fixed; z-index:999; max-width:260px; padding:11px 13px; border-radius:10px;
+   background:linear-gradient(180deg,#22385e,#1c3050); border:1px solid #3b5d8f; color:var(--txt);
+   font-size:12px; line-height:1.75; box-shadow:0 10px 26px -8px rgba(0,0,0,.55); display:none;}
+ #tipbox::before{content:""; position:absolute; top:-6px; left:18px; width:11px; height:11px;
+   background:#22385e; border-left:1px solid #3b5d8f; border-top:1px solid #3b5d8f;
+   transform:rotate(45deg);}
+ #tipbox b{color:var(--gold);}
+
+ .set-sec{margin-top:12px;}
+ .set-sec .sec-h{margin:4px 0 8px;}
+ .set-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0;
+   border-bottom:1px solid rgba(51,80,122,.45); font-size:13.5px;}
+ .set-row:last-child{border-bottom:none;}
+ .set-row .v{color:var(--mut); font-weight:600; font-size:12.5px;}
+ .set-row .v b{color:var(--cyan);}
+ .about-line{font-size:11px; color:var(--mut); line-height:1.8; margin-top:6px;}
+
+ /* V4.8 声音设置：开关 + 音量滑条 */
+ .audio-row{display:flex; align-items:center; gap:10px; padding:9px 0;
+   border-bottom:1px solid rgba(51,80,122,.45); font-size:13px;}
+ .audio-row:last-child{border-bottom:none;}
+ .audio-row .lab{flex:1;}
+ .audio-row .lab .sub{display:block; font-size:11px; color:var(--mut); margin-top:1px;}
+ .switch{position:relative; width:44px; height:24px; flex:none; border-radius:12px;
+   background:var(--line); border:1px solid rgba(51,80,122,.8); cursor:pointer;
+   transition:background .2s, border-color .2s; padding:0;}
+ .switch i{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+   background:var(--mut); transition:transform .2s, background .2s;}
+ .switch.on{background:linear-gradient(90deg,var(--gold),var(--orange)); border-color:transparent;}
+ .switch.on i{transform:translateX(20px); background:#1a1206;}
+ .vol-row{display:flex; align-items:center; gap:10px; padding:8px 0; font-size:12px; color:var(--mut);}
+ .vol-row .vt{width:44px; flex:none;}
+ .vol-row input[type=range]{flex:1; -webkit-appearance:none; appearance:none; height:5px; border-radius:3px;
+   background:var(--line); outline:none; margin:0;}
+ .vol-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; appearance:none;
+   width:16px; height:16px; border-radius:50%; background:var(--gold); cursor:pointer;
+   box-shadow:0 0 6px rgba(251,191,36,.6);}
+ .vol-row input[type=range]::-moz-range-thumb{width:16px; height:16px; border:none; border-radius:50%;
+   background:var(--gold); cursor:pointer;}
+ .vol-row .vv{width:34px; text-align:right; flex:none; color:var(--txt); font-weight:700;}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div class="vignette" id="vignette"></div>
+<div id="tipbox"></div>
+<script>
+/* ============================================================
+ * V4.8 音频引擎：程序化合成音效 + 音序器 BGM + 震动
+ * 全部用 Web Audio API 实时合成，无外部音频文件，可离线、零体积
+ * ============================================================ */
+const AUDIO_KEY='word_dungeon_audio_v1';
+let AUD={sfx:true,bgm:true,vibrate:true,sfxVol:0.85,bgmVol:0.5};
+function loadAudioSettings(){ try{Object.assign(AUD,JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}'));}catch(e){} }
+function saveAudioSettings(){ try{localStorage.setItem(AUDIO_KEY,JSON.stringify(AUD));}catch(e){} }
+loadAudioSettings();
+
+const AudioEngine=(()=>{
+  let ctx=null,sfxBus=null,bgmBus=null;
+  let schedTimer=null,bgmStep=0,nextStepTime=0,bgmMode='home';
+
+  function ensure(){
+    if(!ctx){
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC) return null;
+      ctx=new AC();
+      sfxBus=ctx.createGain(); sfxBus.connect(ctx.destination);
+      bgmBus=ctx.createGain(); bgmBus.connect(ctx.destination);
+      applyVol();
+    }
+    if(ctx.state==='suspended') ctx.resume();
+    return ctx;
+  }
+  function unlock(){ ensure(); }
+  function applyVol(){
+    if(!ctx) return;
+    sfxBus.gain.value=AUD.sfx?AUD.sfxVol:0;
+    bgmBus.gain.value=AUD.bgm?AUD.bgmVol:0;
+  }
+
+  /* ── 基础合成单元 ── */
+  function tone(freq,start,dur,type,vol,slideTo,bus){
+    if(!ensure()) return;
+    const t0=ctx.currentTime+(start||0);
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(freq,t0);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.linearRampToValueAtTime(vol,t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0008,t0+dur);
+    o.connect(g); g.connect(bus||sfxBus);
+    o.start(t0); o.stop(t0+dur+0.05);
+  }
+  function noise(start,dur,vol,filterFreq,ftype,q){
+    if(!ensure()) return;
+    const t0=ctx.currentTime+(start||0);
+    const n=Math.floor(ctx.sampleRate*dur);
+    const buf=ctx.createBuffer(1,n,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type=ftype||'lowpass';
+    f.frequency.value=filterFreq||2000; f.Q.value=q||0.7;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(vol,t0);
+    g.gain.exponentialRampToValueAtTime(0.0008,t0+dur);
+    src.connect(f); f.connect(g); g.connect(sfxBus);
+    src.start(t0); src.stop(t0+dur);
+  }
+
+  /* ── 音效清单 ── */
+  const SFX={
+    hit(){ tone(240,0,0.14,'triangle',0.45,70); noise(0,0.07,0.22,2600); },
+    crit(){ tone(320,0,0.3,'square',0.32,60); noise(0,0.18,0.3,1800); tone(660,0.02,0.25,'sawtooth',0.18,180); },
+    revenge(){ tone(330,0,0.11,'triangle',0.4,330); tone(660,0.1,0.22,'triangle',0.4,660); noise(0,0.12,0.18,3200); },
+    enemyDie(){ tone(400,0,0.4,'sawtooth',0.3,50); noise(0,0.3,0.26,1200); },
+    hurt(){ tone(130,0,0.3,'sine',0.45,40); noise(0,0.2,0.28,900); },
+    correct(){ tone(660,0,0.1,'triangle',0.3); tone(880,0.08,0.14,'triangle',0.3); },
+    wrong(){ tone(220,0,0.25,'sawtooth',0.28,110); },
+    tap(){ tone(760,0,0.05,'sine',0.2); },
+    key(){ tone(520,0,0.04,'sine',0.15); },
+    levelup(){ [523,659,784,1047].forEach((f,i)=>tone(f,i*0.09,0.32,'triangle',0.35)); },
+    reward(){ tone(1200,0,0.08,'square',0.16); tone(1600,0.07,0.12,'square',0.16); },
+    flow(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,i*0.06,0.26,'sine',0.26)); },
+    node(){ tone(880,0,0.4,'sine',0.26,880); tone(1320,0.05,0.5,'sine',0.18,1320); },
+    victory(){
+      [523,659,784,1047].forEach((f,i)=>tone(f,i*0.15,0.5,'sawtooth',0.26));
+      [523,587,659,784,880,1047].forEach((f,i)=>tone(f,0.7+i*0.1,0.2,'triangle',0.28));
+    },
+    defeat(){ tone(330,0,0.6,'sawtooth',0.3,110); tone(220,0.3,0.8,'sine',0.28,55); }
+  };
+  function play(name){
+    if(!AUD.sfx) return;
+    const f=SFX[name]; if(f) f();
+  }
+  function fx(name,vib){ play(name); if(vib) vibrate(vib); }
+
+  /* ── 震动（触感） ── */
+  function vibrate(p){
+    if(!AUD.vibrate) return;
+    try{ navigator.vibrate(p); }catch(e){}
+  }
+
+  /* ── BGM 音序器（16 步 × 三种场景） ── */
+  const BGM={
+    home:{bpm:72,root:110,bassLen:7,
+      bass:[0,null,null,null,null,null,0,null,null,null,null,null,null,null,null,null],
+      lead:[null,null,12,null,null,null,null,null,7,null,null,10,null,null,null,null],
+      kick:[],hat:[]},
+    battle:{bpm:104,root:110,bassLen:2,
+      bass:[0,null,null,0,null,null,0,null,5,null,null,0,null,null,7,null],
+      lead:[null,null,null,null,12,null,null,null,null,null,10,null,null,null,null,null],
+      kick:[0,4,8,12],hat:[2,6,10,14]},
+    boss:{bpm:128,root:110,bassLen:2,
+      bass:[0,0,null,0,0,null,0,0,3,0,null,0,0,0,null,0],
+      lead:[12,null,12,null,10,null,12,null,15,null,12,null,10,null,7,null],
+      kick:[0,3,6,8,11,14],hat:[2,4,6,10,12,14]}
+  };
+  function bgmTone(freq,t,dur,type,vol){
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(bgmBus); o.start(t); o.stop(t+dur+0.05);
+  }
+  function bgmKick(t){
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(120,t);
+    o.frequency.exponentialRampToValueAtTime(40,t+0.12);
+    g.gain.setValueAtTime(0.45,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.16);
+    o.connect(g); g.connect(bgmBus); o.start(t); o.stop(t+0.2);
+  }
+  function bgmHat(t){
+    const n=Math.floor(ctx.sampleRate*0.05);
+    const buf=ctx.createBuffer(1,n,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+    const s=ctx.createBufferSource(); s.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=7000;
+    const g=ctx.createGain(); g.gain.setValueAtTime(0.1,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.05);
+    s.connect(f); f.connect(g); g.connect(bgmBus); s.start(t);
+  }
+  function scheduleStep(step,t,cfg,spb){
+    const b=cfg.bass[step];
+    if(b!==null&&b!==undefined) bgmTone(cfg.root*Math.pow(2,b/12),t,spb*cfg.bassLen,'triangle',0.14);
+    const l=cfg.lead[step];
+    if(l!==null&&l!==undefined) bgmTone(cfg.root*4*Math.pow(2,l/12),t,spb*1.7,'sine',0.08);
+    if(cfg.kick.includes(step)) bgmKick(t);
+    if(cfg.hat.includes(step)) bgmHat(t);
+  }
+  function scheduler(){
+    const cfg=BGM[bgmMode];
+    const spb=60/cfg.bpm/4;
+    while(nextStepTime<ctx.currentTime+0.12){
+      scheduleStep(bgmStep,nextStepTime,cfg,spb);
+      nextStepTime+=spb; bgmStep=(bgmStep+1)%16;
+    }
+  }
+  function startBgm(mode){
+    if(!ensure()) return;
+    bgmMode=mode||'home';
+    if(!AUD.bgm) return;          // BGM 被关闭：不启动调度
+    if(schedTimer) return;
+    bgmStep=0; nextStepTime=ctx.currentTime+0.1;
+    schedTimer=setInterval(scheduler,25);
+  }
+  function switchBgm(mode){
+    bgmMode=mode;
+    if(!schedTimer) startBgm(mode);
+  }
+  function stopBgm(){ if(schedTimer){clearInterval(schedTimer);schedTimer=null;} }
+
+  return {unlock,applyVol,play,fx,vibrate,startBgm,switchBgm,stopBgm,ensure};
+})();
+
+/* 首次任意点击/触摸：解锁音频（浏览器自动播放策略），并按场景启动 BGM */
+function unlockAudioOnce(){
+  AudioEngine.unlock();
+  const s=G?G.screen:'home';
+  AudioEngine.startBgm(s==='battle'?(G.battle&&G.battle.kind==='boss'?'boss':'battle'):'home');
+}
+document.addEventListener('pointerdown',()=>{ unlockAudioOnce(); },{once:true});
+
+</script>
 <script>
 /* ============================================================
  * CONFIG —— 单一配置源（ruleset_id: word-dungeon-ruleset-v1）
@@ -402,7 +808,8 @@ const C = {
   question:{ timeout:12, pool:{en2cn:0.55, cn2en:0.15, spell:0.10, judge:0.20} },
   proficiency:{ NEW:1.0, LEARNING:1.05, FAMILIAR:1.2, MASTERED:1.4 },
   spring:{ heal:30, reviewCount:3, reviewHeal:2 },
-  shop:{ potion:30, normal:50, rare:85, bless:40 },
+  shop:{ potion:30, normal:50, rare:85, bless:40, epic:150 },
+  rerollCost:25,        // 抽卡界面刷新一组候选的词魂消耗
   gold:{ normal:15, elite:35, boss:60 },
   layerCount:3,
   famIntervals:[2,4,7,15],   // FAMILIAR 内复习间隔（天）
@@ -444,39 +851,70 @@ function groupOf(w){ return GROUPS.find(g=>g.includes(w)) || null; }
  * 词典卡（15 张）。hooks: mult / crit / critMult / onStart /
  * onCorrect / onWrong / goldMult / keepCombo / timeAdd / wrongMult
  * ============================================================ */
+/* 词典卡（25 张，三级稀有度 rare:0 普通 / 1 稀有 / 2 史诗），tags 为流派标签。
+ * hooks: mult / crit / critMult / onStart / onCorrect / onWrong / goldMult /
+ * keepCombo / timeAdd / timeAddFirst / wrongMult / hurtMult / maxHpAdd
+ * 结算 ctx 含 {time,qtype,mstate,word,dmg,crit} */
 const CARDS = [
- {id:'speednote',name:'速记',rare:0,desc:'3 秒内答对的伤害额外 +30%。',
+ /* ── 普通 common ── */
+ {id:'speednote',name:'速记',rare:0,tags:['aggro'],desc:'3 秒内答对的伤害额外 +30%。',
   mult:x=> x.time<=3?1.3:1},
- {id:'combomaster',name:'连击大师',rare:0,desc:'连击 ≥ 8 时，伤害 +50%。',
+ {id:'combomaster',name:'连击大师',rare:0,tags:['combo'],desc:'连击 ≥ 8 时，伤害 +50%。',
   mult:x=> G.combo>=8?1.5:1},
- {id:'steady',name:'稳扎稳打',rare:0,desc:'连击 ≥ 5 时，每答对 3 题恢复 2 HP。',
+ {id:'steady',name:'稳扎稳打',rare:0,tags:['sustain'],desc:'连击 ≥ 5 时，每答对 3 题恢复 2 HP。',
   onCorrect:x=>{ if(G.combo>=5){ G.battle.tick=(G.battle.tick||0)+1; if(G.battle.tick%3===0) heal(2); }}},
- {id:'flash',name:'灵光乍现',rare:0,desc:'每题 15% 概率暴击，造成双倍伤害。',
-  crit:0.15},
- {id:'spellboost',name:'默写强化',rare:0,desc:'拼写题伤害 +80%。',
-  mult:x=> x.qtype==='spell'?1.8:1},
- {id:'shield',name:'错词护盾',rare:0,desc:'每场战斗开始时获得 6 点护盾。',
+ {id:'shield',name:'错词护盾',rare:0,tags:['shield'],desc:'每场战斗开始时获得 6 点护盾。',
   onStart:()=> G.shield+=6},
- {id:'buildup',name:'厚积薄发',rare:0,desc:'FAMILIAR / MASTERED 的词伤害额外 +20%。',
+ {id:'buildup',name:'厚积薄发',rare:0,tags:['aggro'],desc:'FAMILIAR / MASTERED 的词伤害额外 +20%。',
   mult:x=> (x.mstate==='FAMILIAR'||x.mstate==='MASTERED')?1.2:1},
- {id:'soulmagnet',name:'词魂引力',rare:0,desc:'战斗胜利获得的词魂 +40%。',
+ {id:'soulmagnet',name:'词魂引力',rare:0,tags:['gold'],desc:'战斗胜利获得的词魂 +40%。',
   goldMult:1.4},
- {id:'braver',name:'越战越勇',rare:0,desc:'每进入新一层，该层伤害 +10%。',
+ {id:'braver',name:'越战越勇',rare:0,tags:['aggro'],desc:'每进入新一层，该层伤害 +10%。',
   mult:x=> 1+0.10*(G.layer-1)},
- {id:'deadly',name:'致命一击',rare:1,desc:'暴击伤害 ×3，并获得 10% 暴击率。',
-  crit:0.10, critMult:3},
- {id:'wordfire',name:'词火',rare:1,desc:'每连续答对 4 题，对敌人造成其最大 HP 8% 的真实伤害。',
-  onCorrect:x=>{ G.battle.fire=(G.battle.fire||0)+1; if(G.battle.fire%4===0){ trueDamage(G.battle.enemy, G.battle.enemy.maxHp*0.08); }}},
- {id:'unstop',name:'势如破竹',rare:1,desc:'答错时连击不清零，而是降为一半（向下取整）。',
-  keepCombo:true},
- {id:'timectrl',name:'时间掌控',rare:1,desc:'题目限时 +3 秒；超时受击伤害减半。',
-  timeAdd:3, wrongMult:0.5},
- {id:'spellmaster',name:'精准默写',rare:1,desc:'拼写题答对恢复 4 HP，且拼写题再 +20% 伤害。',
+ {id:'firstblood',name:'先发制人',rare:0,tags:['aggro'],desc:'每场战斗第一次答对，伤害 +60%。',
+  onStart:()=>{G.battle.firstDone=false;},
+  mult:x=> G.battle.firstDone?1:1.6,
+  onCorrect:x=>{G.battle.firstDone=true;}},
+ {id:'warmup',name:'热身',rare:0,tags:['sustain'],desc:'每场战斗前 3 题，限时 +2 秒。',
+  timeAddFirst:2},
+ /* ── 稀有 rare ── */
+ {id:'flash',name:'灵光乍现',rare:1,tags:['crit'],desc:'每题 15% 概率暴击，造成双倍伤害。',
+  crit:0.15},
+ {id:'spellboost',name:'默写强化',rare:1,tags:['spell'],desc:'拼写题伤害 +80%。',
+  mult:x=> x.qtype==='spell'?1.8:1},
+ {id:'spellmaster',name:'精准默写',rare:1,tags:['spell','sustain'],desc:'拼写题答对恢复 4 HP，且拼写题再 +20% 伤害。',
   mult:x=> x.qtype==='spell'?1.2:1,
   onCorrect:x=>{ if(x.qtype==='spell') heal(4); }},
- {id:'retreat',name:'以退为进',rare:1,desc:'每次答错后，下一题伤害 +60%（最多叠加 1 层）。',
+ {id:'unstop',name:'势如破竹',rare:1,tags:['combo','sustain'],desc:'答错时连击不清零，而是降为一半（向下取整）。',
+  keepCombo:true},
+ {id:'timectrl',name:'时间掌控',rare:1,tags:['sustain'],desc:'题目限时 +3 秒；超时受击伤害减半。',
+  timeAdd:3, wrongMult:0.5},
+ {id:'retreat',name:'以退为进',rare:1,tags:['revenge'],desc:'每次答错后，下一题伤害 +60%（最多叠加 1 层）。',
   onWrong:()=>{G.vengeance=1;},
-  mult:x=>{ if(G.vengeance){G.vengeance=0; return 1.6;} return 1;}}
+  mult:x=>{ if(G.vengeance){G.vengeance=0; return 1.6;} return 1;}},
+ {id:'combolightning',name:'连击闪电',rare:1,tags:['combo'],desc:'连击每 +1，伤害额外 +3%（随连击叠加）。',
+  mult:x=> 1+0.03*G.combo},
+ {id:'lifesteal',name:'汲词',rare:1,tags:['sustain'],desc:'答对时恢复本次伤害 10% 的 HP。',
+  onCorrect:x=>{ if(x.dmg) heal(Math.round(x.dmg*0.10)); }},
+ {id:'doubleedged',name:'双刃剑',rare:1,tags:['aggro'],desc:'造成的伤害 +30%，但受到的伤害 +20%。',
+  mult:1.3, hurtMult:1.2},
+ /* ── 史诗 epic ── */
+ {id:'deadly',name:'致命一击',rare:2,tags:['crit'],desc:'暴击伤害 ×3，并获得 10% 暴击率。',
+  crit:0.10, critMult:3},
+ {id:'wordfire',name:'词火',rare:2,tags:['aggro','combo'],desc:'每连续答对 4 题，对敌人造成其最大 HP 8% 的真实伤害。',
+  onCorrect:x=>{ G.battle.fire=(G.battle.fire||0)+1; if(G.battle.fire%4===0){ trueDamage(G.battle.enemy, G.battle.enemy.maxHp*0.08); }}},
+ {id:'critstorm',name:'暴击风暴',rare:2,tags:['crit','combo'],desc:'暴击率 +25%；暴击时连击额外 +1。',
+  crit:0.25,
+  onCorrect:x=>{ if(x.crit) G.combo++; }},
+ {id:'spellchain',name:'拼写连锁',rare:2,tags:['spell'],desc:'拼写答对后，下一题强制拼写且伤害 +50%。',
+  onCorrect:x=>{ if(x.qtype==='spell') G.spellChainNext=true; },
+  mult:x=>{ if(G.spellChainBonus){ return 1.5; } return 1; }},
+ {id:'glasscannon',name:'玻璃大炮',rare:2,tags:['aggro'],desc:'造成的伤害 ×1.8，但最大 HP -30。',
+  mult:1.8, maxHpAdd:-30},
+ {id:'timewarp',name:'时间扭曲',rare:2,tags:['aggro','sustain'],desc:'所有限时 +4 秒；3 秒内答对伤害 +50%。',
+  timeAdd:4, mult:x=> x.time<=3?1.5:1},
+ {id:'immortal',name:'不朽',rare:2,tags:['shield','sustain'],desc:'每场战斗可免死一次：致命伤害后以 1 HP 存活。',
+  onStart:()=>{G.battle.immortalUsed=false;}}
 ];
 const CMAP={}; CARDS.forEach(c=>CMAP[c.id]=c);
 const hasCard=id=>G.cards.includes(id);
@@ -705,6 +1143,7 @@ function applySrs(word,correct,fast){
  * 游戏状态
  * ============================================================ */
 let G=null;
+let homeMode='campaign';   /* 主页模式 tab 当前选中，不随单局重置 */
 const MIN=60*1000, DAY=24*60*60*1000;
 function newRun(mode){
   G={
@@ -714,6 +1153,7 @@ function newRun(mode){
     cards:[], vengeance:0, blessForLayer:0,
     layerWords:[], queue:[], wrongWords:{}, wrongCount:{}, answeredThisLayer:0,
     runWrong:{}, runWrongSeen:{},
+    pity:0, epicPity:0, rerollUsed:false,
     battle:null, choice:null,
     stats:{questions:0,correct:0,wrong:0,maxCombo:0,newWords:new Set(),reviewWords:new Set(),kills:0}
   };
@@ -771,6 +1211,7 @@ function addXP(n){
 
 /* ===== V3 升级演出 ===== */
 function showLevelUp(newLevel){
+  AudioEngine.fx('levelup',[30,40,30,40,60]);
   const old=document.getElementById('levelup'); if(old) old.remove();
   const overlay=document.createElement('div');
   overlay.className='levelup-overlay'; overlay.id='levelup';
@@ -926,6 +1367,7 @@ function questionLimit(qtype,wordLen){
   if(t.timeMod) lim+=t.timeMod;
   if(G.battle.fog) lim=Math.round(lim/2);
   G.cards.forEach(id=>{ const c=CMAP[id]; if(c.timeAdd) lim+=c.timeAdd; });
+  if(G.battle.answered<3) G.cards.forEach(id=>{ const c=CMAP[id]; if(c.timeAddFirst) lim+=c.timeAddFirst; });  // 热身：前3题
   if(G.battle.enemy.boss && G.battle.enemy.tpl.mech==='rage' && G.battle.enemy.hp<=G.battle.enemy.maxHp*0.5) lim-=2;
   if(isEndless()) lim-=endlessTimeCut(G.layer);   // 无尽深度：限时随深度收紧
   if(G.focus) lim+=C.focus.extraTime;
@@ -1017,9 +1459,20 @@ function nextQuestion(){
     if(t.mech==='blur' && b.answered>0 && b.answered%t.every===0) b.blur=true;
   }
   const preferType=enemy.tpl.prefer||null;
+  // 拼写连锁：上一题拼写答对，强制本题拼写并给 +50% 连锁加成
+  const forceSpell=G.spellChainNext;
+  G.spellChainNext=false;
+  if(forceSpell) G.spellChainBonus=true;
   let pick=null;
+  if(forceSpell){
+    const can=G.layerWords.filter(w=>w.length<=8 && (!G.runWrong[w]||(G.runWrongSeen[w]||0)<1));
+    if(can.length){
+      const w=rpick(can);
+      pick={word:w,qtype:'spell',review:!!P.words[w],bucket:'match'};
+    }
+  }
   // 易混敌人：优先用能配组的词（题型仍走阶梯，不硬覆盖）
-  if(enemy.tpl.confuse){
+  if(enemy.tpl.confuse && !pick){
     const candidates=G.layerWords.filter(w=>groupOf(w)&&(!G.runWrong[w]||(G.runWrongSeen[w]||0)<1));
     if(candidates.length){
       const w=rpick(candidates);
@@ -1168,9 +1621,11 @@ function resolve(choice,isTimeout,forceCorrect){
     if(comboEl){comboEl.textContent=G.combo;}
     G.wrongStreak=0;
     // 心流：连击达到阈值进入，进入后每答对额外词魂
-    if(!G.flow && G.combo>=C.flow.threshold){ G.flow=true; floatText('fheal','心流开启',50); }
-    if(G.flow){ G.gold+=C.flow.bonusGold; floatText('fdmg','+'+C.flow.bonusGold,72); }
+    if(!G.flow && G.combo>=C.flow.threshold){ G.flow=true; AudioEngine.fx('flow',20); floatText('fheal','心流开启',50); }
+    if(G.flow){ G.gold+=C.flow.bonusGold; AudioEngine.play('reward'); floatText('fdmg','+'+C.flow.bonusGold,72); }
+    ctx.dmg=dmg; ctx.crit=crit;
     G.cards.forEach(id=>{ const c=CMAP[id]; if(c.onCorrect)c.onCorrect(ctx); });
+    G.spellChainBonus=false;   // 连锁加成仅作用于被强制的那一题
     applySrs(word,true,fast);
     G.wrongWords[word]=false;
     markOptions(true,q.correct);
@@ -1216,13 +1671,11 @@ function resolve(choice,isTimeout,forceCorrect){
 }
 function enemyDeathThenWin(){
   const card=document.getElementById('enemycard');
+  AudioEngine.fx('enemyDie',25);
   burst(50,16,26,'#fbbf24',120);
   burst(50,16,14,'#ffffff',92);
   if(card){
     card.classList.add('enemydie');
-    const app=document.getElementById('app');
-    app.classList.remove('hitshake');void app.offsetWidth;app.classList.add('hitshake');
-    setTimeout(()=>app.classList.remove('hitshake'),290);
   }
   setTimeout(()=>winBattle(),520);
 }
@@ -1300,11 +1753,11 @@ function updateEnemyHud(){
   if(num)num.textContent=e.hp+' / '+e.maxHp;
 }
 function updatePlayerHud(){
-  const hpPct=Math.max(0,G.hp/C.player.maxHp*100);
+  const hpPct=Math.max(0,G.hp/maxHp()*100);
   const bar=document.querySelector('.playerbar i');
   if(bar)bar.style.width=hpPct+'%';
   const lab=document.querySelector('.phud .lab span:last-child');
-  if(lab)lab.textContent=G.hp+'/'+C.player.maxHp;
+  if(lab)lab.textContent=G.hp+'/'+maxHp();
   const gold=document.querySelector('.goldtag');
   if(gold)gold.textContent='词魂 '+G.gold;
 }
@@ -1349,24 +1802,19 @@ function dealDamage(enemy,dmg,crit,revenge){
       card.classList.add(crit?'enemycrit':'enemyhit');
     }
     if(revenge){
+      AudioEngine.fx('revenge',[20,30,20]);
       burst(50,16,18,'#ff5a5a',95);
       burst(50,16,12,'#ffd166',70);
       floatText('fdmg rev','复仇 '+dmg,50);
       setTimeout(()=>floatText('fheal','雪耻！',64),120);
     } else {
+      AudioEngine.fx(crit?'crit':'hit',crit?[20,30,20]:12);
       burst(50,16,crit?16:10,crit?'#fb923c':'#fbbf24',crit?95:62);
       floatText(crit?'fdmg crit':'fdmg',(crit?'暴击 ':'')+dmg,50);
     }
     const cn=document.querySelector('.combo-num');
     if(cn){cn.classList.remove('combo-pop');void cn.offsetWidth;cn.classList.add('combo-pop');}
-    const app=document.getElementById('app');
-    if(crit||revenge){
-      app.classList.remove('bigshake','hitshake');void app.offsetWidth;app.classList.add('bigshake');
-      setTimeout(()=>app.classList.remove('bigshake'),430);
-    } else {
-      app.classList.remove('hitshake');void app.offsetWidth;app.classList.add('hitshake');
-      setTimeout(()=>app.classList.remove('hitshake'),290);
-    }
+    // 震动只作用于被命中的敌人卡，题目/释义框（玩家阅读区）保持稳定，不再整屏抖动
   },hd);
 }
 function trueDamage(enemy,amount){
@@ -1383,16 +1831,26 @@ function trueDamage(enemy,amount){
   },hd);
 }
 function hurtPlayer(dmg){
-  dmg=Math.round(dmg);
+  AudioEngine.fx('hurt',[40,30,40]);
+  let hm=1;
+  G.cards.forEach(id=>{ const c=CMAP[id]; if(c.hurtMult) hm*=c.hurtMult; });
+  dmg=Math.round(dmg*hm);
   let absorbed=0;
   if(G.shield>0){ absorbed=Math.min(G.shield,dmg); G.shield-=absorbed; dmg-=absorbed; }
   G.hp=Math.max(0,G.hp-dmg);
+  // 不朽：致命伤害后以 1 HP 存活（每场一次）
+  if(G.hp<=0 && hasCard('immortal') && G.battle && !G.battle.immortalUsed){
+    G.hp=1; G.battle.immortalUsed=true;
+    updatePlayerHud();
+    floatText('fheal','不朽！',60);
+    burst(50,70,18,'#c084fc',90);
+  }
   updatePlayerHud();
   floatText('fhurt','-'+(dmg), 70);
   const app=document.getElementById('app');
-  app.classList.remove('bigshake','flashred');void app.offsetWidth;
-  app.classList.add('bigshake','flashred');
-  setTimeout(()=>app.classList.remove('bigshake','flashred'),430);
+  app.classList.remove('flashred');void app.offsetWidth;
+  app.classList.add('flashred');
+  setTimeout(()=>app.classList.remove('flashred'),430);
   const vig=document.getElementById('vignette');
   vig.classList.remove('flash');void vig.offsetWidth;vig.classList.add('flash');
   burst(50,70,10,'#f87171',68);
@@ -1440,20 +1898,104 @@ function winBattle(){
   if(hasCard('soulmagnet')) reward=Math.round(reward*1.4);
   if(kind==='boss'&&b.enemy.champion) reward=Math.round(reward*1.5);   // 冠军 Boss 额外词魂
   G.gold+=reward;
-  // 三选一：无尽 Boss 每深度都给（含稀有机会），冠军深度必给稀有
-  const rare = kind==='boss' && (isEndless()?b.enemy.champion:true);
-  const pool=CARDS.filter(c=>!G.cards.includes(c.id) && c.rare===(rare?1:0));
-  const other=CARDS.filter(c=>!G.cards.includes(c.id)&&c.rare===(rare?0:1));
-  const cand=rshuffle(pool.concat(rare?other:[]).slice()).slice(0,3);
-  // 若候选不足3，用任意未拥有补齐
-  while(cand.length<3){
-    const rest=CARDS.filter(c=>!G.cards.includes(c.id)&&!cand.includes(c));
-    if(!rest.length)break;
-    cand.push(rpick(rest));
-  }
-  G.choice={cand,reward,kind};
+  // 三槽稀有度：节点类型 + 层数/深度 + 保底 + 流派协同 动态决定
+  const nodeKind = kind==='boss' ? (b.enemy.champion?'champion':'boss') : kind;
+  const pityBefore={p:G.pity,e:G.epicPity};
+  const slots=drawChoice(nodeKind);
+  G.choice={slots,reward,kind,nodeKind,pityBefore};
   G.screen='choice';
   G.battle=null;
+  render();
+}
+
+/* ══ 技能卡发放：三级稀有度 + 动态概率 + 保底 + 流派协同 ══ */
+function rarityTable(kind){
+  const base={
+    normal:  {0:0.82,1:0.16,2:0.02},
+    elite:   {0:0.55,1:0.38,2:0.07},
+    boss:    {0:0.30,1:0.55,2:0.15},
+    champion:{0:0.12,1:0.55,2:0.33},
+  }[kind];
+  const t={0:base[0],1:base[1],2:base[2]};
+  const d=G.layer-1;
+  let rareAdd=isEndless()?d*0.012:d*0.05;
+  let epicAdd=isEndless()?d*0.006:d*0.02;
+  rareAdd=Math.min(rareAdd,0.30); epicAdd=Math.min(epicAdd,0.20);
+  // 限制总增量：common 至少保留 0.02，防止高层/深无尽把普通概率扣成负数
+  let move=Math.min(rareAdd+epicAdd, Math.max(0,t[0]-0.02));
+  const scale=(rareAdd+epicAdd)>0?move/(rareAdd+epicAdd):0;
+  rareAdd*=scale; epicAdd*=scale;
+  t[1]+=rareAdd; t[2]+=epicAdd; t[0]-=rareAdd+epicAdd;
+  return t;
+}
+function rollSlotRarity(kind,force){
+  const t=rarityTable(kind);
+  const r=rnd();
+  if(force===2)return 2;
+  if(force===1)return r<t[2]/(t[1]+t[2])?2:1;
+  if(r<t[2])return 2;
+  if(r<t[2]+t[1])return 1;
+  return 0;
+}
+function weightedPick(pool,weights){
+  const sum=weights.reduce((a,b)=>a+b,0);
+  let r=rnd()*sum;
+  for(let i=0;i<pool.length;i++){r-=weights[i];if(r<=0)return pool[i];}
+  return pool[pool.length-1];
+}
+/* 玩家最大 HP：含 glasscannon 等 maxHpAdd */
+function maxHp(){
+  let m=C.player.maxHp;
+  G.cards.forEach(id=>{const c=CMAP[id];if(c.maxHpAdd)m+=c.maxHpAdd;});
+  return m;
+}
+/* 按稀有度抽一张：同流派协同加权 + 残血怜悯（防御/恢复卡） */
+function drawCardOfRarity(r,exclude){
+  exclude=exclude||[];
+  const exId=exclude.map(c=>c.id);
+  const free=c=>!G.cards.includes(c.id)&&!exId.includes(c.id);
+  let pool=CARDS.filter(c=>c.rare===r&&free(c));
+  if(!pool.length)pool=CARDS.filter(c=>c.rare>=r&&free(c));
+  if(!pool.length)pool=CARDS.filter(c=>free(c));
+  if(!pool.length)return null;
+  const tagCount={};
+  G.cards.forEach(id=>{const c=CMAP[id];(c.tags||[]).forEach(t=>tagCount[t]=(tagCount[t]||0)+1);});
+  const lowHp=G.hp/maxHp()<0.35;
+  const weights=pool.map(c=>{
+    let w=1;
+    (c.tags||[]).forEach(t=>{if(tagCount[t])w+=0.5*tagCount[t];});
+    if(lowHp&&(c.tags||[]).some(t=>t==='sustain'||t==='shield'))w+=1.2;
+    return w;
+  });
+  return weightedPick(pool,weights);
+}
+/* 三槽：保底 + 独立 roll，返回 [{card,rare}]，并更新保底计数 */
+function drawChoice(kind){
+  let force=0;
+  if(G.epicPity>=6)force=2;
+  else if(G.pity>=3)force=1;
+  const rars=[0,1,2].map(i=>i===0?rollSlotRarity(kind,force):rollSlotRarity(kind,0));
+  const taken=[];
+  const slots=rars.map(r=>{
+    const card=drawCardOfRarity(r,taken);
+    if(card)taken.push(card);
+    return {card,rare:r};
+  });
+  const maxR=Math.max(...rars);
+  if(maxR===0){G.pity++;G.epicPity++;}
+  else if(maxR===1){G.pity=0;G.epicPity++;}
+  else {G.pity=0;G.epicPity=0;}
+  return slots;
+}
+/* 刷新：消耗词魂重抽一组（不消耗保底），每场胜利限一次 */
+function rerollChoice(){
+  if(G.rerollUsed||G.gold<C.rerollCost)return;
+  G.gold-=C.rerollCost; G.rerollUsed=true;
+  G.pity=G.choice.pityBefore.p; G.epicPity=G.choice.pityBefore.e;
+  G.choice.slots=drawChoice(G.choice.nodeKind);
+  G.choice.revealed=[false,false,false];
+  G.choice.autoStarted=false;
+  G.choice.pityBefore={p:G.pity,e:G.epicPity};
   render();
 }
 function pickCard(id){
@@ -1464,6 +2006,7 @@ function pickCard(id){
   afterNodeResolved();
 }
 function defeat(){
+  AudioEngine.fx('defeat',[80,40,80,40,160]);
   G.battle=null;
   if(isEndless()){
     // 无尽：结算最高深度纪录
@@ -1489,6 +2032,7 @@ function afterNodeResolved(){
     // 远征：进入下一层或通关
     if(G.layer>=C.layerCount){
       G.result='win'; G.screen='result';
+      AudioEngine.fx('victory',[60,40,60,40,120]);
       markStreak();
       unlockAch('first_win');
       Save.write(P); render(); return;
@@ -1506,6 +2050,7 @@ function afterNodeResolved(){
  * 复习之泉
  * ============================================================ */
 function startSpring(from){
+  AudioEngine.play('node');
   G.hp=Math.min(C.player.maxHp,G.hp+C.spring.heal);
   // 错词分级复习：顽固词（错3+）→ 易错词（错2）→ 生疏词（错1）优先出练，最多复习 3 个
   const gradeOf=w=>(G.wrongCount[w]||1)>=3?3:(G.wrongCount[w]||1)===2?2:1;
@@ -1536,12 +2081,13 @@ function springDone(){
  * 商店
  * ============================================================ */
 function startShop(){
+  AudioEngine.play('node');
   G.screen='shop';
-  const norm=CARDS.filter(c=>c.rare===0);
-  const rare=CARDS.filter(c=>c.rare===1);
+  const avail=r=>CARDS.filter(c=>c.rare===r&&!G.cards.includes(c.id));
   G.shopData={
-    norm:rshuffle(norm.slice()).slice(0,2),
-    rare:rshuffle(rare.slice()).slice(0,2),
+    norm:rshuffle(avail(0)).slice(0,2),
+    rare:rshuffle(avail(1)).slice(0,2),
+    epic:rshuffle(avail(2)).slice(0,1),
     sold:{}
   };
   render();
@@ -1549,7 +2095,7 @@ function startShop(){
 function buy(kind,id){
   const d=G.shopData;
   if(d.sold[kind+id])return;
-  const price = kind==='potion'?C.shop.potion: kind==='bless'?C.shop.bless: kind==='norm'?C.shop.normal:C.shop.rare;
+  const price = kind==='potion'?C.shop.potion: kind==='bless'?C.shop.bless: kind==='norm'?C.shop.normal: kind==='epic'?C.shop.epic:C.shop.rare;
   if(G.gold<price)return;
   G.gold-=price;
   if(kind==='potion'){ heal(30); }
@@ -1578,72 +2124,177 @@ function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>
 function viewHome(){
   ensureDaily();
   const total=Object.keys(P.words).length;
-  const mastered=Object.values(P.words).filter(r=>r.state==='MASTERED').length;
-  const pct=Math.round(mastered/2400*1000)/10;
   const m=P.meta;
   const xpPct=Math.round(m.xp/xpNeeded(m.level)*100);
   const d=m.daily;
+  const achCount=Object.keys(m.ach).length;
+  // 词书范围：当前词书总词数、按难度筛选后的范围
+  const bookTotal=WORDS.filter(o=>o.b.includes(SETTINGS.book)).length;
+  const rangeCount=bookWords().length;
+  const curBook=BOOKS.find(b=>b.id===SETTINGS.book);
+  const curDiff=DIFFS.find(x=>x.id===SETTINGS.difficulty);
   const dailyGoal=(label,prog,target)=>{
     const done=prog>=target;
     return `<div class="daily-goal ${done?'done':''}">
       <span class="check">${done?'✓':''}</span><span>${label}</span>
       <span class="gprog">${Math.min(prog,target)}/${target}</span></div>`;
   };
-  const achCount=Object.keys(m.ach).length;
+  // 已掌握/已接触按当前词书口径统计
+  const bookMastered=Object.keys(P.words).filter(w=>{
+    const o=WMAP[w]; return o&&o.b.includes(SETTINGS.book)&&P.words[w].state==='MASTERED';
+  }).length;
+  const bookSeen=Object.keys(P.words).filter(w=>{
+    const o=WMAP[w]; return o&&o.b.includes(SETTINGS.book);
+  }).length;
+  const bookPct=Math.round(bookMastered/bookTotal*1000)/10;
+  const wrongCnt=wrongBookData().length;
+  const dueCnt=dueLearning(Date.now()).length+dueGraduated(Date.now()).length;
+  const modeName=homeMode==='endless'?'无尽':'远征';
+  const modeDesc=homeMode==='endless'
+    ? (m.endlessBest>0?`最高纪录 第 ${m.endlessBest} 层`:'无上限下潜')
+    : '3 层闯关';
   return `
-   <div class="hero">
-     <div class="sub">应试单词 · 战斗 Roguelike</div>
-     <h1>单词地下城</h1>
-     <div class="sub">认出单词就是攻击，背错一次就会挨打</div>
-   </div>
-   <div class="card level-card">
-     <div class="level-badge">${m.level}</div>
-     <div class="level-info">
-       <div class="lab"><span>词灵使 Lv.${m.level}</span><span>${m.xp}/${xpNeeded(m.level)} XP</span></div>
-       <div class="bar xpbar"><i style="width:${xpPct}%"></i></div>
+   <div class="home-banner">
+     <div class="hb-top">
+       <div class="hb-lvl">${m.level}</div>
+       <div class="hb-titles">
+         <h1>单词地下城</h1>
+         <div class="sub">词灵使 Lv.${m.level} · 应试单词战斗</div>
+       </div>
+       <div class="hb-streak">🔥 ${m.streak} 天</div>
+     </div>
+     <div class="hb-xp">
+       <div class="bar"><i style="width:${xpPct}%"></i></div>
+       <div class="xplab"><span>${m.xp} / ${xpNeeded(m.level)} XP</span><span>目标成功率 85%</span></div>
      </div>
    </div>
-   <div class="card" style="margin-top:12px;">
-     <div class="streak-row">
-       <span class="streak-flame">🔥</span><span class="streak-num">${m.streak}</span>
-       <span class="mut">连续打卡天</span>
+
+   <div class="launch-card">
+     <div class="mode-tabs">
+       <button class="mode-tab campaign ${homeMode==='campaign'?'sel':''}" data-mode="campaign">
+         <span class="tic">⚔️</span>
+         <span class="tt"><b>远征</b></span>
+       </button>
+       <button class="mode-tab endless ${homeMode==='endless'?'sel':''}" data-mode="endless">
+         <span class="tic">🌀</span>
+         <span class="tt"><b>无尽</b></span>
+       </button>
      </div>
-     <div class="sec-h" style="margin-top:4px;">今日目标</div>
-     ${dailyGoal('答对 40 题',d.questions,40)}
-     ${dailyGoal('新学 15 词',d.newWords,15)}
-     ${dailyGoal('完成 1 次远征',d.run,1)}
+
+     <button class="cfg-line" data-act="settings">
+       <span>词书 <b>${curBook.name}</b> · 难度 <b>${isAdaptive()?'自适应 · θ 配比':curDiff.name}</b></span>
+       <span class="cc">${rangeCount} 词 <span class="cgo">改 ›</span></span>
+     </button>
+
+     <button class="launch-btn" data-act="launch">开始${modeName}
+       <small>${modeDesc}${m.endlessBest>0&&homeMode==='endless'?` · 纪录第 ${m.endlessBest} 层`:''}</small>
+     </button>
    </div>
-   <div class="card" style="margin-top:12px;">
-     <div class="progress-row"><span>词库进度（已掌握）</span><span class="mut">${mastered} / 2400</span></div>
-     <div class="bar"><i style="width:${pct}%"></i></div>
-     <div class="progress-row" style="margin-top:10px;"><span>已接触单词</span><span class="mut">${total}</span></div>
+
+   <div class="home-dock">
+     <button class="dock-item" data-act="wrongbook">
+       <span class="dic">📕</span><span class="dn">错词本</span><span class="db">${wrongCnt} 词待复习</span>
+     </button>
+     <button class="dock-item" data-act="achievements">
+       <span class="dic">🏆</span><span class="dn">成就</span><span class="db">${achCount}/${ACHIEVEMENTS.length}</span>
+     </button>
+     <button class="dock-item" data-act="settings">
+       <span class="dic">⚙️</span><span class="dn">设置</span><span class="db">词书 · 难度 · 玩法</span>
+     </button>
+   </div>`;
+}
+
+/* 设置页：成就墙 / 学习统计 / 怎么玩 / 清空 全部收纳于此 */
+function viewSettings(){
+  ensureDaily();
+  const m=P.meta, d=m.daily;
+  const achCount=Object.keys(m.ach).length;
+  const curBook=BOOKS.find(b=>b.id===SETTINGS.book);
+  const curDiff=DIFFS.find(x=>x.id===SETTINGS.difficulty);
+  const bookTotal=WORDS.filter(o=>o.b.includes(SETTINGS.book)).length;
+  const bookMastered=Object.keys(P.words).filter(w=>{
+    const o=WMAP[w]; return o&&o.b.includes(SETTINGS.book)&&P.words[w].state==='MASTERED';
+  }).length;
+  const bookSeen=Object.keys(P.words).filter(w=>{
+    const o=WMAP[w]; return o&&o.b.includes(SETTINGS.book);
+  }).length;
+  const bookPct=Math.round(bookMastered/bookTotal*1000)/10;
+  const dueCnt=dueLearning(Date.now()).length;
+  const dueGrad=dueGraduated(Date.now()).length;
+  const wrongCnt=wrongBookData().length;
+  return `
+   <div class="subhead">
+     <button class="back" data-act="homeback">‹</button>
+     <span class="st">设置</span>
+     <span class="smut">V4.8 · 单词地下城</span>
    </div>
-   <div class="card" style="margin-top:12px;">
-     <div class="progress-row"><span>学习中（未毕业·到期）</span><span class="mut" style="color:#3b82f6;font-weight:700;">${dueLearning(Date.now()).length} 词</span></div>
-    <div class="progress-row" style="margin-top:8px;"><span>今日复习（已毕业·到期）</span><span class="mut" style="color:var(--gold,#fbbf24);font-weight:700;">${dueGraduated(Date.now()).length} 词</span></div>
-    <div class="progress-row" style="margin-top:8px;"><span>今日新词</span><span class="mut">${newToday()} / ${NEW_CAP}</span></div>
-     <div class="progress-row" style="margin-top:8px;"><span>当前能力 θ</span><span class="mut">${P.meta.theta.toFixed(2)}（目标成功率 85%）</span></div>
-     <div class="bar" style="margin-top:6px;"><i style="width:${(P.meta.theta-1)/2*100}%"></i></div>
-   </div>
-   <div class="card" style="margin-top:12px;">
-     <div class="sec-h">选择词书</div>
-     <div class="seg-grid">
-       ${BOOKS.map(b=>`<button class="seg ${SETTINGS.book===b.id?'on':''}" data-book="${b.id}">${b.name}</button>`).join('')}
+
+   <div class="card">
+     <div class="sec-h">词书选择<span class="info-tip" data-tip="词库来源：开源 <b>ECDICT</b> 词典（共 7388 词），按考试分类整理；每词释义取常用义，并标注词性。">?</span></div>
+     <div class="book-grid">
+       ${BOOKS.map(b=>{
+         const c=WORDS.filter(o=>o.b.includes(b.id)).length;
+         return `<button class="book-opt ${SETTINGS.book===b.id?'on':''}" data-book="${b.id}">
+           <span class="bcheck">✓</span><span class="bname">${b.name}</span><span class="bcount">${c} 词</span></button>`;
+       }).join('')}
      </div>
-     <div class="sec-h" style="margin-top:10px;">难度</div>
-     <div class="seg-grid seg-grid5">
-       ${DIFFS.map(d=>`<button class="seg ${SETTINGS.difficulty===d.id?'on':''}" data-diff="${d.id}">${d.name}</button>`).join('')}
+     <div class="sec-h" style="margin-top:12px;">难度选择<span class="info-tip" data-tip="<b>自适应</b>：按你的能力 θ 动态调整题目难度，把正确率稳定在 85% 左右；选具体难度则锁定该档抽词。">?</span></div>
+     <div class="diff-grid">
+       ${DIFFS.map(x=>`<button class="diff-opt ${SETTINGS.difficulty===x.id?'on':''}" data-diff="${x.id}">${x.name}</button>`).join('')}
      </div>
-     <div class="center mut" style="margin-top:8px;font-size:12px;">
-       ${isAdaptive()
-         ? `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name} · 自适应（共 ${bookWords().length} 词，按 θ 自动配比）`
-         : `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name}${DIFFS.find(d=>d.id===SETTINGS.difficulty).name!=='全部'?' · '+DIFFS.find(d=>d.id===SETTINGS.difficulty).name:''}，共 ${bookWords().length} 词`}
+     <div class="range-line">
+       <span>当前范围：<b>${curBook.name}${isAdaptive()?' · 自适应':curDiff.name!=='全部'?' · '+curDiff.name:''}</b></span>
+       <span class="rcount">${bookWords().length} 词</span>
+     </div>
+     <div class="set-row" style="border-top:1px solid rgba(51,80,122,.45); margin-top:6px;">
+       <span>掌握进度（《${curBook.name}》）</span><span class="v">${bookMastered} / ${bookTotal}</span>
+     </div>
+     <div class="bar" style="margin-top:2px;"><i style="width:${bookPct}%"></i></div>
+   </div>
+
+   <div class="card set-sec">
+     <div class="sec-h">声音与触感<span class="info-tip" data-tip="所有音效与背景音乐均由程序实时合成，无需联网、不占空间；音效在命中、暴击、复仇、升级、心流时触发，BGM 随场景切换。">?</span></div>
+     <div class="audio-row">
+       <span class="lab">打击音效<span class="sub">命中 / 暴击 / 复仇 / 受击</span></span>
+       <button class="switch ${AUD.sfx?'on':''}" data-audio="sfx" aria-label="音效开关"><i></i></button>
+     </div>
+     <div class="audio-row">
+       <span class="lab">背景音乐 BGM<span class="sub">主页 / 战斗 / Boss 三种场景</span></span>
+       <button class="switch ${AUD.bgm?'on':''}" data-audio="bgm" aria-label="BGM开关"><i></i></button>
+     </div>
+     <div class="audio-row">
+       <span class="lab">震动触感<span class="sub">命中、暴击、受击时震动（需设备支持）</span></span>
+       <button class="switch ${AUD.vibrate?'on':''}" data-audio="vibrate" aria-label="震动开关"><i></i></button>
+     </div>
+     <div class="vol-row">
+       <span class="vt">音效音量</span>
+       <input type="range" min="0" max="100" value="${Math.round(AUD.sfxVol*100)}" data-vol="sfxVol">
+       <span class="vv">${Math.round(AUD.sfxVol*100)}</span>
+     </div>
+     <div class="vol-row">
+       <span class="vt">BGM 音量</span>
+       <input type="range" min="0" max="100" value="${Math.round(AUD.bgmVol*100)}" data-vol="bgmVol">
+       <span class="vv">${Math.round(AUD.bgmVol*100)}</span>
      </div>
    </div>
-   <button class="bigbtn" data-act="start-campaign">远征模式（3 层 · 约 11 分钟）</button>
-   <button class="bigbtn bigbtn-endless" data-act="start-endless">无尽模式（挑战最深 · 最高 ${P.meta.endlessBest} 层）</button>
-   ${wrongBookBtn()}
-   <div class="card" style="margin-top:14px;">
+
+   <div class="card set-sec">
+     <div class="sec-h">数据</div>
+     <div class="set-row"><span>词灵使等级</span><span class="v"><b>Lv.${m.level}</b> · ${m.xp} / ${xpNeeded(m.level)} XP</span></div>
+     <div class="set-row"><span>连续打卡</span><span class="v">🔥 ${m.streak} 天</span></div>
+     <div class="set-row"><span>能力 θ</span><span class="v">${m.theta.toFixed(2)}<span class="info-tip" data-tip="θ 是系统对你当前能力的估计，范围 1–3；答对快则上升、答错则下降，用于自适应出题。">?</span></span></div>
+     <div class="set-row"><span>今日目标</span><span class="v">答对 ${d.questions}/40 · 新学 ${d.newWords}/15 · 远征 ${d.run}/1</span></div>
+     <div class="set-row"><span>今日到期复习</span><span class="v"><b>${dueCnt}</b> 学习 + <b>${dueGrad}</b> 已毕业</span></div>
+     <div class="set-row"><span>已接触 / 全部词库</span><span class="v">${bookSeen} / ${WORDS.length}</span></div>
+   </div>
+
+   <div class="card set-sec">
+     <div class="sec-h">错词本 <span class="info-tip" data-tip="答错或超时的词会记入错词本；按错误次数分为 生疏 / 易错 / 顽固，顽固词会反复出现。">?</span></div>
+     <div class="set-row"><span>待复习错词</span><span class="v"><b>${wrongCnt}</b> 词</span></div>
+     <button class="bigbtn ghost" data-act="wrongbook" style="margin-top:8px;">进入错词本复习</button>
+   </div>
+
+   <div class="card set-sec">
      <div class="sec-h">成就墙（${achCount}/${ACHIEVEMENTS.length}）</div>
      <div class="ach-grid">
        ${ACHIEVEMENTS.map(a=>{
@@ -1655,9 +2306,10 @@ function viewHome(){
       }).join('')}
      </div>
    </div>
-   <div class="card" style="margin-top:14px;">
+
+   <div class="card set-sec">
+     <div class="sec-h">怎么玩</div>
      <div class="howto">
-       <b>怎么玩</b><br>
        · 答对单词攻击敌人，<b>答得越快伤害越高</b>，连击还会再加成。<br>
        · 连击 ≥5 进入<b>心流</b>，额外获得词魂；连续答错会凝神，下一题限时 +2。<br>
        · 题目标注词性（n./v./adj.…），帮助区分同形与近形词。<br>
@@ -1665,8 +2317,94 @@ function viewHome(){
        · 键盘可按 <b>1–4</b> 选答案，拼写题输入后回车。
      </div>
    </div>
-   <button class="ghostbtn" data-act="reset">清空所有学习进度</button>`;
+
+   <div class="card set-sec">
+     <div class="sec-h">关于</div>
+     <div class="about-line">词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）<br>
+       学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）<br>
+       模式：远征 3 层闯关 · 无尽下潜挑战 · 错词 2 次封顶<br>
+       版本：V4.7（深色地下城 · 打击动效 · 无内购）</div>
+   </div>
+
+   <button class="ghostbtn" data-act="reset" style="margin-top:12px;">清空所有学习进度</button>`;
 }
+
+/* 成就墙（二级页） */
+function viewAchievements(){
+  const m=P.meta;
+  const achCount=Object.keys(m.ach).length;
+  return `
+   ${topbar()}
+   <div class="card"><div class="panel-title">成就墙（${achCount}/${ACHIEVEMENTS.length}）</div>
+     <div class="center mut">完成挑战解锁成就，记录你的成长</div></div>
+   <div class="card" style="margin-top:12px;">
+     <div class="ach-grid">
+       ${ACHIEVEMENTS.map(a=>{
+        const got=!!m.ach[a.id];
+        return `<div class="ach-cell ${got?'':'locked'}">
+          <span class="aico">${a.icon}</span>
+          <div><div class="aname">${a.name}</div><div class="adesc">${a.desc}</div></div>
+        </div>`;
+      }).join('')}
+     </div>
+   </div>
+   <button class="ghostbtn" data-act="homeback" style="margin-top:12px;">返回</button>`;
+}
+
+/* 学习统计（二级页） */
+function viewStats(){
+  const m=P.meta, d=m.daily;
+  const curBook=BOOKS.find(b=>b.id===SETTINGS.book);
+  const bookTotal=WORDS.filter(o=>o.b.includes(SETTINGS.book)).length;
+  const bookMastered=Object.keys(P.words).filter(w=>{
+    const o=WMAP[w]; return o&&o.b.includes(SETTINGS.book)&&P.words[w].state==='MASTERED';
+  }).length;
+  const bookPct=Math.round(bookMastered/bookTotal*1000)/10;
+  const bookSeen=Object.keys(P.words).filter(w=>{
+    const o=WMAP[w]; return o&&o.b.includes(SETTINGS.book);
+  }).length;
+  return `
+   ${topbar()}
+   <div class="card"><div class="panel-title">学习统计</div>
+     <div class="center mut">《${curBook.name}》口径 · 数据来自本地进度</div></div>
+   <div class="card" style="margin-top:12px;">
+     <div class="sec-h">今日目标</div>
+     <div class="daily-goal ${d.questions>=40?'done':''}"><span class="check">${d.questions>=40?'✓':''}</span><span>答对 40 题</span><span class="gprog">${Math.min(d.questions,40)}/40</span></div>
+     <div class="daily-goal ${d.newWords>=15?'done':''}"><span class="check">${d.newWords>=15?'✓':''}</span><span>新学 15 词</span><span class="gprog">${Math.min(d.newWords,15)}/15</span></div>
+     <div class="daily-goal ${d.run>=1?'done':''}"><span class="check">${d.run>=1?'✓':''}</span><span>完成 1 次远征</span><span class="gprog">${Math.min(d.run,1)}/1</span></div>
+   </div>
+   <div class="card" style="margin-top:12px;">
+     <div class="progress-row"><span>《${curBook.name}》掌握进度</span><span class="mut">${bookMastered} / ${bookTotal}</span></div>
+     <div class="bar"><i style="width:${bookPct}%"></i></div>
+     <div class="progress-row" style="margin-top:10px;"><span>已接触 / 词库全部</span><span class="mut">${bookSeen} / ${WORDS.length}</span></div>
+   </div>
+   <div class="card" style="margin-top:12px;">
+     <div class="progress-row"><span>学习中（未毕业·到期）</span><span class="mut" style="color:#3b82f6;font-weight:700;">${dueLearning(Date.now()).length} 词</span></div>
+     <div class="progress-row" style="margin-top:8px;"><span>今日复习（已毕业·到期）</span><span class="mut" style="color:var(--gold);font-weight:700;">${dueGraduated(Date.now()).length} 词</span></div>
+     <div class="progress-row" style="margin-top:8px;"><span>今日新词</span><span class="mut">${newToday()} / ${NEW_CAP}</span></div>
+     <div class="progress-row" style="margin-top:8px;"><span>当前能力 θ</span><span class="mut">${P.meta.theta.toFixed(2)}</span></div>
+     <div class="bar" style="margin-top:6px;"><i style="width:${(P.meta.theta-1)/2*100}%"></i></div>
+   </div>
+   <button class="ghostbtn" data-act="homeback" style="margin-top:12px;">返回</button>`;
+}
+
+/* 怎么玩（二级页） */
+function viewHowto(){
+  return `
+   ${topbar()}
+   <div class="card"><div class="panel-title">怎么玩</div></div>
+   <div class="card" style="margin-top:12px;">
+     <div class="howto">
+       · 答对单词攻击敌人，<b>答得越快伤害越高</b>，连击还会再加成。<br>
+       · 连击 ≥5 进入<b>心流</b>，额外获得词魂；连续答错会凝神，下一题限时 +2。<br>
+       · 题目标注词性（n./v./adj.…），帮助区分同形与近形词。<br>
+       · 答错或超时敌人反击，连击清零，错词进错词本并按遗忘曲线复习。<br>
+       · 键盘可按 <b>1–4</b> 选答案，拼写题输入后回车。
+     </div>
+   </div>
+   <button class="ghostbtn" data-act="homeback" style="margin-top:12px;">返回</button>`;
+}
+
 /* 错词本：按错误次数分级（顽固 3+ / 易错 2 / 生疏 1），常驻复习入口 */
 function wrongBookData(){
   const set={};
@@ -1816,19 +2554,72 @@ function viewBattle(){
    <div class="floatlayer" id="floatlayer"></div>`;
 }
 
+const TAGNAME={aggro:'强攻',combo:'连击',crit:'暴击',spell:'拼写',shield:'护盾',sustain:'续航',revenge:'复仇',gold:'资源'};
+const RARITY_NAME=['普通','稀有','史诗'];
 function viewChoice(){
   const ch=G.choice;
-  const cards=ch.cand.map(c=>`
-    <button class="pick ${c.rare?'rare':''}" data-pick="${c.id}">
-      <span class="pname">${c.name}<span class="rtag ${c.rare?'rare':''}">${c.rare?'稀有':'普通'}</span></span>
-      <div class="pdesc">${c.desc}</div>
-    </button>`).join('');
+  if(!ch.revealed) ch.revealed=[false,false,false];
+  const cards=ch.slots.map((s,i)=>{
+    const c=s.card;
+    if(!c){
+      return `<div class="flip-card flipped empty" data-i="${i}">
+        <div class="flip-inner">
+          <div class="flip-back r${s.rare}"></div>
+          <div class="flip-front r${s.rare}"><div class="mut" style="padding:18px 8px;">该稀有度已全部收集</div></div>
+        </div></div>`;
+    }
+    const tagLabels=(c.tags||[]).map(t=>`<span class="ctag t-${t}">${TAGNAME[t]}</span>`).join('');
+    return `<div class="flip-card ${ch.revealed[i]?'flipped':''}" data-i="${i}">
+      <div class="flip-inner">
+        <div class="flip-back r${s.rare}">
+          <div class="fb-rune">?</div>
+          <div class="fb-sub">${RARITY_NAME[s.rare]}</div>
+        </div>
+        <div class="flip-front r${s.rare}">
+          <div class="pf-rarity">${RARITY_NAME[s.rare]}</div>
+          <div class="pf-name">${c.name}</div>
+          <div class="pf-tags">${tagLabels}</div>
+          <div class="pf-desc">${c.desc}</div>
+          <button class="pf-pick" data-pick="${c.id}">选择此卡</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const canReroll=!G.rerollUsed && G.gold>=C.rerollCost;
+  const rerollBtn=`<button class="ghostbtn ${canReroll?'':'disabled'}" data-reroll="1">${G.rerollUsed?'已刷新本局':`刷新一组 · ${C.rerollCost} 词魂`}</button>`;
+  const pityHint = ch.slots.some(s=>s.rare===2)?'<div class="pity-hint epic">史诗降临！</div>'
+    : ch.slots.some(s=>s.rare===1)?'<div class="pity-hint rare">稀有卡出现</div>':'';
   return `
    ${topbar()}
    <div class="choice-title"><h2>战斗胜利 · +${ch.reward} 词魂</h2>
-     <div class="mut">选择一张词典卡加入你的词典页</div></div>
-   ${cards}
-   <button class="ghostbtn" data-pick="">放弃（不拿卡）</button>`;
+     <div class="mut">翻开词典卡，选择一张加入你的词典页</div>${pityHint}</div>
+   <div class="flip-row">${cards}</div>
+   <div class="choice-actions">
+     ${rerollBtn}
+     <button class="ghostbtn" data-pick="">放弃（不拿卡）</button>
+   </div>`;
+}
+/* 翻开指定槽（已翻开则忽略）；史诗翻开时放金光 */
+function revealSlot(i){
+  const ch=G.choice; if(!ch||ch.revealed[i])return;
+  ch.revealed[i]=true;
+  const s=ch.slots[i];
+  const el=document.querySelector(`.flip-card[data-i="${i}"]`);
+  if(el) el.classList.add('flipped');
+  if(s.rare===2){
+    burst(50,40,22,'#fbbf24',100);
+    floatText('fheal','史诗！',40);
+  } else if(s.rare===1){
+    burst(50,40,12,'#38bdf8',80);
+  }
+}
+/* 自动翻牌：按稀有度从低到高依次翻开，高稀有度压轴，制造期待 */
+function autoReveal(){
+  const ch=G.choice; if(!ch)return;
+  const order=ch.slots.map((s,i)=>({i,r:s.rare})).sort((a,b)=>a.r-b.r).map(x=>x.i);
+  order.forEach((i,k)=>{
+    setTimeout(()=>revealSlot(i), 350+k*380);
+  });
 }
 
 function viewSpring(){
@@ -1940,21 +2731,67 @@ function render(){
     case 'result': html=viewResult(); break;
     case 'map': html=topbar()+`<div class="card center" style="margin-top:30px;"><div class="qword">进入第 ${G.layer} 层……</div></div>`; break;
     case 'wrongbook': html=viewWrongBook(); break;
+    case 'settings': html=viewSettings(); break;
+    case 'achievements': html=viewAchievements(); break;
+    case 'stats': html=viewStats(); break;
+    case 'howto': html=viewHowto(); break;
   }
   app.innerHTML=html;
   afterRender();
+  sceneBgm();
+}
+/* BGM 随场景切换：战斗/Boss 紧张，主页/泉水/商店/结算舒缓 */
+function sceneBgm(){
+  const s=G.screen;
+  let mode='home';
+  if(s==='battle') mode=G.battle.kind==='boss'?'boss':'battle';
+  else if(s==='choice') mode='battle';
+  AudioEngine.switchBgm(mode);
 }
 
 /* 输入绑定（每帧重绘后） */
 function afterRender(){
   if(G.screen==='home'){
+    /* 模式切换：容器事件委托，整块 tab 都可点；ⓘ 只弹解释、不挡切换 */
+    const tabs=document.querySelector('.mode-tabs');
+    if(tabs){
+      tabs.addEventListener('click',(e)=>{
+        if(e.target.closest('.info-tip')) return;   // ⓘ 由自身监听处理（已 stopPropagation）
+        const tab=e.target.closest('.mode-tab');
+        if(tab){ homeMode=tab.getAttribute('data-mode'); AudioEngine.play('tap'); render(); }
+      });
+    }
+  }
+  if(G.screen==='settings'){
     document.querySelectorAll('[data-book]').forEach(el=>el.addEventListener('click',()=>{
-      SETTINGS.book=el.getAttribute('data-book'); saveSettings(); render();
+      SETTINGS.book=el.getAttribute('data-book'); AudioEngine.play('tap'); saveSettings(); render();
     }));
     document.querySelectorAll('[data-diff]').forEach(el=>el.addEventListener('click',()=>{
       const v=el.getAttribute('data-diff');
+      AudioEngine.play('tap');
       SETTINGS.difficulty=v==='auto'?'auto':parseInt(v); saveSettings(); render();
     }));
+    /* 声音开关 */
+    document.querySelectorAll('[data-audio]').forEach(el=>el.addEventListener('click',()=>{
+      const k=el.getAttribute('data-audio');
+      AUD[k]=!AUD[k]; saveAudioSettings(); AudioEngine.applyVol();
+      el.classList.toggle('on',AUD[k]);
+      if(k==='bgm'){ if(AUD.bgm) AudioEngine.startBgm(); else AudioEngine.stopBgm(); }
+      if(k==='sfx') AudioEngine.play('tap');
+    }));
+    /* 音量滑条：实时生效，拖动结束（防抖）保存 */
+    let volSaveTimer=null;
+    document.querySelectorAll('[data-vol]').forEach(el=>{
+      const vv=el.parentElement.querySelector('.vv');
+      el.addEventListener('input',()=>{
+        const k=el.getAttribute('data-vol');
+        AUD[k]=parseInt(el.value)/100;
+        if(vv)vv.textContent=el.value;
+        AudioEngine.applyVol();
+        if(volSaveTimer)clearTimeout(volSaveTimer);
+        volSaveTimer=setTimeout(saveAudioSettings,300);
+      });
+    });
   }
   if(G.screen==='battle'){
     document.querySelectorAll('.opt').forEach(el=>{
@@ -1997,14 +2834,14 @@ function afterRender(){
         }
         if(e.key==='Backspace'){                   // 删除键显式处理，不依赖 input 事件，手机删除键立即可用
           e.preventDefault();
-          if(seq.length>0)seq.pop();
+          if(seq.length>0){seq.pop(); AudioEngine.play('key');}
           refresh();
           return;
         }
         if(e.key.length===1){                      // 单字符键
           if(/^[a-zA-Z]$/.test(e.key)){
             e.preventDefault();
-            if(seq.length<word.length)seq.push(e.key.toLowerCase());
+            if(seq.length<word.length){seq.push(e.key.toLowerCase()); AudioEngine.play('key');}
             refresh();
           }else{
             e.preventDefault();                    // 空格/数字/标点等一律不进格子
@@ -2038,7 +2875,11 @@ function afterRender(){
     }
   }
   if(G.screen==='choice'){
-    document.querySelectorAll('[data-pick]').forEach(el=>el.addEventListener('click',()=>pickCard(el.getAttribute('data-pick')||null)));
+    if(!G.choice.autoStarted){ G.choice.autoStarted=true; autoReveal(); }
+    document.querySelectorAll('.flip-card').forEach(el=>el.addEventListener('click',()=>revealSlot(parseInt(el.getAttribute('data-i')))));
+    document.querySelectorAll('[data-pick]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();pickCard(el.getAttribute('data-pick')||null);}));
+    const rr=document.querySelector('[data-reroll]');
+    if(rr)rr.addEventListener('click',()=>rerollChoice());
   }
   if(G.screen==='spring'){
     document.querySelectorAll('[data-spring]').forEach(el=>el.addEventListener('click',()=>springAnswer(el.getAttribute('data-spring')==='1')));
@@ -2052,13 +2893,31 @@ function afterRender(){
     const r=document.querySelector('[data-act="wrongreview"]'); if(r)r.addEventListener('click',()=>startSpring('wrongbook'));
     const b=document.querySelector('[data-act="wrongback"]'); if(b)b.addEventListener('click',()=>{ G.screen='home'; render(); });
   }
+  /* ⓘ 解释角标：点击弹出小窗（showTip 定义于启动区；此处仅绑定新元素） */
+  document.querySelectorAll('.info-tip').forEach(el=>{
+    el.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      showTip(el);
+    });
+  });
   document.querySelectorAll('[data-act]').forEach(el=>{
     el.addEventListener('click',()=>{
       const a=el.getAttribute('data-act');
+      AudioEngine.play('tap');
       if(a==='start-campaign'){ rnd=mulberry32(Date.now()%2147483647); newRun('campaign'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='start-endless'){ rnd=mulberry32(Date.now()%2147483647); newRun('endless'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='restart'){ const mode=G.mode; rnd=mulberry32(Date.now()%2147483647); newRun(mode); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='wrongbook'){ G.screen='wrongbook'; render(); }
+      if(a==='settings'){ G.screen='settings'; render(); }
+      if(a==='achievements'){ G.screen='achievements'; render(); }
+      if(a==='stats'){ G.screen='stats'; render(); }
+      if(a==='howto'){ G.screen='howto'; render(); }
+      if(a==='homeback'){ G.screen='home'; render(); }
+      if(a==='launch'){
+        const mode=homeMode;
+        rnd=mulberry32(Date.now()%2147483647); newRun(mode);
+        rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer();
+      }
       if(a==='reset'){ if(confirm('确定清空所有学习进度？')){ Save.reset(); P={words:{}}; newRun(); render(); } }
     });
   });
@@ -2073,6 +2932,20 @@ document.addEventListener('keydown',e=>{
     const val=G.battle.q.options[n-1];
     if(val!==undefined)answer(val);
   }
+});
+
+/* ⓘ 弹窗：显示/关闭（只绑定一次，不随 render 累积） */
+function showTip(el){
+  const tipbox=document.getElementById('tipbox');
+  const r=el.getBoundingClientRect();
+  tipbox.innerHTML=el.getAttribute('data-tip')||'';
+  tipbox.style.display='block';
+  tipbox.style.left=Math.min(r.left,Math.max(8,window.innerWidth-272))+'px';
+  tipbox.style.top=(r.bottom+7)+'px';
+}
+document.addEventListener('click',()=>{
+  const tipbox=document.getElementById('tipbox');
+  if(tipbox) tipbox.style.display='none';
 });
 
 /* 启动 */
