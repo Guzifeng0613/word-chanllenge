@@ -62,6 +62,15 @@ public class BattleView extends FrameLayout {
     private int bonusTime = 0;             // 下题时间 +秒
     // V11.7 对齐 V7.0：商店祝福（下一层伤害+25%）
     private boolean pendingBless = false;
+    // R2-A：25 词典卡机制标志（按 V7.0 CARDS 语义接线）
+    private double critChance = 0.0;        // 暴击率（灵光乍现+15% / 暴击风暴+25%）
+    private double critMult = 2.0;         // 暴击倍率（致命一击改 ×3）
+    private boolean comboHalved = false;   // 势如破竹：答错连击减半而非清零
+    private int shield = 0;                // 错词护盾：开局 6 点，按次抵挡受击
+    private boolean soulMagnet = false;    // 词魂引力：胜利词魂 +40%
+    private double lifestealPct = 0.0;     // 汲词：答对按伤害 10% 回血
+    private boolean immortal = false;      // 不朽：致命伤以 1 HP 存活一次
+    private boolean immortalUsed = false;
     // GAP-10：当前战斗内浮层（翻牌/泉/商店），返回键先关浮层而非弹退出确认
     private View overlayView = null;
     // GAP-01：抽卡 pity 计数（普通保底 / 史诗保底），由后端 /card/draw 返回值驱动
@@ -330,7 +339,11 @@ public class BattleView extends FrameLayout {
         act.runCards = 0;   // GAP-05：每局选卡计数归零
         pity = 0;
         epicPity = 0;
-        if (!"quick".equals(mode)) act.souls = 0;   // 每局（非快刷）词魂重新累计
+        // R2-A：卡机制标志每局重置
+        critChance = 0.0; critMult = 2.0; comboHalved = false;
+        shield = 0; soulMagnet = false; lifestealPct = 0.0;
+        immortal = false; immortalUsed = false;
+        // R2-B：词魂不再每局清零，以权威余额（answer/shop 响应）为准
         soulNum.setText("词魂 " + act.souls);
         lowHpVignette.setVisibility(GONE);
         flowBanner.setVisibility(GONE);
@@ -419,13 +432,20 @@ public class BattleView extends FrameLayout {
         }
     }
 
-    /** V7.0 战斗微目标：每场随机抽 1 个（连击达4 / 答对5题 / 无错击败敌人）。 */
+    /** R2-C：微目标改读后端下发 goal（streak4/hit5/flawless），缺省时本地兜底。 */
     private void pickGoal(boolean boss, boolean elite) {
         if ("quick".equals(mode)) { goalBox.setVisibility(GONE); goalKind = ""; return; }
-        String[] goals = {"combo4", "correct5", "flawless"};
-        goalKind = goals[(int) (Math.random() * goals.length)];
-        if ("combo4".equals(goalKind)) goalTxt.setText("本场连击达到 4");
-        else if ("correct5".equals(goalKind)) goalTxt.setText("本场答对 5 题");
+        String g = enemy != null ? enemy.optString("goal", "") : "";
+        // 后端命名映射到内部 goalKind
+        if ("streak4".equals(g)) goalKind = "streak4";
+        else if ("hit5".equals(g)) goalKind = "hit5";
+        else if ("flawless".equals(g)) goalKind = "flawless";
+        else {
+            String[] fallback = {"streak4", "hit5", "flawless"};
+            goalKind = fallback[(int) (Math.random() * fallback.length)];
+        }
+        if ("streak4".equals(goalKind)) goalTxt.setText("本场连击达到 4");
+        else if ("hit5".equals(goalKind)) goalTxt.setText("本场答对 5 题");
         else goalTxt.setText("本场无错击败敌人");
         goalState.setText("进行中");
         goalState.setTextColor(Ui.GOLD);
@@ -436,12 +456,11 @@ public class BattleView extends FrameLayout {
     private void refreshGoal() {
         if (goalKind.isEmpty() || goalBox.getVisibility() != VISIBLE) return;
         boolean done = false;
-        if ("combo4".equals(goalKind)) done = maxCombo >= 4;
-        else if ("correct5".equals(goalKind)) done = correctInRun >= 5;
+        if ("streak4".equals(goalKind)) done = maxCombo >= 4;
+        else if ("hit5".equals(goalKind)) done = correctInRun >= 5;
         else if ("flawless".equals(goalKind)) done = wrongInRun == 0 && enemy.optInt("hp", 1) <= 0;
-        if (done && !"flawless".equals(goalKind)) { goalState.setText("已达成"); goalState.setTextColor(Ui.GREEN); }
-        else if (done) { goalState.setText("已达成"); goalState.setTextColor(Ui.GREEN); }
-        else { goalState.setText("进行中"); goalState.setTextColor(Ui.GOLD); }
+        goalState.setText(done ? "已达成" : "进行中");
+        goalState.setTextColor(done ? Ui.GREEN : Ui.GOLD);
     }
 
     private JSONObject bodyWithQuickLevel(JSONObject body) throws Exception {
@@ -877,8 +896,9 @@ public class BattleView extends FrameLayout {
         answering = false;
         stopTimer();
         try {
-            boolean crit = combo >= 5 && combo % 5 == 0;
-            double critMult = crit ? 1.5 : 1.0;
+            // R2-A：暴击由卡驱动（默认 critChance=0），roll < critChance 则暴击；致命一击改 ×3
+            boolean crit = critChance > 0 && Math.random() < critChance;
+            double critMultSend = crit ? this.critMult : 1.0;
             JSONObject body = new JSONObject();
             body.put("word", quiz.optString("word"));
             body.put("qtype", quiz.optString("qtype"));
@@ -887,7 +907,7 @@ public class BattleView extends FrameLayout {
             body.put("remain", remainSec);
             body.put("combo", combo);
             body.put("crit", crit);
-            body.put("crit_mult", critMult);
+            body.put("crit_mult", critMultSend);
             body.put("card_mult", bonusDamageMult);   // V11.3 战利品伤害增益
             body.put("shown", quiz.isNull("judgeShown") ? JSONObject.NULL : quiz.optString("judgeShown"));
             body.put("mode", mode);
@@ -903,6 +923,11 @@ public class BattleView extends FrameLayout {
             int xpGain = res.optInt("xp_gained", 0);
             int newLevel = res.optInt("level", 1);
             String correctAnswer = res.optString("correct_answer", "");
+            // R2-B：以权威 souls 余额刷新展示（后端 answer 响应携带）
+            if (res.has("souls")) {
+                act.souls = res.optInt("souls", act.souls);
+                soulNum.setText("词魂 " + act.souls);
+            }
 
             if (ok) {
                 combo++;
@@ -958,11 +983,21 @@ public class BattleView extends FrameLayout {
                     playerLevel = newLevel;
                     onLevelUp();
                 } else playerLevel = newLevel;
+                // R2-A：汲词 lifesteal——答对按造成伤害 10% 回血
+                if (lifestealPct > 0 && hp < 100) {
+                    int heal = (int) Math.round(damage * lifestealPct);
+                    if (heal > 0) {
+                        hp = Math.min(100, hp + heal);
+                        playerHp.setRatio(hp / 100f);
+                        showFeed("🩸 汲词：生命 +" + heal, Ui.GREEN);
+                    }
+                }
                 hitEnemy(damage, crit, wrongCnt > 0);
             } else {
                 questionsInRun++;
-                combo = 0;
-                comboNum.setText("0");
+                // R2-A：势如破竹 unstop——答错连击减半（向下取整）而非清零
+                combo = comboHalved ? combo / 2 : 0;
+                comboNum.setText(String.valueOf(combo));
                 comboNum.setTextColor(Ui.GOLD);
                 comboSub.setText("");
                 wrongInRun++;
@@ -1063,7 +1098,20 @@ public class BattleView extends FrameLayout {
     }
 
     private void hitPlayer(int atk) {
+        // R2-A：错词护盾 shield——按点抵挡伤害（优先扣盾）
+        if (shield > 0) {
+            int absorbed = Math.min(shield, atk);
+            shield -= absorbed;
+            atk -= absorbed;
+            if (absorbed > 0) showFeed("🛡 护盾抵挡 " + absorbed + " 点", Ui.CYAN);
+        }
         hp = Math.max(0, hp - atk);
+        // R2-A：不朽 immortal——致命伤以 1 HP 存活一次
+        if (hp <= 0 && immortal && !immortalUsed) {
+            immortalUsed = true;
+            hp = 1;
+            showFeed("✨ 不朽：致命伤害被抵挡，以 1 HP 存活！", Ui.GOLD);
+        }
         playerHp.setRatio((float) hp / 100f);
         flashRed(playerEmoji);
         // V7.0 低血量红 vignette：hp≤30 显现，否则收起
@@ -1092,6 +1140,7 @@ public class BattleView extends FrameLayout {
         boolean elite = enemy != null && enemy.optBoolean("elite", false);
         int soulGain = boss ? 60 : elite ? 35 : 15;
         if (enemy != null && enemy.optBoolean("champion", false)) soulGain = Math.round(soulGain * 1.5f);
+        if (soulMagnet) soulGain = Math.round(soulGain * 1.4f);   // R2-A：词魂引力 胜利词魂+40%
         act.souls += soulGain;
         soulNum.setText("词魂 " + act.souls);
         showFeed("词魂 +" + soulGain, Ui.GOLD);
@@ -1337,33 +1386,42 @@ public class BattleView extends FrameLayout {
             int color = rarity >= 2 ? Ui.PURPLE : rarity == 1 ? Ui.GOLD : Ui.CYAN;
             showFeed("🌟 获得卡：" + name, color);
             switch (id) {
-                case "lifesteal":
-                case "spellmaster":
-                case "steady":   hp = Math.min(100, hp + (rarity >= 2 ? 12 : 8));
-                    playerHp.setRatio(hp / 100f);
-                    break;
-                case "deadly":
-                case "critstorm":
-                case "flash":    bonusDamageMult = Math.max(bonusDamageMult, 1.4);
-                    break;
-                case "glasscannon":
-                case "wordfire": bonusDamageMult = Math.max(bonusDamageMult, 1.5);
-                    break;
-                case "spellboost":
-                case "combolightning":
-                case "retreat":
-                case "braver":   bonusDamageMult = Math.max(bonusDamageMult, 1.2);
-                    break;
-                case "warmup":
-                case "timectrl":
-                case "timewarp": bonusTime += 2;
-                    break;
+                // ── 暴击类（R2-A：接暴击机制）──
+                case "flash":        critChance += 0.15; break;                 // 灵光乍现：15% 暴击
+                case "critstorm":    critChance += 0.25; break;                 // 暴击风暴：+25% 暴击率
+                case "deadly":       critMult = 3.0; critChance += 0.10; break;  // 致命一击：暴击×3 + 10% 暴击率
+                // ── 连击类 ──
+                case "unstop":       comboHalved = true; break;                 // 势如破竹：答错连击减半
+                case "combolightning": bonusDamageMult = Math.max(bonusDamageMult, 1.15); break; // 连击闪电
+                case "combomaster":  bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;      // 连击大师
+                // ── 护盾/吸血/词魂/不朽（R2-A：机制型卡）──
+                case "shield":       shield = 6; break;                        // 错词护盾：开局 6 盾
+                case "lifesteal":    lifestealPct = 0.10; break;                // 汲词：答对按伤害 10% 回血
+                case "soulmagnet":   soulMagnet = true; break;                  // 词魂引力：胜利词魂 +40%
+                case "immortal":     immortal = true; break;                    // 不朽：致命伤以 1 HP 存活一次
+                // ── 时间类 ──
+                case "warmup":      bonusTime += 2; break;                     // 热身：战斗前 3 题限时+2s
+                case "timectrl":    bonusTime += 3; break;                     // 时间掌控：限时+3s
+                case "timewarp":    bonusTime += 4; break;                    // 时间扭曲：限时+4s
+                // ── 拼写/伤害类 ──
+                case "spellboost":   bonusDamageMult = Math.max(bonusDamageMult, 1.2); break;
+                case "spellmaster":  bonusDamageMult = Math.max(bonusDamageMult, 1.1);
+                                     hp = Math.min(100, hp + 4); playerHp.setRatio(hp / 100f); break;
+                case "spellchain":   bonusDamageMult = Math.max(bonusDamageMult, 1.2); break;
+                case "retreat":      bonusDamageMult = Math.max(bonusDamageMult, 1.15); break;
+                case "braver":       bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
+                case "firstblood":   bonusDamageMult = Math.max(bonusDamageMult, 1.2); break;
+                case "speednote":    bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
+                case "buildup":      bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
+                case "steady":       hp = Math.min(100, hp + 5); playerHp.setRatio(hp / 100f); break;
+                case "doubleedged":  bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
+                case "wordfire":     bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
+                case "glasscannon":  bonusDamageMult = Math.max(bonusDamageMult, 1.5); break;
                 default:
-                    // 未单独接线的卡：按稀有度给温和本局增益
+                    // 未识别 id：按稀有度给温和本局增益（不静默拍平为零效果）
                     if (rarity >= 2) bonusDamageMult = Math.max(bonusDamageMult, 1.3);
                     else if (rarity == 1) bonusDamageMult = Math.max(bonusDamageMult, 1.1);
-                    else hp = Math.min(100, hp + 5);
-                    playerHp.setRatio(hp / 100f);
+                    else { hp = Math.min(100, hp + 5); playerHp.setRatio(hp / 100f); }
                     break;
             }
         } catch (Throwable ignore) {}

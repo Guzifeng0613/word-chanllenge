@@ -376,6 +376,8 @@ public class HomeView extends LinearLayout {
             int streak = stats.optInt("streak", 0);
             int best = stats.optInt("endless_best", 0);
             act.lastBest = best;
+            // R2-B：冷启以权威 souls 余额读回（后端 /stats/daily 携带 souls）
+            if (stats.has("souls")) act.souls = stats.optInt("souls", act.souls);
 
             lvlBadge.setText(String.valueOf(level));
             streakTxt.setText("🔥 " + streak + " 天");
