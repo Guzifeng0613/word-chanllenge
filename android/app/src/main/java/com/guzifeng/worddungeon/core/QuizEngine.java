@@ -160,6 +160,9 @@ public class QuizEngine {
         q.review = fromReview;
         q.step = rec == null ? 0 : rec.step;
         q.graduated = rec != null && rec.graduated;
+        q.stage = rec == null ? 0 : rec.stage;
+        q.wrongCount = rec == null ? 0 : rec.wrongCount;
+        q.revEngaged = runState != null && Boolean.TRUE.equals(runState.wrong.get(word));
         q.runState = runState;
 
         switch (qtype) {
