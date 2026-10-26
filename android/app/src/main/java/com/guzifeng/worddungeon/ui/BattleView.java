@@ -21,6 +21,7 @@ import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
 import com.guzifeng.worddungeon.core.RunState;
+import com.guzifeng.worddungeon.core.DamageCalc;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -912,6 +913,22 @@ public class BattleView extends FrameLayout {
             body.put("shown", quiz.isNull("judgeShown") ? JSONObject.NULL : quiz.optString("judgeShown"));
             body.put("mode", mode);
             if ("quick".equals(mode)) body.put("quick_level", act.quickLevel);
+            // R4：击杀词魂入账接线——非快刷才预测本题是否击杀敌人并下发 kill 标志，
+            // 后端仅在 isCorrect && kill && !quick 时入账（普通15/精英35/Boss60，冠军×1.5）。
+            // 用 DamageCalc 同参本地估算伤害，与敌人剩余 HP 比较预测 kill，避免后端入账分支死代码。
+            if (!"quick".equals(mode) && enemy != null) {
+                int enemyHp = enemy.optInt("hp", 0);
+                String wstate = quiz.optBoolean("graduated", false) ? "MASTERED"
+                        : (quiz.optBoolean("review", false) ? "FAMILIAR" : "NEW");
+                int runMiss = runState != null ? runState.runMisses(quiz.optString("word")) : 0;
+                DamageCalc.Result est = DamageCalc.calc(quiz.optString("word"), wstate, combo,
+                        quiz.optString("qtype"), quiz.optDouble("timeLimit", 6), remainSec,
+                        runMiss, crit, critMultSend, bonusDamageMult);
+                body.put("kill", est.total >= enemyHp);
+                body.put("kill_kind", enemy.optBoolean("boss", false) ? "boss"
+                        : (enemy.optBoolean("elite", false) ? "elite" : "normal"));
+                body.put("champion", enemy.optBoolean("champion", false));
+            }
             body.put("run_state", runState.toJson());
             JSONObject res = act.router().dispatch("/quiz/answer", "POST", body);
             // 回传 run_state（含错词重现）
@@ -1140,10 +1157,12 @@ public class BattleView extends FrameLayout {
         boolean elite = enemy != null && enemy.optBoolean("elite", false);
         int soulGain = boss ? 60 : elite ? 35 : 15;
         if (enemy != null && enemy.optBoolean("champion", false)) soulGain = Math.round(soulGain * 1.5f);
-        if (soulMagnet) soulGain = Math.round(soulGain * 1.4f);   // R2-A：词魂引力 胜利词魂+40%
-        act.souls += soulGain;
+        // R4：基础击杀词魂已由后端 kill 入账、随 answer 响应返回权威 souls（submit 已同步 act.souls），
+        // 此处不再重复累加基础值，避免双计与"内存+N 被下一响应覆盖归零"。
+        // 仅补前端独有、后端未建模的 soulMagnet ×1.4 差额（+40%）。
+        if (soulMagnet) act.souls += Math.round(soulGain * 0.4f);
         soulNum.setText("词魂 " + act.souls);
-        showFeed("词魂 +" + soulGain, Ui.GOLD);
+        showFeed("击杀入账 词魂 +" + (soulMagnet ? Math.round(soulGain * 1.4f) : soulGain), Ui.GOLD);
         // 快刷：一局一个敌人，击杀即结算（保持"快速"节奏，不翻牌）
         if ("quick".equals(mode)) {
             finishRun(true);
