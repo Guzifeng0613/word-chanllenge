@@ -3,9 +3,9 @@
   "appName": "单词地下城",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "http"
   },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": true
   }
 }

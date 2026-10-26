@@ -1,6 +1,8 @@
 package com.guzifeng.worddungeon;
 
 import android.os.Bundle;
+import android.util.Log;
+import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 import com.guzifeng.worddungeon.server.LocalServer;
@@ -14,11 +16,22 @@ import fi.iki.elonen.NanoHTTPD;
 public class MainActivity extends BridgeActivity {
 
     public static final int LOCAL_PORT = 8080;
+    private static final String TAG = "WordDungeon";
     private LocalServer server;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 页面为 http://localhost，fetch http://127.0.0.1 需放行混合内容
+        try {
+            WebView wv = getBridge() != null ? getBridge().getWebView() : null;
+            if (wv != null) {
+                wv.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                Log.i(TAG, "mixed content allowed for local backend");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "setMixedContentMode failed", e);
+        }
         new Thread(this::startLocalServer, "worddungeon-backend").start();
     }
 
@@ -28,11 +41,14 @@ public class MainActivity extends BridgeActivity {
             try {
                 server = new LocalServer(getApplicationContext(), port);
                 server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+                Log.i(TAG, "本地后端已启动 127.0.0.1:" + port);
                 return;
             } catch (Exception e) {
+                Log.e(TAG, "端口 " + port + " 启动失败: " + e.getMessage(), e);
                 port++;
             }
         }
+        Log.e(TAG, "本地后端 8 个端口全部启动失败");
     }
 
     @Override

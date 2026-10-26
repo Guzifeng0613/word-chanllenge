@@ -2710,7 +2710,7 @@ function viewSettings(){
    <div class="subhead">
      <button class="back" data-act="homeback">‹</button>
      <span class="st">设置</span>
-     <span class="smut">V7.0 · 快速刷题版</span>
+     <span class="smut">V8.0 · Java 后端版</span>
    </div>
 
    <div class="card">
@@ -2819,7 +2819,7 @@ function viewSettings(){
      <div class="about-line">词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）<br>
        学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）<br>
        模式：远征 3 层闯关 · 无尽下潜挑战 · 错词 2 次封顶<br>
-       版本：V7.0 · 快速刷题（7388 词已内置；新增普通/困难/地狱三档快刷，词频+错误驱动出题；联网时自动读单词，离线不发音）</div>
+       版本：V8.0 · 原生 Java 后端版（词库由 App 内本地服务提供，完全离线）</div>
    </div>
 
    <button class="ghostbtn" data-act="reset" style="margin-top:12px;">清空所有学习进度</button>`;
@@ -3542,7 +3542,7 @@ function initAndroidBack(){
 newRun();
 render();
 initAndroidBack();
-API.init().then(on=>{ if(on){ loadApiData().then(()=>render()); } });
+API.init().then(on=>{ if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); } else { apiToast('本地后端未启动 · 词书不可用'); render(); } });
 </script>
 </body>
 </html>
