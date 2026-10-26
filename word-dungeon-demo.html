@@ -1278,8 +1278,14 @@ const MIN=60*1000, DAY=24*60*60*1000;
 /* ═══ 前后端接入层（V8.1）：App 内走 Capacitor 插件桥直调 Java 后端；浏览器走 HTTP（开发）═══ */
 /* 运行环境：App 内（Capacitor）优先插件桥（无网络层，最可靠）；浏览器读取 localStorage 配置（开发用） */
 const IS_APP = !!(window.Capacitor && window.Capacitor.platform && window.Capacitor.platform !== 'web');
-const CAP = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.WordDungeon)
-  ? window.Capacitor.Plugins.WordDungeon : null;
+/* Capacitor 原生插件是页面加载后注入的，必须动态获取（不能静态判断） */
+function getCap(){
+  try{
+    if(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.WordDungeon)
+      return window.Capacitor.Plugins.WordDungeon;
+  }catch(e){}
+  return null;
+}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function detectLocalPort(){
   for(let p=8080;p<=8087;p++){
@@ -1293,19 +1299,26 @@ async function detectLocalPort(){
 }
 const API={
   base:(localStorage.getItem('wd_api_base')||'').replace(/\/+$/,''),
-  token:null, on:false, checking:true, cap:CAP,
+  token:null, on:false, checking:true, cap:null, capFail:null,
   async init(){
     this.token=localStorage.getItem('wd_api_token')||null;
     /* App 内：优先插件桥——不依赖端口/cleartext/CORS/mixed-content */
-    if(this.cap){
-      try{
-        const g=await this.cap.call({route:'/auth/guest'});
-        if(g&&g.token){ this.token=g.token; localStorage.setItem('wd_api_token',g.token); }
-        const d=await this.cap.call({route:'/review/due'});
-        this.on=true;
-      }catch(e){ this.on=false; }
-      this.checking=false;
-      return this.on;
+    if(IS_APP){
+      this.cap=getCap();
+      /* 插件注入可能晚于页面 JS：轮询等待至多 10 秒 */
+      for(let i=0;i<20 && !this.cap;i++){ await sleep(500); this.cap=getCap(); }
+      if(this.cap){
+        try{
+          const g=await this.cap.call({route:'/auth/guest'});
+          if(g&&g.token){ this.token=g.token; localStorage.setItem('wd_api_token',g.token); }
+          const d=await this.cap.call({route:'/review/due'});
+          this.on=true;
+          this.capFail=null;
+        }catch(e){ this.on=false; this.capFail='插件调用失败: '+(e&&e.message?e.message:e); }
+        this.checking=false;
+        return this.on;
+      }
+      this.capFail='插件不可用';
     }
     /* 浏览器：HTTP 后端（开发用） */
     if(IS_APP && !this.base){
@@ -3565,7 +3578,8 @@ function bootWithRetry(){
   API.init().then(on=>{
     if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); }
     else{
-      apiToast('本地后端未启动 · 词书不可用（15 秒后自动重试）');
+      const why=API.capFail ? (' · '+API.capFail) : (IS_APP ? ' · HTTP 探测失败' : ' · 未配置后端');
+      apiToast('本地后端未启动 · 词书不可用（15 秒后自动重试）'+why);
       render();
       setTimeout(bootWithRetry, 15000);
     }

@@ -9,7 +9,11 @@
 - **单一逻辑源**：新增 `server/BackendRouter`（纯逻辑分发，不依赖 NanoHTTPD），插件与 HTTP 服务共用；`LocalServer` 精简为委托 BackendRouter（保留浏览器调试/云端通道）。
 - `MainActivity.onCreate` 注册插件桥；HTTP 服务仍启动（后台线程）。
 - 前端 API 层：App 内优先插件桥（init/req 全部走 call），浏览器仍走 HTTP 配置；等待/重试逻辑保留。
-- JVM 编译通过；APK 内已确认含插件桥代码。版本 9.0 / versionCode 10（大改动 +1）。
+- JVM 编译通过；APK 内已确认含插件桥代码（apkanalyzer 145 个 com.guzifeng 类；dexdump 对 6MB dex 误报，弃用）。版本 9.0 / versionCode 10（大改动 +1）。
+
+## V9.0.1 · 插件桥时序修复：动态获取 + 轮询等待 + 失败原因诊断（2026-10-26）
+- 真机截图证实后端启动正常（系统 Toast「本地后端已启动:8080」），但前端仍报"未启动"——原因：Capacitor 原生插件是**页面加载后注入**的，前端在页面加载时静态判断 `window.Capacitor.Plugins.WordDungeon` 会拿到 null，导致回退到被 WebView 阻断的 HTTP 探测。
+- 修复：插件改为**动态获取 getCap()**；App 内 init 时**轮询等待插件注入（至多 10 秒）**；失败时记录 `capFail` 并把原因拼进页面提示（插件不可用/插件调用失败:xx/HTTP 探测失败），下次截图自带诊断信息。
 ## V8.0.2 · 后端本地部署确认 + 失败诊断（2026-10-26）
 - 用户确认：后端必须本地部署（App 内 NanoHTTPD + SQLite），**不上云**——架构方向不变，完全离线。
 - 真机后端仍连不上（V8.0.1 后 toast 显示"本地后端未启动"）：为定位根因，加固诊断能力：
