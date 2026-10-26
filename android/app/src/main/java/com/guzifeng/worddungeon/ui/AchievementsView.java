@@ -66,16 +66,16 @@ public class AchievementsView extends LinearLayout {
             int cnt = 0;
             for (boolean b : has) if (b) cnt++;
 
-            // 顶栏
+            // 顶栏（V7.0 规范：返回键在左上）
             LinearLayout top = new LinearLayout(getContext());
             top.setOrientation(LinearLayout.HORIZONTAL);
             top.setGravity(Gravity.CENTER_VERTICAL);
-            TextView t = Ui.text(getContext(), "成就墙", 19, Ui.TXT, true);
-            top.addView(t, lp(0, -2, 1f));
             TextView back = Ui.text(getContext(), "‹ 返回", 14, Ui.CYAN, true);
             back.setPadding(dp(8), dp(6), dp(8), dp(6));
             back.setOnClickListener(v -> act.show(MainActivity.Screen.HOME));
             top.addView(back);
+            TextView t = Ui.text(getContext(), "成就墙", 19, Ui.TXT, true);
+            top.addView(t, lp(0, -2, 1f));
             body.addView(top);
 
             TextView hint = Ui.text(getContext(), "成就墙（" + cnt + "/" + ACH_DEFS.length + "）· 完成挑战解锁成就，记录你的成长", 11.5f, Ui.MUT, false);

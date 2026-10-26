@@ -9,6 +9,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -206,6 +207,9 @@ public class BattleView extends FrameLayout {
     // ── 战斗流程 ─────────────────────────────
 
     public void startRun() {
+        // 新一局前清掉上一局悬挂的全部回调（计时/自动提交/题链/飘字），防旧回调串题
+        main.removeCallbacksAndMessages(null);
+        hideKeyboard();
         mode = act.mode;
         book = act.book;
         difficulty = act.difficulty;
@@ -273,6 +277,7 @@ public class BattleView extends FrameLayout {
     private void nextQuiz() {
         answering = true;
         quiz = null;
+        hideKeyboard();   // 切题时先收键盘（拼写题会在 renderQuiz 里重新请求弹出）
         try {
             JSONObject body = new JSONObject();
             body.put("layer", layer);
@@ -402,7 +407,14 @@ public class BattleView extends FrameLayout {
                 spellRow.setGravity(Gravity.CENTER_VERTICAL);
                 spellInput = new EditText(getContext());
                 spellInput.setSingleLine(true);
-                spellInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                // V3.5 回归：VISIBLE_PASSWORD 关闭自动纠错/首字母大写/联想条，
+                // 配合 NO_SUGGESTIONS 保证逐字符顺序输入、系统删除键原生行为，
+                // 杜绝 H5 曾出现的"输入自动反过来/丢字母"；未注册任何 TextWatcher/KeyListener。
+                spellInput.setInputType(InputType.TYPE_CLASS_TEXT
+                        | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                        | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                spellInput.setFocusable(true);
+                spellInput.setFocusableInTouchMode(true);
                 spellInput.setTextColor(Ui.TXT);
                 spellInput.setHintTextColor(Ui.GOLD);
                 String hint = word.isEmpty() ? "输入英文拼写" : "首字母 " + word.substring(0, 1).toUpperCase()
@@ -412,6 +424,7 @@ public class BattleView extends FrameLayout {
                 spellInput.setPadding(dp(10), dp(8), dp(10), dp(8));
                 spellInput.setTextSize(18);
                 spellInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+                // 回车/完成：走与选项提交完全一致的 submit() 判定逻辑
                 spellInput.setOnEditorActionListener((v, id, ev) -> {
                     if (id == EditorInfo.IME_ACTION_DONE || id == EditorInfo.IME_ACTION_GO
                             || id == EditorInfo.IME_ACTION_SEND || id == EditorInfo.IME_ACTION_SEARCH
@@ -423,6 +436,15 @@ public class BattleView extends FrameLayout {
                 });
                 spellRow.addView(spellInput, new LinearLayout.LayoutParams(0, -2, 1f));
                 col.addView(spellRow);
+                // 键盘生命周期：拼写题出现自动聚焦并弹出输入法（等 attach 后再请求）
+                spellInput.post(() -> {
+                    try {
+                        spellInput.requestFocus();
+                        InputMethodManager imm = (InputMethodManager)
+                                getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                        if (imm != null) imm.showSoftInput(spellInput, InputMethodManager.SHOW_IMPLICIT);
+                    } catch (Throwable ignore) {}
+                });
                 break;
             }
         }
@@ -464,9 +486,10 @@ public class BattleView extends FrameLayout {
     private void submitJudge(String ans) { submit(ans); }
     private void submitOption(String ans) { submit(ans); }
     private void submitSpell() {
-        String t = spellInput == null ? "" : spellInput.getText().toString().trim();
+        // 读取拼写后走统一 submit() 判定；答对清空输入框，答错保留玩家拼写做红抖/换答案展示
+        if (spellInput == null) { submit(""); return; }
+        String t = spellInput.getText().toString().trim();
         submit(t);
-        if (spellInput != null) spellInput.setText("");
     }
 
     private void submit(String answer) {
@@ -507,6 +530,9 @@ public class BattleView extends FrameLayout {
                 comboNum.setText(String.valueOf(combo));
                 comboSub.setText(combo >= 5 ? "心流加成中" : combo >= 8 ? "输出高涨！" : "");
                 comboNum.setTextColor(combo >= 5 ? Ui.PURPLE : Ui.GOLD);
+                // 答对：拼写框立即清空并收键盘，进入打击反馈
+                if (spellInput != null) { spellInput.setText(""); }
+                hideKeyboard();
                 // 复仇提示
                 if (wrongCnt > 0) {
                     showFeed("⚡ 复仇！伤害 ×" + (wrongCnt >= 2 ? 2.0 : 1.5) + " +" + damage, Ui.PURPLE);
@@ -524,12 +550,29 @@ public class BattleView extends FrameLayout {
                 comboSub.setText("");
                 wrongInRun++;
                 hitPlayer(enemy.optInt("atk", 10));
-                if ("spell".equals(quiz.optString("qtype"))) {
+                // V3.5 拼写答错回归：先红抖展示玩家拼写，约 0.6s 后替换为正确答案（金色）
+                // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
+                boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
+                if (spellWrong) {
                     showFeed("正确答案：" + correctAnswer, Ui.RED);
+                    try {
+                        final EditText f = spellInput;
+                        f.setTextColor(Ui.RED);
+                        f.clearFocus();
+                        hideKeyboard();
+                        shake(f, 350);
+                        main.postDelayed(() -> {
+                            try {
+                                f.setText(correctAnswer);
+                                f.setTextColor(Ui.GREEN);   // 正确答案变绿
+                                f.setKeyListener(null);   // 答案展示态禁编辑/删除，防误改
+                            } catch (Throwable ignore) {}
+                        }, 600);
+                    } catch (Throwable ignore) {}
                 } else {
                     showFeed("✗ 正确答案：" + correctAnswer, Ui.RED);
                 }
-                pauseThenNext();
+                pauseThenNext(spellWrong);
             }
         } catch (Throwable e) {
             showFeed("结算失败：" + e.getMessage(), Ui.RED);
@@ -595,7 +638,9 @@ public class BattleView extends FrameLayout {
         }, 800);
     }
 
-    private void pauseThenNext() {
+    private void pauseThenNext() { pauseThenNext(false); }
+
+    private void pauseThenNext(boolean spellReveal) {
         if (hp <= 0) {
             main.postDelayed(() -> {
                 act.result().onFinish(false, mode, layer, wrongInRun, combo,
@@ -604,10 +649,14 @@ public class BattleView extends FrameLayout {
             }, 900);
             return;
         }
-        main.postDelayed(this::nextQuiz, 1100);
+        // 拼写错题：红抖 0.6s + 正确答案停留 ~1.0s（共 1.6s）；选项题保持 1.1s 一致停留
+        main.postDelayed(this::nextQuiz, spellReveal ? 1600 : 1100);
     }
 
     public void onBack() {
+        hideKeyboard();
+        // 退出战斗清掉本页全部悬挂回调（计时/自动提交/题链），防止回主页后旧回调串题
+        main.removeCallbacksAndMessages(null);
         act.show(MainActivity.Screen.HOME);
     }
 
@@ -616,16 +665,21 @@ public class BattleView extends FrameLayout {
     private double timeLimit = 6;
     private double remainSec = 0;
     private Runnable timerTick;
+    private Runnable autoSubmit;   // 计时到点的空答案提交（纳入 stopTimer 统一移除，防悬挂）
     private boolean timerOn = false;
 
     private void startTimer() {
         if (quiz == null) return;
+        // 先清掉上一题残留（timerTick + 自动提交匿名回调），再开启新循环；
+        // 注意必须先 stopTimer() 再置 timerOn=true，否则旧顺序里 stopTimer() 会把
+        // timerOn 重置为 false，导致首个 tick 因 !timerOn 直接 return，计时整条死掉。
+        stopTimer();
         timeLimit = quiz.optDouble("timeLimit", 6);
         remainSec = timeLimit;
         timerOn = true;
         timerTxt.setText(String.format("%.1f", remainSec) + " 秒");
         timerTxt.setTextColor(Ui.MUT);
-        stopTimer();
+        setTimerFill(1f);
         timerTick = new Runnable() {
             @Override
             public void run() {
@@ -636,7 +690,10 @@ public class BattleView extends FrameLayout {
                     timerTxt.setText("0.0 秒");
                     timerTxt.setTextColor(Ui.RED);
                     setTimerFill(0f);
-                    main.postDelayed(() -> submit(""), 60);   // 计时结束自动提交（空答案=答错）
+                    // 计时结束自动提交（空答案=答错）；与玩家手动提交互斥：
+                    // submit() 首句 answering 守卫 + stopTimer() 会移除本回调，防双提交/连跳两题
+                    autoSubmit = () -> submit("");
+                    main.postDelayed(autoSubmit, 60);
                     return;
                 }
                 timerTxt.setText(String.format("%.1f", remainSec) + " 秒");
@@ -661,7 +718,19 @@ public class BattleView extends FrameLayout {
     private void stopTimer() {
         timerOn = false;
         if (timerTick != null) main.removeCallbacks(timerTick);
+        if (autoSubmit != null) main.removeCallbacks(autoSubmit);
         timerTxt.setTextColor(Ui.MUT);
+    }
+
+    /** 收起输入法（拼写题提交/切题/退出时调用）。 */
+    private void hideKeyboard() {
+        try {
+            InputMethodManager imm = (InputMethodManager)
+                    getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null && spellInput != null) {
+                imm.hideSoftInputFromWindow(spellInput.getWindowToken(), 0);
+            }
+        } catch (Throwable ignore) {}
     }
 
     // ── 动效 ─────────────────────────────

@@ -38,6 +38,12 @@ public class WrongbookView extends LinearLayout {
         sv.addView(body);
         addView(sv, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        // 补偿 MainActivity 中 root.addView(wrongbook) 未传 LayoutParams：
+        // FrameLayout 默认 WRAP_CONTENT 高度会挤压 ScrollView，使滚动区高度不确定。
+        // 自带 MATCH_PARENT LP 会被 addView(child) 复用，保证滚动区拿到真实全屏高度。
+        setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
         refresh();
     }
 
@@ -58,16 +64,16 @@ public class WrongbookView extends LinearLayout {
     }
 
     private void buildList(JSONArray words, JSONObject summary) {
-        // 顶栏
+        // 顶栏（V7.0 规范：返回键在左上）
         LinearLayout top = new LinearLayout(getContext());
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView t = Ui.text(getContext(), "错词本", 19, Ui.TXT, true);
-        top.addView(t, lp(0, -2, 1f));
         TextView back = Ui.text(getContext(), "‹ 返回", 14, Ui.CYAN, true);
         back.setPadding(dp(8), dp(6), dp(8), dp(6));
         back.setOnClickListener(v -> act.show(MainActivity.Screen.HOME));
         top.addView(back);
+        TextView t = Ui.text(getContext(), "错词本", 19, Ui.TXT, true);
+        top.addView(t, lp(0, -2, 1f));
         body.addView(top);
 
         TextView hint = Ui.text(getContext(), "按错误次数分级，顽固词反复出现，答对降级直至掌握", 11.5f, Ui.MUT, false);
@@ -95,7 +101,8 @@ public class WrongbookView extends LinearLayout {
             String name = gn[gi];
             int cnt = 0;
             for (int i = 0; i < words.length(); i++) {
-                if (words.optJSONObject(i).optInt("grade", 0) == grade) cnt++;
+                JSONObject w0 = words.optJSONObject(i);
+                if (w0 != null && w0.optInt("grade", 0) == grade) cnt++;
             }
             if (cnt == 0) continue;
             LinearLayout card = new LinearLayout(getContext());
@@ -106,9 +113,20 @@ public class WrongbookView extends LinearLayout {
             card.addView(h);
             for (int i = 0; i < words.length(); i++) {
                 JSONObject w = words.optJSONObject(i);
+                if (w == null) {
+                    android.util.Log.e("WD", "skip null word idx=" + i);
+                    continue;
+                }
                 if (w.optInt("grade", 0) != grade) continue;
-                android.util.Log.d("WD", "render grade=" + grade + " word=" + w.optString("word","?"));
-                card.addView(wordRow(w, color));
+                String wd = w.optString("word", "?");
+                android.util.Log.d("WD", "render grade=" + grade + " word=" + wd);
+                try {
+                    card.addView(wordRow(w, color));
+                } catch (Throwable re) {
+                    // 单行渲染失败不中断整组：占位行 + 日志，其余词继续渲染
+                    android.util.Log.e("WD", "render failed word=" + wd, re);
+                    card.addView(Ui.text(getContext(), "▸ " + wd + "（本行渲染失败）", 12, Ui.MUT, false));
+                }
             }
             body.addView(card);
             body.addView(spacer(10));

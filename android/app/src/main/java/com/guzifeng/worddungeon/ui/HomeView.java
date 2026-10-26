@@ -2,6 +2,7 @@ package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -19,7 +20,8 @@ public class HomeView extends LinearLayout {
 
     private final MainActivity act;
 
-    private TextView lvlBadge, streakTxt, xpLab, fillView;
+    private TextView lvlBadge, streakTxt, xpLab;
+    private View fillView;
     private LinearLayout xpBarWrap;
     private TextView modeDescLab;
     private LinearLayout tabCampaign, tabEndless, tabQuick;
@@ -42,6 +44,8 @@ public class HomeView extends LinearLayout {
 
         buildBanner();
         buildLaunchCard();
+        // 构造期即按默认 campaign 模式落定可见性，保证后端数据加载前后整体高度一致
+        updateLaunchCard();
         buildDock();
     }
 
@@ -56,6 +60,7 @@ public class HomeView extends LinearLayout {
         top.setOrientation(HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         lvlBadge = Ui.goldBadge(getContext(), "1", 42);
+        singleLine(lvlBadge);
         top.addView(lvlBadge);
 
         LinearLayout titles = new LinearLayout(getContext());
@@ -70,16 +75,23 @@ public class HomeView extends LinearLayout {
         top.addView(titles);
 
         streakTxt = Ui.text(getContext(), "🔥 0 天", 13, Ui.GOLD, true);
+        singleLine(streakTxt);
         top.addView(streakTxt);
         banner.addView(top);
 
         xpBarWrap = new LinearLayout(getContext());
         xpBarWrap.setOrientation(HORIZONTAL);
         xpBarWrap.setPadding(0, dp(4), 0, 0);
+        // 构造期一次性建好固定高度 XP 条容器；刷新只更新内部 fill 的 weight，
+        // 禁止 removeAllViews() 重建，从根上消除条容器高度变化
+        View[] barInit = Ui.bar(getContext(), 0f, 0xFF22C55E, 0xFF4ADE80, 7);
+        xpBarWrap.addView(barInit[0]);
+        fillView = barInit[1];
         banner.addView(xpBarWrap);
 
         xpLab = Ui.text(getContext(), "0 / 120 XP · 目标成功率 85%", 10.5f, Ui.MUT, false);
         xpLab.setPadding(0, dp(5), 0, 0);
+        singleLine(xpLab);
         banner.addView(xpLab);
         addView(banner);
         addView(spacer(12));
@@ -101,10 +113,15 @@ public class HomeView extends LinearLayout {
         card.addView(tabs);
 
         // cfg-line / quick-levels 区（动态）
+        // 两区固定高度 48dp：模式切换时仅 VISIBLE/GONE 互换，总高度恒定
         cfgArea = new LinearLayout(getContext());
         cfgArea.setOrientation(VERTICAL);
+        cfgArea.setGravity(Gravity.CENTER_VERTICAL);
+        cfgArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
         cfgLineTxt = Ui.text(getContext(), "词书 高考 · 难度 自适应", 14, Ui.TXT, true);
+        singleLine(cfgLineTxt);
         cfgCountTxt = Ui.text(getContext(), "3674 词 ›", 12, Ui.GOLD, false);
+        singleLine(cfgCountTxt);
         LinearLayout cfgRow = new LinearLayout(getContext());
         cfgRow.setOrientation(HORIZONTAL);
         cfgRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -121,6 +138,8 @@ public class HomeView extends LinearLayout {
         // quick-levels 三档
         quickArea = new LinearLayout(getContext());
         quickArea.setOrientation(HORIZONTAL);
+        quickArea.setGravity(Gravity.CENTER_VERTICAL);
+        quickArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
         String[] subs = {"高频优先·识别快刷", "错词加权·进阶", "拼写为主·拼写压轴"};
         for (int i = 0; i < 3; i++) {
             final int idx = i;
@@ -160,6 +179,7 @@ public class HomeView extends LinearLayout {
         launchBtn.setBackground(gb.build());
         modeDescLab = Ui.text(getContext(), "3 层闯关", 10.5f, 0xFF5B4310, false);
         modeDescLab.setGravity(Gravity.CENTER);
+        singleLine(modeDescLab);
         launchBtn.setOnClickListener(v -> { act.mode = pickMode; act.show(MainActivity.Screen.BATTLE); });
         launchWrap.addView(launchBtn);
         launchWrap.addView(modeDescLab);
@@ -203,6 +223,7 @@ public class HomeView extends LinearLayout {
         TextView ic = Ui.text(c, icon, 20, Ui.TXT, false);
         TextView n = Ui.text(c, name, 13, Ui.TXT, true);
         TextView s = Ui.text(c, sub, 10.5f, Ui.MUT, false);
+        singleLine(s);
         box.addView(ic);
         box.addView(n);
         box.addView(s);
@@ -378,9 +399,19 @@ public class HomeView extends LinearLayout {
     }
 
     private void rebuildXpBar(float pct) {
-        if (xpBarWrap.getChildCount() > 0) xpBarWrap.removeAllViews();
-        View[] bar = Ui.bar(getContext(), pct, 0xFF22C55E, 0xFF4ADE80, 7);
-        xpBarWrap.addView(bar[0]);
+        // 不再 removeAllViews 重建：只更新 fill 宽度 weight，容器高度恒定
+        float p = Math.max(0f, Math.min(1f, pct));
+        if (fillView != null) {
+            LinearLayout.LayoutParams fp = (LinearLayout.LayoutParams) fillView.getLayoutParams();
+            fp.weight = p;
+            fillView.setLayoutParams(fp);
+        }
+    }
+
+    /** 动态文案一律单行 END 截断：文案长短只改宽度、不改行高，防数据刷新前后高度抖动 */
+    private static void singleLine(TextView t) {
+        t.setMaxLines(1);
+        t.setEllipsize(TextUtils.TruncateAt.END);
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }
