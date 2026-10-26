@@ -75,6 +75,7 @@ public class ResultView extends FrameLayout {
                 b.put("win", win);
                 b.put("max_combo", maxCombo);
                 b.put("correct", correct);
+                b.put("cards", act.runCards);   // GAP-05：本局选卡数（成就 cards5/cards10 计数）
                 act.router().dispatch("/progress/finish", "POST", b);
             } catch (Throwable ignore) {}
         }).start();
@@ -134,7 +135,7 @@ public class ResultView extends FrameLayout {
         LinearLayout row2 = new LinearLayout(getContext());
         row2.setOrientation(HORIZONTAL);
         addStat(row2, maxCombo + "", "最高连击", true);
-        if (!endless) addStat(row2, String.valueOf(Math.max(0, questions - wrong)), "新学词", false);
+        if (!endless) addStat(row2, String.valueOf(act.runNewWords.size()), "新学词", false);   // GAP-14：与下方 chips 同一数据源
         if (endless) addStat(row2, kills + "", "击败敌人", true);
         body.addView(row2);
         body.addView(spacer(10));

@@ -158,6 +158,7 @@ public class HomeView extends LinearLayout {
             Ui.pressable(box);
             box.setOnClickListener(v -> {
                 act.quickLevel = quickIds[idx];
+                act.savePrefs();   // GAP-08：持久化快刷档
                 for (int j = 0; j < quickBtns.length; j++) {
                     LinearLayout target = (LinearLayout) quickBtns[j].getParent();
                     target.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));

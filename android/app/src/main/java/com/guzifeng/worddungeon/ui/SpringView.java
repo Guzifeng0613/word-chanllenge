@@ -79,6 +79,13 @@ public class SpringView extends FrameLayout {
         }
 
         String[] keys = words.keySet().toArray(new String[0]);
+        // GAP-11：按本层出错次数降序（≈顽固>易错>生疏）
+        java.util.Arrays.sort(keys, (a, b) -> {
+            String[] pa = words.get(a), pb = words.get(b);
+            int ca = pa != null && pa.length > 2 ? Integer.parseInt(pa[2]) : 1;
+            int cb = pb != null && pb.length > 2 ? Integer.parseInt(pb[2]) : 1;
+            return cb - ca;
+        });
         if (idx >= keys.length) {
             TextView doneT = Ui.text(getContext(), "复习完成，泉水之力已灌注", 14, Ui.GREEN, true);
             doneT.setGravity(Gravity.CENTER);

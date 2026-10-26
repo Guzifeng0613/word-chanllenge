@@ -120,6 +120,7 @@ public class SettingsView extends LinearLayout {
             bookLines[idx] = ct;
             box.setOnClickListener(v -> {
                 act.book = bookIds[idx];
+                act.savePrefs();   // GAP-08：持久化词书选择
                 refresh();
             });
             grid.addView(box, lp(0, -2, 1f));
@@ -144,6 +145,7 @@ public class SettingsView extends LinearLayout {
             diffBoxes[idx] = box;
             box.setOnClickListener(v -> {
                 act.difficulty = diffIds[idx];
+                act.savePrefs();   // GAP-08：持久化难度选择
                 refresh();
             });
             dgrid.addView(box, lp(0, -2, 1f));

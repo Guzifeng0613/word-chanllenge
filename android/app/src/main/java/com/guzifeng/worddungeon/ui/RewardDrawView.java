@@ -2,51 +2,40 @@ package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * 翻牌抽卡（V7.0 viewChoice 行 2993 / autoReveal 行 3051；截图 08-choice-flip）：
- *  - 战斗胜利后翻 3 张词典卡（普通/稀有/史诗）
+ * 翻牌抽卡（V7.0 viewChoice / autoReveal；GAP-01 接真实后端 /card/draw）：
+ *  - 战斗胜利后翻 3 张词典卡，槽位由后端 CardCatalog.draw 返回（25 卡目录 + pity 保底）
  *  - 自动按稀有度从低到高依次翻开，史诗压轴放金光
- *  - 每张卡「选择此卡」；底部「刷新一组·25 词魂」（每局限 1 次）/「放弃（不拿卡）」
- * 奖励内容池与三级稀有度数值由后端（Agent3）提供；此处展示池保持与 V11.3 一致。
+ *  - 每张卡「选择此卡」；底部「刷新一组 · 25 词魂」（真实扣词魂，BattleView 走 /shop/buy reroll）/「放弃（不拿卡）」
+ * 槽位 JSON 形如 {slots:[{rare, card:{id,name,rarity,effect}}], pity, epicPity}。
  */
 public class RewardDrawView extends FrameLayout {
 
-    /** 一条奖励。 */
-    public static final class Reward {
-        public final int rarity;     // 1 普通 / 2 稀有 / 3 史诗
-        public final String kind;    // heal / xp / damage / time
-        public final int amount;
-        public final String icon, title, desc;
-        public final int color;
-
-        Reward(int rarity, String kind, int amount, String icon, String title, String desc, int color) {
-            this.rarity = rarity; this.kind = kind; this.amount = amount;
-            this.icon = icon; this.title = title; this.desc = desc; this.color = color;
-        }
-    }
-
-    /** chosen=null 表示放弃不拿卡。 */
+    /** chosen=null 表示放弃不拿卡；reroll 请求由 BattleView 走真实购买后重建本浮层。 */
     public interface OnReward {
-        void onReward(Reward r);
+        void onReward(JSONObject card);
+        void onReroll();
     }
 
-    private final List<Card> cards = new ArrayList<>();
     private final OnReward callback;
+    private final List<JSONObject> slots = new ArrayList<>();
     private TextView epicBanner, refreshBtn;
+    private LinearLayout row;
     private boolean done = false;
     private boolean refreshed = false;
-    private TextView soulHint;
 
-    public RewardDrawView(Context c, OnReward cb) {
+    public RewardDrawView(Context c, JSONObject drawRes, OnReward cb) {
         super(c);
         this.callback = cb;
         setClickable(true);
@@ -61,10 +50,10 @@ public class RewardDrawView extends FrameLayout {
         TextView title = Ui.text(c, "战斗胜利", 19, Ui.GOLD, true);
         title.setGravity(Gravity.CENTER);
         panel.addView(title);
-        soulHint = Ui.text(c, "翻开词典卡，选择一张加入你的词典页", 11.5f, Ui.MUT, false);
-        soulHint.setGravity(Gravity.CENTER);
-        soulHint.setPadding(0, dp(4), 0, dp(10));
-        panel.addView(soulHint);
+        TextView sub = Ui.text(c, "翻开词典卡，选择一张加入你的词典页", 11.5f, Ui.MUT, false);
+        sub.setGravity(Gravity.CENTER);
+        sub.setPadding(0, dp(4), 0, dp(10));
+        panel.addView(sub);
 
         epicBanner = Ui.text(c, "史诗降临！", 13, Ui.GOLD, true);
         epicBanner.setGravity(Gravity.CENTER);
@@ -74,11 +63,12 @@ public class RewardDrawView extends FrameLayout {
         panel.addView(epicBanner);
         panel.addView(Ui.spacer(c, 8));
 
-        LinearLayout row = new LinearLayout(c);
+        row = new LinearLayout(c);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        loadPool(row);
         panel.addView(row);
+
+        loadSlots(drawRes);
 
         panel.addView(Ui.spacer(c, 16));
         refreshBtn = Ui.text(c, "刷新一组 · 25 词魂", 13, Ui.MUT, true);
@@ -89,10 +79,7 @@ public class RewardDrawView extends FrameLayout {
         refreshBtn.setOnClickListener(v -> {
             if (done || refreshed) return;
             refreshed = true;
-            cards.clear();
-            ((LinearLayout) row).removeAllViews();
-            loadPool(row);
-            epicBanner.setVisibility(GONE);
+            callback.onReroll();   // BattleView 真实扣 25 词魂并重抽
         });
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -108,22 +95,34 @@ public class RewardDrawView extends FrameLayout {
         panel.addView(abandon, rp);
     }
 
-    /** 抽 3 张池并按稀有度从低到高排序，依次自动翻开。 */
-    private void loadPool(LinearLayout row) {
-        Reward[] pool = rollPool();
-        List<Reward> sorted = new ArrayList<>();
-        for (Reward r : pool) sorted.add(r);
-        Collections.sort(sorted, (a, b) -> a.rarity - b.rarity);
-        boolean hasEpic = false;
+    /** 解析后端槽位并按稀有度从低到高依次自动翻开。 */
+    private void loadSlots(JSONObject drawRes) {
+        slots.clear();
+        row.removeAllViews();
+        if (drawRes != null) {
+            JSONArray arr = drawRes.optJSONArray("slots");
+            if (arr != null) {
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject s = arr.optJSONObject(i);
+                    if (s != null) slots.add(s);
+                }
+            }
+        }
+        if (slots.isEmpty()) {   // 后端未就绪：回退本地占位，不阻断流程
+            slots.add(slotOf(0, "速记", "3 秒内答对的伤害额外 +30%"));
+            slots.add(slotOf(1, "灵光乍现", "每题 15% 概率暴击，造成双倍伤害"));
+            slots.add(slotOf(2, "致命一击", "暴击伤害 ×3，并获得 10% 暴击率"));
+        }
+        List<JSONObject> sorted = new ArrayList<>(slots);
+        Collections.sort(sorted, (a, b) -> a.optInt("rare", 0) - b.optInt("rare", 0));
         for (int i = 0; i < sorted.size(); i++) {
-            Card card = new Card(getContext(), sorted.get(i));
-            cards.add(card);
+            CardView card = new CardView(getContext(), sorted.get(i));
             row.addView(card.root);
             if (i < sorted.size() - 1) row.addView(Ui.spacer(getContext(), 8));
             final int idx = i;
             row.postDelayed(() -> {
                 flip(card);
-                if (card.reward.rarity >= 3) {
+                if (card.rare() >= 2) {
                     epicBanner.setVisibility(VISIBLE);
                     Ui.vibrate(getContext(), new long[]{0, 40, 30, 60});
                 }
@@ -131,52 +130,32 @@ public class RewardDrawView extends FrameLayout {
         }
     }
 
-    /** 随机奖励池：保证至少 1 张稀有及以上；其余按概率。 */
-    private Reward[] rollPool() {
-        Reward[] pool = new Reward[3];
-        boolean hasRare = false;
-        for (int i = 0; i < 3; i++) {
-            double r = Math.random();
-            int rarity = r < 0.12 ? 3 : r < 0.45 ? 2 : 1;
-            if (rarity >= 2) hasRare = true;
-            pool[i] = randomReward(rarity);
-        }
-        if (!hasRare) pool[(int) (Math.random() * 3)] = randomReward(2);
-        return pool;
+    private JSONObject slotOf(int rare, String name, String effect) {
+        JSONObject s = new JSONObject();
+        try {
+            s.put("rare", rare);
+            JSONObject c = new JSONObject();
+            c.put("id", "local_" + name);
+            c.put("name", name);
+            c.put("rarity", rare);
+            c.put("effect", effect);
+            s.put("card", c);
+        } catch (Exception ignore) {}
+        return s;
     }
 
-    private Reward randomReward(int rarity) {
-        if (rarity == 3) {
-            int pick = (int) (Math.random() * 3);
-            if (pick == 0) return new Reward(3, "damage", 50, "🗡", "史诗·狂暴", "本场伤害 ×1.5", Ui.PURPLE);
-            if (pick == 1) return new Reward(3, "heal", 100, "💖", "史诗·回春", "生命完全恢复", Ui.PURPLE);
-            return new Reward(3, "xp", 50, "🌟", "史诗·顿悟", "立即获得 50 XP", Ui.PURPLE);
-        }
-        if (rarity == 2) {
-            int pick = (int) (Math.random() * 3);
-            if (pick == 0) return new Reward(2, "damage", 30, "⚔️", "稀有·锋锐", "本场伤害 ×1.3", Ui.GOLD);
-            if (pick == 1) return new Reward(2, "heal", 25, "❤️", "稀有·疗愈", "恢复 25 点生命", Ui.GOLD);
-            return new Reward(2, "xp", 25, "✨", "稀有·灵光", "立即获得 25 XP", Ui.GOLD);
-        }
-        int pick = (int) (Math.random() * 3);
-        if (pick == 0) return new Reward(1, "heal", 15, "🩹", "普通·包扎", "恢复 15 点生命", Ui.CYAN);
-        if (pick == 1) return new Reward(1, "xp", 10, "✴️", "普通·心得", "立即获得 10 XP", Ui.CYAN);
-        return new Reward(1, "time", 2, "⏳", "普通·余裕", "下题时间 +2 秒", Ui.CYAN);
-    }
-
-    /** 单张牌：卡背 ↔ 正面（稀有度 pill + 名 + 描述 + 选择按钮）。 */
-    private final class Card {
+    /** 单张牌：卡背 ↔ 正面（稀有度 pill + 名 + 效果 + 选择按钮）。 */
+    private final class CardView {
         final LinearLayout root;
-        final Reward reward;
+        final JSONObject slot;
         boolean flipped = false;
 
-        Card(Context c, Reward r) {
-            this.reward = r;
+        CardView(Context c, JSONObject s) {
+            this.slot = s;
             root = new LinearLayout(c);
             root.setOrientation(LinearLayout.VERTICAL);
             root.setGravity(Gravity.CENTER);
-            int w = dp(104), h = dp(150);
-            root.setLayoutParams(new LinearLayout.LayoutParams(w, h));
+            root.setLayoutParams(new LinearLayout.LayoutParams(dp(104), dp(150)));
             root.setBackground(Ui.card(12, Ui.BG_PILL, 2, Ui.GOLD));
             TextView q = Ui.text(c, "❔", 26, Ui.GOLD, true);
             q.setGravity(Gravity.CENTER);
@@ -186,45 +165,49 @@ public class RewardDrawView extends FrameLayout {
             root.addView(ql);
         }
 
-        /** 翻开：填充正面内容。 */
+        int rare() { return slot.optInt("rare", 0); }
+
         void reveal() {
             root.removeAllViews();
-            int border = reward.rarity == 3 ? Ui.GOLD : reward.rarity == 2 ? Ui.GOLD : Ui.LINE;
-            root.setBackground(Ui.card(12, Ui.BG1, reward.rarity == 3 ? 2 : 1, border));
-            TextView pill = Ui.text(getContext(), rarityName(reward.rarity), 10, reward.color, true);
+            int rare = rare();
+            int color = rare >= 2 ? Ui.PURPLE : rare == 1 ? Ui.GOLD : Ui.CYAN;
+            root.setBackground(Ui.card(12, Ui.BG1, rare >= 2 ? 2 : 1, rare >= 1 ? Ui.GOLD : Ui.LINE));
+            TextView pill = Ui.text(getContext(), rarityName(rare), 10, color, true);
             pill.setGravity(Gravity.CENTER);
             pill.setPadding(dp(8), dp(2), dp(8), dp(2));
-            pill.setBackground(Ui.pill(Ui.BG_PILL, reward.color));
+            pill.setBackground(Ui.pill(Ui.BG_PILL, color));
             root.addView(pill);
-            TextView ic = Ui.text(getContext(), reward.icon, 24, reward.color, false);
+            JSONObject c = slot.optJSONObject("card");
+            String name = c != null ? c.optString("name", "词典卡") : "词典卡";
+            String eff = c != null ? c.optString("effect", "") : "";
+            TextView ic = Ui.text(getContext(), rare >= 2 ? "✨" : rare == 1 ? "⚡" : "📜", 24, color, false);
             ic.setGravity(Gravity.CENTER);
             ic.setPadding(0, dp(4), 0, dp(2));
             root.addView(ic);
-            TextView tt = Ui.text(getContext(), reward.title, 11, reward.color, true);
+            TextView tt = Ui.text(getContext(), name, 11, color, true);
             tt.setGravity(Gravity.CENTER);
             tt.setPadding(dp(3), dp(2), dp(3), dp(2));
             root.addView(tt);
-            TextView dd = Ui.text(getContext(), reward.desc, 8.5f, Ui.TXT, false);
+            TextView dd = Ui.text(getContext(), eff, 8.5f, Ui.TXT, false);
             dd.setGravity(Gravity.CENTER);
-            dd.setMaxLines(3);
+            dd.setMaxLines(4);
             root.addView(dd);
-            TextView pick = Ui.text(getContext(), "选择此卡", 10.5f, reward.rarity == 3 ? 0xFF081326 : Ui.BG0, true);
+            TextView pick = Ui.text(getContext(), "选择此卡", 10.5f, rare >= 2 ? 0xFF081326 : Ui.BG0, true);
             pick.setGravity(Gravity.CENTER);
             pick.setPadding(dp(8), dp(6), dp(8), dp(6));
             pick.setBackground(Ui.gradient(999, 0xFF38BDF8, 0xFF3B82F6, 0));
-            if (reward.rarity == 3) pick.setBackground(Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0));
+            if (rare >= 2) pick.setBackground(Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0));
             Ui.pressable(pick);
             pick.setOnClickListener(v -> {
                 if (done) return;
                 done = true;
-                callback.onReward(reward);
+                callback.onReward(c);
             });
             LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             pl.topMargin = dp(6);
             root.addView(pick, pl);
-            // 史诗金光
-            if (reward.rarity >= 3) {
+            if (rare >= 2) {
                 root.setAlpha(0f);
                 root.animate().alpha(1f).scaleX(1.05f).scaleY(1.05f).setDuration(320)
                         .withEndAction(() -> root.animate().scaleX(1f).scaleY(1f).setDuration(220).start()).start();
@@ -233,10 +216,10 @@ public class RewardDrawView extends FrameLayout {
     }
 
     private String rarityName(int r) {
-        return r >= 3 ? "史诗" : r == 2 ? "稀有" : "普通";
+        return r >= 2 ? "史诗" : r == 1 ? "稀有" : "普通";
     }
 
-    private void flip(Card card) {
+    private void flip(CardView card) {
         if (card.flipped) return;
         card.flipped = true;
         card.root.animate().scaleX(0f).setDuration(160).withEndAction(() -> {

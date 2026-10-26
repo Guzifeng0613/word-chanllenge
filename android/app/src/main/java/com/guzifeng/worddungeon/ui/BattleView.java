@@ -62,6 +62,11 @@ public class BattleView extends FrameLayout {
     private int bonusTime = 0;             // 下题时间 +秒
     // V11.7 对齐 V7.0：商店祝福（下一层伤害+25%）
     private boolean pendingBless = false;
+    // GAP-10：当前战斗内浮层（翻牌/泉/商店），返回键先关浮层而非弹退出确认
+    private View overlayView = null;
+    // GAP-01：抽卡 pity 计数（普通保底 / 史诗保底），由后端 /card/draw 返回值驱动
+    private int pity = 0;
+    private int epicPity = 0;
     // V11.7 对齐 V7.0：心流/凝神/微目标/词魂/层间泉与商店
     private int wrongStreak = 0;           // 连错计数（凝神触发：≥2）
     private boolean flowOn = false;        // 当前是否在心流状态
@@ -322,6 +327,9 @@ public class BattleView extends FrameLayout {
         layerWrong.clear();
         act.runNewWords.clear();
         act.runWrongWords.clear();
+        act.runCards = 0;   // GAP-05：每局选卡计数归零
+        pity = 0;
+        epicPity = 0;
         if (!"quick".equals(mode)) act.souls = 0;   // 每局（非快刷）词魂重新累计
         soulNum.setText("词魂 " + act.souls);
         lowHpVignette.setVisibility(GONE);
@@ -468,6 +476,11 @@ public class BattleView extends FrameLayout {
             else if (!"all".equals(difficulty)) body.put("difficulty", diffLevel());
             body.put("run_state", runState.toJson());
             if ("quick".equals(mode)) body.put("quick_level", act.quickLevel);
+            // GAP-07：当前敌人为 confuser 时下发 enemy_confuse=true（后端同组干扰项优先）
+            if (enemy != null && enemy.optJSONObject("tpl") != null
+                    && "confuser".equals(enemy.optJSONObject("tpl").optString("id", ""))) {
+                body.put("enemy_confuse", true);
+            }
             quiz = act.router().dispatch("/quiz/draw", "POST", body);
             renderQuiz();
         } catch (Throwable e) {
@@ -961,10 +974,14 @@ public class BattleView extends FrameLayout {
                     showFlowBanner("凝 神", Ui.PURPLE);
                     wrongStreak = 0;
                 }
-                // 记录本层错词（复习之泉素材）+ 结算页错词 chip
+                // 记录本层错词（复习之泉素材，按出错次数累计≈顽固优先）+ 结算页错词 chip
                 String w = quiz.optString("word", "");
                 if (!w.isEmpty()) {
-                    layerWrong.put(w, new String[]{quiz.optString("pos", ""), quiz.optString("mean", "")});
+                    String pos = quiz.optString("pos", "");
+                    String mean = quiz.optString("mean", "");
+                    String[] prev = layerWrong.get(w);
+                    int cnt = prev == null ? 1 : Integer.parseInt(prev[2]) + 1;
+                    layerWrong.put(w, new String[]{pos, mean, String.valueOf(cnt)});
                     if (!act.runWrongWords.contains(w)) act.runWrongWords.add(w);
                 }
                 quickDone++;
@@ -1112,17 +1129,101 @@ public class BattleView extends FrameLayout {
         main.postDelayed(this::nextQuiz, 500);
     }
 
-    /** 打开战利品翻牌，确认后应用奖励 → 进复习之泉。 */
+    /** GAP-01：打开战利品翻牌——异步调真实后端 /card/draw 抽三槽，确认后应用卡效果 → 进复习之泉。 */
     private void openRewardDraw() {
         final RewardDrawView[] holder = new RewardDrawView[1];
-        RewardDrawView rw = new RewardDrawView(getContext(), r -> {
-            applyReward(r);
-            if (holder[0] != null) removeView(holder[0]);
-            openSpring();
-        });
-        holder[0] = rw;
-        addView(rw, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        new Thread(() -> {
+            JSONObject res = null;
+            try {
+                JSONObject b = new JSONObject();
+                b.put("kind", layerKind());
+                b.put("layer", layer);
+                b.put("mode", mode);
+                b.put("pity", pity);
+                b.put("epic_pity", epicPity);
+                res = act.router().dispatch("/card/draw", "POST", b);
+            } catch (Throwable ignore) {}
+            final JSONObject drawRes = res;
+            main.post(() -> {
+                if (drawRes != null) {
+                    pity = drawRes.optInt("pity", pity);
+                    epicPity = drawRes.optInt("epicPity", epicPity);
+                }
+                RewardDrawView rw = new RewardDrawView(getContext(), drawRes, new RewardDrawView.OnReward() {
+                    @Override public void onReward(JSONObject card) {
+                        if (card != null) act.runCards++;   // GAP-05：本局选卡计数上报
+                        applyCard(card);
+                        overlayView = null;
+                        if (holder[0] != null) removeView(holder[0]);
+                        openSpring();
+                    }
+                    @Override public void onReroll() {
+                        rerollRewardDraw(holder);   // 真实扣 25 词魂后重抽
+                    }
+                });
+                holder[0] = rw;
+                overlayView = rw;
+                addView(rw, new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            });
+        }).start();
+    }
+
+    /** GAP-01：刷新一组——走真实 /shop/buy reroll（扣 25 词魂），成功后重抽三槽重建浮层。 */
+    private void rerollRewardDraw(RewardDrawView[] holder) {
+        new Thread(() -> {
+            JSONObject res = null;
+            try {
+                JSONObject b = new JSONObject();
+                b.put("item", "reroll");
+                res = act.router().dispatch("/shop/buy", "POST", b);
+            } catch (Throwable ignore) {}
+            final JSONObject buyRes = res;
+            final boolean bought = res != null && res.optBoolean("ok", false);
+            main.post(() -> {
+                if (!bought) {
+                    showFeed("词魂不足，无法刷新", Ui.RED);
+                    return;
+                }
+                if (buyRes != null) {
+                    act.souls = buyRes.optInt("souls", act.souls);
+                    soulNum.setText("词魂 " + act.souls);
+                }
+                // 重抽三槽
+                JSONObject draw = null;
+                try {
+                    JSONObject b = new JSONObject();
+                    b.put("kind", layerKind());
+                    b.put("layer", layer);
+                    b.put("mode", mode);
+                    b.put("pity", pity);
+                    b.put("epic_pity", epicPity);
+                    draw = act.router().dispatch("/card/draw", "POST", b);
+                } catch (Throwable ignore) {}
+                if (draw != null) {
+                    pity = draw.optInt("pity", pity);
+                    epicPity = draw.optInt("epicPity", epicPity);
+                }
+                // 用新槽位重建翻牌内容（复用同一浮层，先移除旧视图再换源重渲染）
+                if (holder[0] != null) removeView(holder[0]);
+                RewardDrawView rw = new RewardDrawView(getContext(), draw, new RewardDrawView.OnReward() {
+                    @Override public void onReward(JSONObject card) {
+                        if (card != null) act.runCards++;
+                        applyCard(card);
+                        overlayView = null;
+                        removeView(holder[0]);
+                        openSpring();
+                    }
+                    @Override public void onReroll() {
+                        showFeed("每组只能刷新一次", Ui.MUT);
+                    }
+                });
+                holder[0] = rw;
+                overlayView = rw;
+                addView(rw, new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            });
+        }).start();
     }
 
     /** V7.0 复习之泉：每层固定节点，先回 30 HP，再把本层错词做「记得/不记得」复习，答对每词 +2 HP。 */
@@ -1134,12 +1235,14 @@ public class BattleView extends FrameLayout {
                 playerHp.setRatio(hp / 100f);
             }
             @Override public void onDone() {
+                overlayView = null;
                 if (holder[0] != null) removeView(holder[0]);
                 layerWrong.clear();
                 openShop();
             }
         });
         holder[0] = sv;
+        overlayView = sv;
         addView(sv, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
     }
@@ -1149,74 +1252,118 @@ public class BattleView extends FrameLayout {
         final ShopView[] holder = new ShopView[1];
         ShopView sv = new ShopView(getContext(), act.souls, new ShopView.OnShop() {
             @Override public void onBuy(String kind, int price) {
-                act.souls = Math.max(0, act.souls - price);
-                soulNum.setText("词魂 " + act.souls);
+                // GAP-01：真实扣词魂走后端 /shop/buy（item/potion|bless|card）
+                final String item;
+                final int rarity;
                 switch (kind) {
-                    case "heal":
-                        hp = Math.min(100, hp + 30);
-                        playerHp.setRatio(hp / 100f);
-                        showFeed("❤️ 血药：生命 +30", Ui.GREEN);
-                        break;
-                    case "bless":
-                        pendingBless = true;
-                        showFeed("🗡 祝福：下一层伤害 +25%", Ui.ORANGE);
-                        break;
-                    case "card": {
-                        // 展示侧：卡牌购买兑 XP（普通10/稀有25/史诗50），走已有后端路由
-                        final int xp = price >= 150 ? 50 : price >= 85 ? 25 : 10;
-                        showFeed("🌟 获得卡牌：+" + xp + " XP", Ui.GOLD);
-                        new Thread(() -> {
-                            try {
-                                JSONObject b = new JSONObject();
-                                b.put("amount", xp);
-                                act.router().dispatch("/reward/xp", "POST", b);
-                            } catch (Throwable ignore) {}
-                        }).start();
-                        break;
-                    }
+                    case "heal":  item = "potion"; rarity = 0; break;
+                    case "bless": item = "bless";  rarity = 0; break;
+                    default:      item = "card";   rarity = price >= 150 ? 2 : price >= 85 ? 1 : 0; break;
                 }
+                new Thread(() -> {
+                    JSONObject res = null;
+                    boolean ok;
+                    try {
+                        JSONObject b = new JSONObject();
+                        b.put("item", item);
+                        if ("card".equals(item)) b.put("rarity", rarity);
+                        res = act.router().dispatch("/shop/buy", "POST", b);
+                        ok = res.optBoolean("ok", false);
+                    } catch (Throwable t) { ok = false; }
+                    final JSONObject buy = res;
+                    final boolean bought = ok;
+                    main.post(() -> {
+                        if (!bought) {
+                            showFeed("词魂不足或购买失败", Ui.RED);
+                            return;
+                        }
+                        if (buy != null) {
+                            act.souls = buy.optInt("souls", act.souls);
+                            soulNum.setText("词魂 " + act.souls);
+                        }
+                        switch (kind) {
+                            case "heal":
+                                hp = Math.min(100, hp + 30);
+                                playerHp.setRatio(hp / 100f);
+                                showFeed("❤️ 血药：生命 +30", Ui.GREEN);
+                                break;
+                            case "bless":
+                                pendingBless = true;
+                                showFeed("🗡 祝福：下一层伤害 +25%", Ui.ORANGE);
+                                break;
+                            case "card":
+                                act.runCards++;   // GAP-05：本局购卡也计入选卡计数
+                                JSONObject c = buy != null ? buy.optJSONObject("card") : null;
+                                if (c != null) applyCard(c); else applyShopCard(price);
+                                break;
+                        }
+                    });
+                }).start();
             }
             @Override public void onLeave() {
+                overlayView = null;
                 if (holder[0] != null) removeView(holder[0]);
                 advanceLayer();
             }
         });
         holder[0] = sv;
+        overlayView = sv;
         addView(sv, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
     }
 
-    /** 应用翻牌奖励。 */
-    private void applyReward(RewardDrawView.Reward r) {
+    /** GAP-01：商店买卡真实效果（普通=回血15 / 稀有=攻击增益+25% / 史诗=攻击增益+50%）。 */
+    private void applyShopCard(int price) {
+        if (price >= 150) {
+            bonusDamageMult = 1.5;
+            showFeed("🌟 史诗卡：本场伤害 ×1.5", Ui.PURPLE);
+        } else if (price >= 85) {
+            bonusDamageMult = 1.25;
+            showFeed("🌟 稀有卡：本场伤害 ×1.25", Ui.GOLD);
+        } else {
+            hp = Math.min(100, hp + 15);
+            playerHp.setRatio(hp / 100f);
+            showFeed("🌟 普通卡：生命 +15", Ui.CYAN);
+        }
+    }
+
+    /** GAP-01：应用后端词典卡（card={id,name,rarity,effect}），按 id 接线战斗效果。 */
+    private void applyCard(JSONObject card) {
+        if (card == null) return;
         try {
-            switch (r.kind) {
-                case "heal":
-                    hp = Math.min(100, hp + r.amount);
+            String id = card.optString("id", "");
+            String name = card.optString("name", "词典卡");
+            int rarity = card.optInt("rarity", 0);
+            int color = rarity >= 2 ? Ui.PURPLE : rarity == 1 ? Ui.GOLD : Ui.CYAN;
+            showFeed("🌟 获得卡：" + name, color);
+            switch (id) {
+                case "lifesteal":
+                case "spellmaster":
+                case "steady":   hp = Math.min(100, hp + (rarity >= 2 ? 12 : 8));
                     playerHp.setRatio(hp / 100f);
-                    showFeed("❤️ 生命 +" + r.amount, Ui.GREEN);
                     break;
-                case "damage":
-                    bonusDamageMult = 1.0 + r.amount / 100.0;
-                    showFeed("🗡 伤害增益 ×" + bonusDamageMult, r.color);
+                case "deadly":
+                case "critstorm":
+                case "flash":    bonusDamageMult = Math.max(bonusDamageMult, 1.4);
                     break;
-                case "time":
-                    bonusTime = r.amount;
-                    showFeed("⏳ 下题时间 +" + r.amount + " 秒", r.color);
+                case "glasscannon":
+                case "wordfire": bonusDamageMult = Math.max(bonusDamageMult, 1.5);
                     break;
-                case "xp":
-                    new Thread(() -> {
-                        try {
-                            JSONObject b = new JSONObject();
-                            b.put("amount", r.amount);
-                            JSONObject res = act.router().dispatch("/reward/xp", "POST", b);
-                            int lv = res.optInt("level", 1);
-                            if (lv > playerLevel) {
-                                playerLevel = lv;
-                                main.postDelayed(this::onLevelUp, 200);
-                            }
-                        } catch (Throwable ignore) {}
-                    }).start();
-                    showFeed("🌟 XP +" + r.amount, r.color);
+                case "spellboost":
+                case "combolightning":
+                case "retreat":
+                case "braver":   bonusDamageMult = Math.max(bonusDamageMult, 1.2);
+                    break;
+                case "warmup":
+                case "timectrl":
+                case "timewarp": bonusTime += 2;
+                    break;
+                default:
+                    // 未单独接线的卡：按稀有度给温和本局增益
+                    if (rarity >= 2) bonusDamageMult = Math.max(bonusDamageMult, 1.3);
+                    else if (rarity == 1) bonusDamageMult = Math.max(bonusDamageMult, 1.1);
+                    else hp = Math.min(100, hp + 5);
+                    playerHp.setRatio(hp / 100f);
                     break;
             }
         } catch (Throwable ignore) {}
@@ -1247,9 +1394,19 @@ public class BattleView extends FrameLayout {
         main.postDelayed(this::nextQuiz, spellReveal ? 1600 : 1100);
     }
 
-    /** V7.0 返回键：战斗中弹「放弃本层战斗？」二次确认（防误触）。 */
+    /** V7.0 返回键：战斗内浮层（翻牌/泉/商店）打开时先关浮层并推进流程，再弹「放弃本层战斗？」二次确认。 */
     public void onBack() {
         hideKeyboard();
+        // GAP-10：浮层可见时返回键先关浮层，不被退出确认吞掉
+        if (overlayView != null) {
+            View ov = overlayView;
+            overlayView = null;
+            try { removeView(ov); } catch (Throwable ignore) {}
+            if (ov instanceof RewardDrawView) openSpring();
+            else if (ov instanceof SpringView) openShop();
+            else if (ov instanceof ShopView) advanceLayer();
+            return;
+        }
         try {
             new android.app.AlertDialog.Builder(getContext())
                     .setTitle("放弃本层战斗？")
