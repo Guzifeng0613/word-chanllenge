@@ -7,6 +7,7 @@ import android.webkit.WebView;
 import android.widget.Toast;
 
 import com.getcapacitor.BridgeActivity;
+import com.guzifeng.worddungeon.bridge.JsBridge;
 import com.guzifeng.worddungeon.bridge.WordDungeonPlugin;
 import com.guzifeng.worddungeon.server.LocalServer;
 
@@ -40,10 +41,12 @@ public class MainActivity extends BridgeActivity {
             WebView wv = getBridge() != null ? getBridge().getWebView() : null;
             if (wv != null) {
                 wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                Log.i(TAG, "mixed content allowed for local backend");
+                // 方案 B：JavaScriptInterface 直连桥（前端 window.WordDungeon.call 直调 Java 后端）
+                wv.addJavascriptInterface(new JsBridge(getApplicationContext(), wv), "WordDungeon");
+                Log.i(TAG, "JavaScriptInterface 直连桥已注册（window.WordDungeon）");
             }
         } catch (Throwable e) {
-            Log.w(TAG, "setMixedContentMode failed", e);
+            Log.w(TAG, "setMixedContentMode/addJavascriptInterface failed", e);
         }
         new Thread(this::startLocalServer, "worddungeon-backend").start();
     }

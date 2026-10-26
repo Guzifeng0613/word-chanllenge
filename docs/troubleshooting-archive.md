@@ -142,3 +142,8 @@
 - **未证实的可能**：WebView 页面 scheme（http vs https）与 mixed content 拦截、WebView 对 127.0.0.1 fetch 的网络限制、CORS/预检。
 - **根治**：不再依赖 HTTP。新增 Capacitor 原生插件桥 WordDungeonPlugin（@CapacitorPlugin + call 方法），前端 Capacitor.Plugins.WordDungeon.call 直调 Java 后端 BackendRouter；绕开端口/cleartext/CORS/mixed-content 整条网络链路。LocalServer 保留并委托 BackendRouter。
 - **教训**：Android WebView 中前端 JS 与本地服务的 HTTP 通信链路环节多、难调试；App 内首选用原生插件桥（Capacitor registerPlugin），HTTP 仅作浏览器调试通道。
+
+## 19. 借鉴纸片项目：JavaScriptInterface 异步回调桥（V9.1 采用）
+- 调研同环境 APK 项目「纸片」（38443854002369026/notes-app，v3→v15 几十个真机版本）：原生自建 WebView + addJavascriptInterface(new Bridge(),"AndroidBridge")，异步回调模式（JS post(callId,method,payload) → 原生 evaluateJavascript("window.__cb(callId,result)")）；数据存 getFilesDir()/library/library.json + SharedPreferences。
+- 结论：一加13 等真机上 WebView+JS 桥完全可行，问题不在手机而在通道选择（Capacitor 插件注入时序 / HTTP 链路）。
+- 落地：JsBridge 改异步回调桥（callId + __wdCb），前端 jsiCall 封装 Promise + 超时兜底；playwright mock 桥端到端验证 PASS（主页 3674 词）。

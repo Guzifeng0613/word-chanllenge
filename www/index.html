@@ -1278,6 +1278,31 @@ const MIN=60*1000, DAY=24*60*60*1000;
 /* ═══ 前后端接入层（V8.1）：App 内走 Capacitor 插件桥直调 Java 后端；浏览器走 HTTP（开发）═══ */
 /* 运行环境：App 内（Capacitor）优先插件桥（无网络层，最可靠）；浏览器读取 localStorage 配置（开发用） */
 const IS_APP = !!(window.Capacitor && window.Capacitor.platform && window.Capacitor.platform !== 'web');
+/* 通道优先级：① JavaScriptInterface 直连桥（addJavascriptInterface，页面加载前已注册，零时序问题）
+                ② Capacitor 插件桥（页面加载后注入，需轮询等待）
+                ③ HTTP 本地服务（浏览器/调试） */
+let __wdSeq=0; const __wdPending={};
+/* 原生端处理完会调用 window.__wdCb(callId, resultJsonOrErrString) */
+window.__wdCb=function(id,data){ const f=__wdPending[id]; if(f){ delete __wdPending[id]; f(data); } };
+function jsiCall(route,payload){
+  return new Promise((resolve,reject)=>{
+    const id='w'+(++__wdSeq);
+    __wdPending[id]=(data)=>{
+      if(typeof data==='string' && data.indexOf('ERR:')===0) reject(new Error(data));
+      else { try{ resolve(JSON.parse(data)); }catch(e){ reject(e); } }
+    };
+    try{ window.WordDungeon.call(id, route, payload?JSON.stringify(payload):''); }
+    catch(e){ delete __wdPending[id]; reject(e); }
+    /* 兜底超时 */
+    setTimeout(()=>{ if(__wdPending[id]){ delete __wdPending[id]; reject(new Error('js桥超时')); } }, 8000);
+  });
+}
+function getBridgeApi(){
+  try{
+    if(window.WordDungeon && window.WordDungeon.call) return { call:jsiCall };
+  }catch(e){}
+  return null;
+}
 /* Capacitor 原生插件是页面加载后注入的，必须动态获取（不能静态判断） */
 function getCap(){
   try{
@@ -1299,13 +1324,24 @@ async function detectLocalPort(){
 }
 const API={
   base:(localStorage.getItem('wd_api_base')||'').replace(/\/+$/,''),
-  token:null, on:false, checking:true, cap:null, capFail:null,
+  token:null, on:false, checking:true, jsi:null, cap:null, capFail:null, jsiFail:null,
   async init(){
     this.token=localStorage.getItem('wd_api_token')||null;
-    /* App 内：优先插件桥——不依赖端口/cleartext/CORS/mixed-content */
+    /* App 内：优先 JavaScriptInterface 直连桥（最可靠，无网络层无时序问题） */
     if(IS_APP){
+      this.jsi=getBridgeApi();
+      if(this.jsi){
+        try{
+          const g=await this.jsi.call('/auth/guest');
+          if(g&&g.token){ this.token=g.token; localStorage.setItem('wd_api_token',g.token); }
+          await this.jsi.call('/review/due');
+          this.on=true; this.jsiFail=null;
+        }catch(e){ this.on=false; this.jsiFail='js接口调用失败: '+(e&&e.message?e.message:e); }
+        this.checking=false;
+        return this.on;
+      }
+      /* 其次：Capacitor 插件桥（注入可能晚于页面 JS，轮询等待至多 10 秒） */
       this.cap=getCap();
-      /* 插件注入可能晚于页面 JS：轮询等待至多 10 秒 */
       for(let i=0;i<20 && !this.cap;i++){ await sleep(500); this.cap=getCap(); }
       if(this.cap){
         try{
@@ -1344,7 +1380,25 @@ const API={
   },
   async req(path,opt){
     opt=opt||{};
-    /* 插件桥：直调 Java 后端，无 HTTP 层 */
+    /* ① JavaScriptInterface 直连桥：异步直调 Java 后端 */
+    if(this.jsi){
+      let payload=null;
+      /* 解析 query 参数（如 /review/due?book=xx）并入 payload */
+      let p=path;
+      const qi=path.indexOf('?');
+      if(qi>=0){
+        p=path.slice(0,qi);
+        const q=path.slice(qi+1);
+        payload={};
+        for(const kv of q.split('&')){
+          const eq=kv.indexOf('=');
+          if(eq>0) payload[decodeURIComponent(kv.slice(0,eq))]=decodeURIComponent(kv.slice(eq+1));
+        }
+      }
+      if(opt.body){ Object.assign(payload||{},JSON.parse(opt.body)); }
+      return await this.jsi.call(p, payload);
+    }
+    /* ② Capacitor 插件桥 */
     if(this.cap){
       let payload=null;
       if(opt.body){ try{ payload=JSON.parse(opt.body); }catch(e){} }
@@ -3578,7 +3632,7 @@ function bootWithRetry(){
   API.init().then(on=>{
     if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); }
     else{
-      const why=API.capFail ? (' · '+API.capFail) : (IS_APP ? ' · HTTP 探测失败' : ' · 未配置后端');
+      const why=API.jsiFail ? (' · '+API.jsiFail) : (API.capFail ? (' · '+API.capFail) : (IS_APP ? ' · HTTP 探测失败' : ' · 未配置后端'));
       apiToast('本地后端未启动 · 词书不可用（15 秒后自动重试）'+why);
       render();
       setTimeout(bootWithRetry, 15000);
