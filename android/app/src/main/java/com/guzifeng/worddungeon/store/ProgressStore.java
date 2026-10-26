@@ -24,7 +24,7 @@ import java.util.Set;
 public class ProgressStore extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "word_dungeon.db";
-    private static final int DB_VERSION = 3;
+    private static final int DB_VERSION = 4;
     public static final long LOCAL_USER_ID = 1L;
 
     private static ProgressStore instance;
@@ -49,7 +49,7 @@ public class ProgressStore extends SQLiteOpenHelper {
                 "step INTEGER DEFAULT 0, graduated INTEGER DEFAULT 0, stage INTEGER DEFAULT 0, " +
                 "lapses INTEGER DEFAULT 0, streak INTEGER DEFAULT 0, wrong_count INTEGER DEFAULT 0, " +
                 "due_ms INTEGER DEFAULT 0, created INTEGER DEFAULT 0, last_review INTEGER DEFAULT 0, " +
-                "wrong_by TEXT DEFAULT '{}', " +
+                "wrong_by TEXT DEFAULT '{}', quick_pass INTEGER DEFAULT 0, " +
                 "PRIMARY KEY(user_id, word))");
         db.execSQL("CREATE TABLE IF NOT EXISTS answers(" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, word TEXT, " +
@@ -70,6 +70,14 @@ public class ProgressStore extends SQLiteOpenHelper {
                 db.execSQL("ALTER TABLE users ADD COLUMN endless_best INTEGER DEFAULT 0");
                 db.execSQL("ALTER TABLE users ADD COLUMN ach TEXT DEFAULT '[]'");
                 db.execSQL("ALTER TABLE progress ADD COLUMN wrong_by TEXT DEFAULT '{}'");
+            } catch (Throwable ignore) {
+                // 列已存在时忽略
+            }
+        }
+        if (oldV < 4) {
+            // V11.7：持久化快刷 quick_pass（错词轮播 passSuppress 依赖）
+            try {
+                db.execSQL("ALTER TABLE progress ADD COLUMN quick_pass INTEGER DEFAULT 0");
             } catch (Throwable ignore) {
                 // 列已存在时忽略
             }
@@ -166,7 +174,7 @@ public class ProgressStore extends SQLiteOpenHelper {
     public Map<String, WordRec> loadProgress() {
         Map<String, WordRec> out = new HashMap<>();
         SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT word,state,step,graduated,stage,lapses,streak,wrong_count,due_ms,wrong_by " +
+        Cursor c = db.rawQuery("SELECT word,state,step,graduated,stage,lapses,streak,wrong_count,due_ms,wrong_by,quick_pass " +
                 "FROM progress WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
         while (c.moveToNext()) {
             WordRec r = new WordRec();
@@ -178,6 +186,7 @@ public class ProgressStore extends SQLiteOpenHelper {
             r.streak = c.getInt(6);
             r.wrongCount = c.getInt(7);
             r.due = c.getLong(8);
+            r.quickPass = c.getInt(10) == 1;
             try {
                 JSONObject wb = new JSONObject(c.getString(9));
                 for (String level : new String[]{"normal", "hard", "hell"}) {
@@ -216,6 +225,7 @@ public class ProgressStore extends SQLiteOpenHelper {
         v.put("wrong_count", r.wrongCount);
         v.put("due_ms", r.due);
         v.put("last_review", nowSec);
+        v.put("quick_pass", r.quickPass ? 1 : 0);
         try {
             JSONObject wb = new JSONObject();
             for (String level : new String[]{"normal", "hard", "hell"}) {

@@ -17,12 +17,9 @@ import com.guzifeng.worddungeon.store.ProgressStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 后端路由分发（V10.1：对齐 V7.0 前端数据口径）
@@ -34,7 +31,6 @@ public class BackendRouter {
     public static final int DAILY_NEW_WORDS = 15;
     public static final int XP_CORRECT = 2;
     public static final int XP_NEW_WORD = 5;
-    public static final int XP_MASTER = 10;
     public static final int XP_BASE = 120;
 
     private final Context ctx;
@@ -101,6 +97,7 @@ public class BackendRouter {
         boolean adaptive = b.optBoolean("adaptive", true);
         String mode = b.optString("mode", "campaign");
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
+        boolean enemyConfuse = b.optBoolean("enemy_confuse", false);
         RunState runState = RunState.fromJson(b.optJSONObject("run_state"));
 
         Map<String, WordRec> progress = store.loadProgress();
@@ -121,6 +118,7 @@ public class BackendRouter {
             a.newToday = newToday;
             a.runState = runState;
             a.mode = mode;
+            a.confuse = enemyConfuse;
             q = quizEngine.draw(a);
         }
         return q.toJson();
@@ -162,13 +160,14 @@ public class BackendRouter {
         Map<String, WordRec> progress = store.loadProgress();
         WordRec oldRec = progress.get(word);
         String state = oldRec == null ? "NEW" : oldRec.state;
-        int wrongCount = oldRec == null ? 0 : oldRec.wrongCount;
+        // 复仇倍率用单局错过次数（V7.0 G.wrongCount[word]），非累计 wrong_count
+        int runMisses = runState.runMisses(word);
 
         int dmg = 0;
         DamageCalc.Result dr = null;
         if (isCorrect) {
             dr = DamageCalc.calc(word, state, combo, qtype, timeLimit, remain,
-                    wrongCount, crit, critMult, cardMult);
+                    runMisses, crit, critMult, cardMult);
             dmg = dr.total;
         }
 
@@ -176,16 +175,9 @@ public class BackendRouter {
         SrsEngine.schedule(newRec, isCorrect, fast, nowMs);
 
         if ("quick".equals(mode) && quickLevel != null) {
+            // V7.0：wrong_by 仅快刷记录；答对（任意档）若无任何错误记录则置 quick_pass
             if (!isCorrect) QuickEngine.markQuickWrong(newRec, quickLevel, qtype);
-            else if ("normal".equals(quickLevel)) QuickEngine.markQuickPass(newRec);
-        } else if (!isCorrect) {
-            // 远征/无尽模式的错过计入 normal 档，供错词本“错过地点”标签展示
-            Map<String, Integer> row = newRec.wrongBy.get("normal");
-            if (row == null) {
-                row = new HashMap<>();
-                newRec.wrongBy.put("normal", row);
-            }
-            row.put(qtype, row.getOrDefault(qtype, 0) + 1);
+            else QuickEngine.markQuickPass(newRec);
         }
 
         double newTheta = SrsEngine.updateTheta(store.getTheta(), isCorrect, fast);
@@ -366,16 +358,16 @@ public class BackendRouter {
         return out;
     }
 
-    /** 每日打卡：今日首启时按昨天是否活跃续/断 streak。 */
-    private void ensureDaily(JSONObject meta, long today0Sec) throws Exception {
+    /** 打卡（V7.0 markStreak）：仅完成一次远征才记；今天已打过则不重复累计。 */
+    private void markStreak(JSONObject meta, long today0Sec) throws Exception {
         long last = meta.optLong("last_day", 0);
         if (last == today0Sec) return;
         long yest0Sec = today0Sec - 86400;
-        int streak = meta.optInt("streak", 0);
-        if (last == yest0Sec) streak++;
-        else streak = 1;
+        int streak = last == yest0Sec ? meta.optInt("streak", 0) + 1 : 1;
         meta.put("streak", streak);
         meta.put("last_day", today0Sec);
+        if (streak >= 3) unlock(meta, "streak3");
+        if (streak >= 7) unlock(meta, "streak7");
         store.saveMeta(meta);
     }
 
@@ -384,10 +376,7 @@ public class BackendRouter {
         long today0Sec = nowSec / 86400 * 86400;
         int[] s = store.dailyStats(today0Sec);
         JSONObject meta = store.getMeta();
-        ensureDaily(meta, today0Sec);
         int streak = meta.optInt("streak", 0);
-        if (streak >= 3) unlock(meta, "streak3");
-        if (streak >= 7) unlock(meta, "streak7");
         Map<String, WordRec> progress = store.loadProgress();
         long nowMs = System.currentTimeMillis();
         int dueLearning = SrsEngine.dueLearning(progress, nowMs).size();
@@ -432,10 +421,11 @@ public class BackendRouter {
         long today0Sec = nowSec / 86400 * 86400;
 
         JSONObject meta = store.getMeta();
-        ensureDaily(meta, today0Sec);
 
-        // 每日远征目标
-        store.insertAnswer("__run__", "run", true, 0, nowSec);
+        // 一局收集词典卡数（V7.0 cards5/cards10）
+        int cards = b.optInt("cards", 0);
+        if (cards >= 5) unlock(meta, "cards5");
+        if (cards >= 10) unlock(meta, "cards10");
 
         if ("endless".equals(mode)) {
             int best = meta.optInt("endless_best", 0);
@@ -446,13 +436,14 @@ public class BackendRouter {
             if (best >= 5) unlock(meta, "endless5");
             if (best >= 10) unlock(meta, "endless10");
         }
-        if (win) {
-            if ("campaign".equals(mode)) {
-                unlock(meta, "first_win");
-                if (layer >= 1) unlock(meta, "boss1");
-                if (layer >= 2) unlock(meta, "boss2");
-                if (layer >= 3) unlock(meta, "boss3");
-            }
+        if (win && "campaign".equals(mode)) {
+            // 每日远征目标 + 打卡 streak（仅完成远征才记）
+            store.insertAnswer("__run__", "run", true, 0, nowSec);
+            markStreak(meta, today0Sec);
+            unlock(meta, "first_win");
+            if (layer >= 1) unlock(meta, "boss1");
+            if (layer >= 2) unlock(meta, "boss2");
+            if (layer >= 3) unlock(meta, "boss3");
         }
         if (maxCombo >= 10) unlock(meta, "combo10");
         int correct = b.optInt("correct", 0);
