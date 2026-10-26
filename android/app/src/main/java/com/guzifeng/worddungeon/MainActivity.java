@@ -2,7 +2,9 @@ package com.guzifeng.worddungeon;
 
 import android.os.Bundle;
 import android.util.Log;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.Toast;
 
 import com.getcapacitor.BridgeActivity;
 import com.guzifeng.worddungeon.server.LocalServer;
@@ -18,6 +20,8 @@ public class MainActivity extends BridgeActivity {
     public static final int LOCAL_PORT = 8080;
     private static final String TAG = "WordDungeon";
     private LocalServer server;
+    /** 后端最终状态：ok / 失败原因（供诊断） */
+    public static volatile String backendStatus = "starting";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -26,10 +30,10 @@ public class MainActivity extends BridgeActivity {
         try {
             WebView wv = getBridge() != null ? getBridge().getWebView() : null;
             if (wv != null) {
-                wv.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                wv.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                 Log.i(TAG, "mixed content allowed for local backend");
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Log.w(TAG, "setMixedContentMode failed", e);
         }
         new Thread(this::startLocalServer, "worddungeon-backend").start();
@@ -37,18 +41,34 @@ public class MainActivity extends BridgeActivity {
 
     private void startLocalServer() {
         int port = LOCAL_PORT;
-        for (int attempt = 0; attempt < 8; attempt++) {
+        for (int attempt = 0; attempt < 10; attempt++) {
             try {
                 server = new LocalServer(getApplicationContext(), port);
                 server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+                backendStatus = "ok:" + port;
                 Log.i(TAG, "本地后端已启动 127.0.0.1:" + port);
+                toast("本地后端已启动 :" + port);
                 return;
-            } catch (Exception e) {
-                Log.e(TAG, "端口 " + port + " 启动失败: " + e.getMessage(), e);
+            } catch (Throwable e) {
+                Log.e(TAG, "端口 " + port + " 启动失败: " + e, e);
+                backendStatus = "fail:" + port + ":" + e.getClass().getSimpleName()
+                        + ":" + (e.getMessage() == null ? "" : e.getMessage());
+                try { if (server != null) server.stop(); } catch (Throwable ignore) {}
+                server = null;
                 port++;
             }
         }
-        Log.e(TAG, "本地后端 8 个端口全部启动失败");
+        Log.e(TAG, "本地后端 10 个端口全部启动失败, status=" + backendStatus);
+        final String st = backendStatus;
+        toast("后端启动失败：" + st);
+    }
+
+    private void toast(final String msg) {
+        runOnUiThread(() -> {
+            try {
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+            } catch (Throwable ignore) {}
+        });
     }
 
     @Override

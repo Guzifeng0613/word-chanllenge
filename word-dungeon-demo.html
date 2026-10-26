@@ -1294,12 +1294,12 @@ const API={
   token:null, on:false, checking:true,
   async init(){
     this.token=localStorage.getItem('wd_api_token')||null;
-    /* App 内：等待本地 Java 后端就绪并探测实际端口（后端在后台线程启动） */
+    /* App 内：等待本地 Java 后端就绪并探测实际端口（后端在后台线程启动，词库解析需数秒） */
     if(IS_APP && !this.base){
-      for(let attempt=0;attempt<12 && !this.base;attempt++){
+      for(let attempt=0;attempt<40 && !this.base;attempt++){
         const p=await detectLocalPort();
         if(p) this.base='http://127.0.0.1:'+p;
-        else await sleep(500);
+        else await sleep(700);
       }
     }
     if(!this.base){ this.on=false; this.checking=false; return false; }   /* 浏览器未配置后端：纯离线 */
@@ -3542,7 +3542,17 @@ function initAndroidBack(){
 newRun();
 render();
 initAndroidBack();
-API.init().then(on=>{ if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); } else { apiToast('本地后端未启动 · 词书不可用'); render(); } });
+function bootWithRetry(){
+  API.init().then(on=>{
+    if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); }
+    else{
+      apiToast('本地后端未启动 · 词书不可用（15 秒后自动重试）');
+      render();
+      setTimeout(bootWithRetry, 15000);
+    }
+  });
+}
+bootWithRetry();
 </script>
 </body>
 </html>
