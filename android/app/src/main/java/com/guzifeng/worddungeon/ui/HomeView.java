@@ -41,12 +41,14 @@ public class HomeView extends LinearLayout {
         act = (MainActivity) c;
         setOrientation(VERTICAL);
         setPadding(dp(18), dp(24), dp(18), dp(20));
+        setBackground(new AmbientBackground(28));   // V11.3 地下城氛围底
 
         buildBanner();
         buildLaunchCard();
         // 构造期即按默认 campaign 模式落定可见性，保证后端数据加载前后整体高度一致
         updateLaunchCard();
         buildDock();
+        playEntrance();   // V11.3 入场仪式
     }
 
     // ── ① home-banner：等级圆徽 + 标题 + 连续天数 + XP 进度 ──
@@ -129,7 +131,7 @@ public class HomeView extends LinearLayout {
         cfgRow.setBackground(Ui.card(10, Ui.BG_PILL, 1, Ui.LINE));
         cfgRow.addView(cfgLineTxt, lp(0, -2, 1f));
         cfgRow.addView(cfgCountTxt);
-        cfgRow.setClickable(true);
+        Ui.pressable(cfgRow);
         cfgRow.setOnClickListener(v -> act.show(MainActivity.Screen.SETTINGS));
         cfgArea.addView(cfgRow);
         cfgArea.setVisibility(GONE);
@@ -153,6 +155,7 @@ public class HomeView extends LinearLayout {
             s.setGravity(Gravity.CENTER);
             box.addView(b);
             box.addView(s);
+            Ui.pressable(box);
             box.setOnClickListener(v -> {
                 act.quickLevel = quickIds[idx];
                 for (int j = 0; j < quickBtns.length; j++) {
@@ -180,6 +183,7 @@ public class HomeView extends LinearLayout {
         modeDescLab = Ui.text(getContext(), "3 层闯关", 10.5f, 0xFF5B4310, false);
         modeDescLab.setGravity(Gravity.CENTER);
         singleLine(modeDescLab);
+        Ui.ctaGlow(launchBtn);   // V11.3 持续发光脉动 + 按压变暗
         launchBtn.setOnClickListener(v -> { act.mode = pickMode; act.show(MainActivity.Screen.BATTLE); });
         launchWrap.addView(launchBtn);
         launchWrap.addView(modeDescLab);
@@ -213,6 +217,21 @@ public class HomeView extends LinearLayout {
         addView(row);
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        if (getBackground() instanceof AmbientBackground) ((AmbientBackground) getBackground()).stop();
+        super.onDetachedFromWindow();
+    }
+
+    /** V11.3 入场仪式：banner / 发射卡 / 按钮 / dock 依次淡入上浮。 */
+    private void playEntrance() {
+        if (getChildCount() < 7) return;
+        Ui.entrance(getChildAt(0), 60);    // banner
+        Ui.entrance(getChildAt(2), 180);   // launch card
+        Ui.entrance(getChildAt(4), 300);   // launchWrap（CTA）
+        Ui.entrance(getChildAt(6), 430);   // dock
+    }
+
     private LinearLayout dockItem(String icon, String name, String sub, Runnable onTap, int idx) {
         Context c = getContext();
         LinearLayout box = new LinearLayout(c);
@@ -229,6 +248,7 @@ public class HomeView extends LinearLayout {
         box.addView(s);
         if (idx == 0) wrongCntTxt = s;
         if (idx == 1) achCntTxt = s;
+        Ui.pressable(box);
         box.setOnClickListener(v -> onTap.run());
         return box;
     }
@@ -253,6 +273,7 @@ public class HomeView extends LinearLayout {
         tt.setLayoutParams(tl);
         box.addView(tt);
         final int sel1 = c1, sel2 = c2;
+        Ui.pressable(box);
         box.setOnClickListener(v -> {
             pickMode = modeIdOf(name);
             refreshTabs(sel1, sel2);

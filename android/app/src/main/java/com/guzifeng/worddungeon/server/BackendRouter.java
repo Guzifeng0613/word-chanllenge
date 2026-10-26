@@ -68,6 +68,7 @@ public class BackendRouter {
             return progressFinish(body == null ? new JSONObject() : body);
         if ("/progress/reset".equals(route)) return progressReset();
         if ("/enemy/spawn".equals(route)) return enemySpawn(body == null ? new JSONObject() : body);
+        if ("/reward/xp".equals(route)) return rewardXp(body == null ? new JSONObject() : body);
         throw new RuntimeException("未知路由: " + route);
     }
 
@@ -198,8 +199,9 @@ public class BackendRouter {
         // XP 与成就
         JSONObject meta = store.getMeta();
         boolean isNewWord = oldRec == null;
+        int xpGain = isCorrect ? (XP_CORRECT + (isNewWord ? XP_NEW_WORD : 0)) : 0;
         if (isCorrect) {
-            addXp(meta, XP_CORRECT + (isNewWord ? XP_NEW_WORD : 0));
+            addXp(meta, xpGain);
         }
         checkAch(meta, combo, isNewWord, qtype, isCorrect);
         store.saveMeta(meta);
@@ -220,6 +222,7 @@ public class BackendRouter {
         out.put("stage", newRec.stage);
         out.put("run_state", runState.toJson());
         out.put("xp", meta.optInt("xp", 0));
+        out.put("xp_gained", xpGain);
         out.put("level", meta.optInt("level", 1));
         out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
         meta.remove("new_ach");
@@ -236,6 +239,18 @@ public class BackendRouter {
         }
         meta.put("xp", xp);
         meta.put("level", level);
+    }
+
+    /** 战利品 XP 奖励：翻牌抽到 XP 时持久化加经验（V11.3）。 */
+    private JSONObject rewardXp(JSONObject b) throws Exception {
+        int amount = b.optInt("amount", 0);
+        JSONObject meta = store.getMeta();
+        if (amount > 0) addXp(meta, amount);
+        store.saveMeta(meta);
+        JSONObject o = new JSONObject();
+        o.put("xp", meta.optInt("xp", 0));
+        o.put("level", meta.optInt("level", 1));
+        return o;
     }
 
     /** 成就解锁：combo10 / master30 / master60。 */
