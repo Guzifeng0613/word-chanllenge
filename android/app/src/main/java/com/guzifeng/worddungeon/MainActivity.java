@@ -69,6 +69,13 @@ public class MainActivity extends AppCompatActivity {
 
         show(Screen.HOME);
 
+        // 上次崩溃自诊断
+        final String crash = App.takeCrash();
+        if (crash != null && !crash.isEmpty()) {
+            Log.e(TAG, "检测到上次崩溃:\n" + crash);
+            home.onCrashInfo(crash);
+        }
+
         // 后端后台线程初始化（词库解析 + SQLite），不阻塞 UI
         new Thread(() -> {
             try {

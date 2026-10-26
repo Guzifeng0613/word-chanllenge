@@ -140,6 +140,15 @@ public class HomeView extends LinearLayout {
         return 2;
     }
 
+    public void onCrashInfo(String crash) {
+        String shortC = crash.replaceAll("[\\r\\n]+", " → ");
+        shortC = shortC.length() > 180 ? shortC.substring(0, 180) + "…" : shortC;
+        TextView c = Ui.text(getContext(), "⚠ 上次启动异常：" + shortC, 11, Ui.RED, false);
+        c.setPadding(dp(10), dp(8), dp(10), dp(8));
+        c.setBackground(Ui.card(10, Ui.CARD, 1, Ui.RED));
+        addView(c, 1);
+    }
+
     public void onBackendState(boolean ready, String err) {
         statusTxt.setText(ready ? "● 后端已就绪 · 词书加载中" : "● 后端异常：" + (err == null ? "未知" : err));
         statusTxt.setTextColor(ready ? Ui.GREEN : Ui.RED);
