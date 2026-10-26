@@ -16,7 +16,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 错词本（V7.0：顽固/易错/生疏 三档分组列表 + 错过地点标签 + 顽固优先复习） */
+/** 错词本（V11.5：顽固/易错/生疏 三档分组卡片列表 + 闪卡回忆复习 + 进度条） */
 public class WrongbookView extends LinearLayout {
 
     private final MainActivity act;
@@ -24,6 +24,7 @@ public class WrongbookView extends LinearLayout {
     private final List<String> queue = new ArrayList<>();
     private int idx = 0;
     private int remembered = 0;
+    private boolean revealed = false;   // V11.5 闪卡：是否已揭晓释义
 
     public WrongbookView(Context c) {
         super(c);
@@ -52,6 +53,7 @@ public class WrongbookView extends LinearLayout {
         body.removeAllViews();
         idx = 0;
         remembered = 0;
+        revealed = false;
         queue.clear();
         try {
             JSONObject r = act.router().dispatch("/wrongbook", "GET", null);
@@ -122,6 +124,7 @@ public class WrongbookView extends LinearLayout {
                 android.util.Log.d("WD", "render grade=" + grade + " word=" + wd);
                 try {
                     card.addView(wordRow(w, color));
+                    card.addView(spacer(6));   // V11.5 卡片行间距
                 } catch (Throwable re) {
                     // 单行渲染失败不中断整组：占位行 + 日志，其余词继续渲染
                     android.util.Log.e("WD", "render failed word=" + wd, re);
@@ -154,26 +157,35 @@ public class WrongbookView extends LinearLayout {
     }
 
     private LinearLayout wordRow(JSONObject w, int color) {
+        // V11.5 卡片化：圆角描边 + 独立背景，信息层次更强
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(0, dp(6), 0, dp(6));
+        row.setPadding(dp(12), dp(9), dp(12), dp(9));
+        row.setBackground(Ui.card(12, Ui.BG0, 1, Ui.LINE));
+        row.setLayoutParams(new LinearLayout.LayoutParams(-1, -2));
         LinearLayout top = new LinearLayout(getContext());
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView word = Ui.text(getContext(), w.optString("word", ""), 15, Ui.TXT, true);
+        TextView word = Ui.text(getContext(), w.optString("word", ""), 16, Ui.TXT, true);
+        top.addView(word);
         String pos = w.optString("pos", "");
         if (!pos.isEmpty()) {
-            TextView pt = Ui.text(getContext(), pos, 11, Ui.GOLD, true);
-            pt.setPadding(dp(5), 0, dp(5), 0);
-            top.addView(word);
+            TextView pt = Ui.text(getContext(), pos, 10.5f, Ui.GOLD, true);
+            pt.setPadding(dp(6), dp(2), dp(6), dp(2));
+            pt.setBackground(Ui.pill(Ui.BG_PILL, Ui.LINE));
             top.addView(pt);
-        } else {
-            top.addView(word);
+            LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(-2, -2);
+            pl.leftMargin = dp(6);
+            pt.setLayoutParams(pl);
         }
         top.addView(Ui.text(getContext(), "", 0, 0, false), lp(0, -2, 1f));
-        TextView cnt = Ui.text(getContext(), "×" + w.optInt("wrong_count", 1), 13, color, true);
+        // 错误次数徽章：×N（按档位色）
+        TextView cnt = Ui.text(getContext(), "✗" + w.optInt("wrong_count", 1), 12, color, true);
+        cnt.setPadding(dp(7), dp(2), dp(7), dp(2));
+        cnt.setBackground(Ui.pill(0x1A000000 + (color & 0x00FFFFFF), 0));
         top.addView(cnt);
         row.addView(top);
+        row.addView(spacer(3));
         TextView mean = Ui.text(getContext(), w.optString("mean", ""), 12.5f, Ui.MUT, false);
         row.addView(mean);
         // 错过地点标签（wrong_by）
@@ -186,8 +198,8 @@ public class WrongbookView extends LinearLayout {
                 if (i < wb.length() - 1) tags.addView(spacer(4));
             }
             row.addView(tags);
+            row.addView(spacer(2));
         }
-        row.addView(Ui.divider(getContext()), lp(-1, -2, 0));
         return row;
     }
 

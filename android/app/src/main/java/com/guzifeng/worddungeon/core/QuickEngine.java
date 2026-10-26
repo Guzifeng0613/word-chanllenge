@@ -146,6 +146,7 @@ public class QuickEngine {
         if (!spellWords.isEmpty() && rnd.nextDouble() < GameConfig.QUICK_SPELL_BIAS[idx]) {
             word = weightedPick(spellWords, spellW);
             qtype = "spell";
+            qtype = QuizEngine.guardSpell(runState, qtype, word);   // 先见后拼
         } else {
             List<String> words = new ArrayList<>();
             List<Double> ws = new ArrayList<>();
@@ -165,6 +166,7 @@ public class QuickEngine {
             qtype = SrsEngine.typeForWord(progress.get(word));
             if ("spell".equals(qtype) && !canSpell(progress.get(word), word)) qtype = "cn2en";
             if ("spell".equals(qtype) && word.length() > 8) qtype = "cn2en";
+            qtype = QuizEngine.guardSpell(runState, qtype, word);   // 先见后拼
         }
 
         if (Boolean.TRUE.equals(runState.wrong.get(word))) {

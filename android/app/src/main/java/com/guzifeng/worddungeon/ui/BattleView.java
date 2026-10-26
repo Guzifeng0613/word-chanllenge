@@ -78,6 +78,12 @@ public class BattleView extends FrameLayout {
     private EditText spellInput;
     private TextView confirmBtn;
     private LinearLayout spellRow;
+    // V11.5 答题反馈：选项引用（对错高亮）+ 拼写字母格
+    private final List<View> optionViews = new ArrayList<>();
+    private final List<String> optionValues = new ArrayList<>();
+    private LinearLayout tileRow;                 // 拼写字母格容器
+    private final List<TextView> tileViews = new ArrayList<>();
+    private int tileLen = 0;
 
     private static final Map<String, String> EMOJI = new HashMap<>();
     static {
@@ -196,10 +202,10 @@ public class BattleView extends FrameLayout {
         col.addView(qbox);
         col.addView(spacer(8));
 
-        // 答题区
+        // 答题区（V11.5 高度上调以容纳拼写字母格 + 确认按钮）
         answerArea = new FrameLayout(getContext());
         answerArea.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
-        col.addView(answerArea, new LinearLayout.LayoutParams(-1, dp(148)));
+        col.addView(answerArea, new LinearLayout.LayoutParams(-1, dp(166)));
         col.addView(spacer(8));
 
         // 玩家 HUD（V7.0 playerhud：生命条 + 词魂）
@@ -387,6 +393,10 @@ public class BattleView extends FrameLayout {
 
         answerArea.removeAllViews();
         spellRow = null;
+        optionViews.clear();
+        optionValues.clear();
+        tileViews.clear();
+        tileLen = 0;
 
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
@@ -436,6 +446,26 @@ public class BattleView extends FrameLayout {
             case "spell": {
                 qBody.setText(mean);
                 qBody.setTextSize(19);
+                // V11.5 字母格：先显示一排字母位（首字母已锁定，其余为空），实时同步输入
+                int len = word.length();
+                tileLen = len;
+                tileRow = new LinearLayout(getContext());
+                tileRow.setOrientation(LinearLayout.HORIZONTAL);
+                tileRow.setGravity(Gravity.CENTER);
+                for (int i = 0; i < len; i++) {
+                    TextView t = Ui.text(getContext(), i == 0 ? String.valueOf(word.charAt(0)).toUpperCase() : "",
+                            17, i == 0 ? Ui.GOLD : Ui.TXT, true);
+                    t.setGravity(Gravity.CENTER);
+                    int ts = dp(i == 0 ? 30 : 30);
+                    t.setLayoutParams(new LinearLayout.LayoutParams(ts, ts));
+                    t.setBackground(Ui.card(8, i == 0 ? Ui.CARD2 : Ui.BG0, 1,
+                            i == 0 ? Ui.GOLD : Ui.LINE));
+                    tileRow.addView(t);
+                    if (i < len - 1) tileRow.addView(spacer(4));
+                    tileViews.add(t);
+                }
+                col.addView(tileRow);
+                col.addView(spacer(6));
                 spellRow = new LinearLayout(getContext());
                 spellRow.setOrientation(LinearLayout.HORIZONTAL);
                 spellRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -443,7 +473,7 @@ public class BattleView extends FrameLayout {
                 spellInput.setSingleLine(true);
                 // V3.5 回归：VISIBLE_PASSWORD 关闭自动纠错/首字母大写/联想条，
                 // 配合 NO_SUGGESTIONS 保证逐字符顺序输入、系统删除键原生行为，
-                // 杜绝 H5 曾出现的"输入自动反过来/丢字母"；未注册任何 TextWatcher/KeyListener。
+                // 杜绝 H5 曾出现的"输入自动反过来/丢字母"；只读 TextWatcher 同步字母格，不回写文本。
                 spellInput.setInputType(InputType.TYPE_CLASS_TEXT
                         | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
                         | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -458,6 +488,14 @@ public class BattleView extends FrameLayout {
                 spellInput.setPadding(dp(10), dp(8), dp(10), dp(8));
                 spellInput.setTextSize(18);
                 spellInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+                // V11.5 字母格实时同步（只读不回写，绝不干扰输入顺序/删除键）
+                spellInput.addTextChangedListener(new android.text.TextWatcher() {
+                    @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+                    @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
+                    @Override public void afterTextChanged(android.text.Editable e) {
+                        syncTiles(e.toString());
+                    }
+                });
                 // 回车/完成：走与选项提交完全一致的 submit() 判定逻辑
                 spellInput.setOnEditorActionListener((v, id, ev) -> {
                     if (id == EditorInfo.IME_ACTION_DONE || id == EditorInfo.IME_ACTION_GO
@@ -469,6 +507,15 @@ public class BattleView extends FrameLayout {
                     return false;
                 });
                 spellRow.addView(spellInput, new LinearLayout.LayoutParams(0, -2, 1f));
+                // V11.5 确认按钮：一眼可见的提交入口（回车同样有效）
+                confirmBtn = Ui.text(getContext(), "✓ 确认", 14, 0xFF081326, true);
+                confirmBtn.setGravity(Gravity.CENTER);
+                confirmBtn.setPadding(dp(12), dp(10), dp(12), dp(10));
+                confirmBtn.setBackground(Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0));
+                Ui.pressable(confirmBtn);
+                confirmBtn.setOnClickListener(v -> submitSpell());
+                spellRow.addView(spacer(6));
+                spellRow.addView(confirmBtn);
                 col.addView(spellRow);
                 // 键盘生命周期：拼写题出现自动聚焦并弹出输入法（等 attach 后再请求）
                 spellInput.post(() -> {
@@ -488,34 +535,133 @@ public class BattleView extends FrameLayout {
     private void addOptions(LinearLayout col, JSONArray options, boolean en2cn) {
         if (options == null) return;
         try {
+            char[] keys = {'A', 'B', 'C', 'D'};
+            int rowIdx = 0;
             for (int i = 0; i < options.length(); i += 2) {
                 LinearLayout row = new LinearLayout(getContext());
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 for (int j = i; j < Math.min(i + 2, options.length()); j++) {
                     final String opt = options.getString(j);
+                    final int optNo = j;
                     LinearLayout b = new LinearLayout(getContext());
                     b.setOrientation(LinearLayout.HORIZONTAL);
                     b.setGravity(Gravity.CENTER_VERTICAL);
-                    b.setPadding(dp(10), dp(10), dp(10), dp(10));
-                    b.setBackground(Ui.card(10, Ui.BG0, 1, Ui.LINE));
-                    TextView key = Ui.text(getContext(), String.valueOf(j + 1), 12, Ui.MUT, true);
+                    b.setPadding(dp(8), dp(9), dp(8), dp(9));
+                    // V11.5 字母徽章：A/B/C/D 方徽章 + 圆角卡片，信息层次更强
+                    b.setBackground(Ui.card(12, Ui.BG0, 1, Ui.LINE));
+                    TextView key = Ui.text(getContext(), String.valueOf(keys[Math.min(j, 3)]), 13, Ui.CYAN, true);
                     key.setGravity(Gravity.CENTER);
-                    key.setBackground(Ui.card(6, Ui.CARD2, 0, 0));
-                    int ks = dp(24);
+                    key.setBackground(Ui.card(8, Ui.CARD2, 0, 0));
+                    int ks = dp(26);
                     key.setLayoutParams(new LinearLayout.LayoutParams(ks, ks));
                     b.addView(key);
-                    TextView v = Ui.text(getContext(), opt, 14, Ui.TXT, false);
-                    v.setPadding(dp(8), 0, 0, 0);
+                    TextView v = Ui.text(getContext(), opt, 15, Ui.TXT, j % 2 == 0);
+                    v.setPadding(dp(8), 0, dp(2), 0);
+                    v.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
                     b.addView(v);
                     Ui.pressable(b);
                     b.setOnClickListener(vi -> submitOption(opt));
                     row.addView(b, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (j < Math.min(i + 2, options.length()) - 1) row.addView(spacer(8));
+                    optionViews.add(b);
+                    optionValues.add(opt);
+                    // V11.5 选项逐个滑入（出招表节奏）
+                    b.setAlpha(0f);
+                    b.setTranslationY(dp(14));
+                    final View fb = b;
+                    final long d = 60L * (j + 1);
+                    b.post(() -> fb.animate().alpha(1f).translationY(0f)
+                            .setStartDelay(d).setDuration(260).start());
                 }
                 col.addView(row);
-                if (i + 2 < options.length()) col.addView(spacer(6));
+                if (i + 2 < options.length()) col.addView(spacer(7));
             }
         } catch (Exception e) { /* ignore */ }
+    }
+
+    // ── V11.5 答题/拼写反馈 ─────────────────────────
+
+    /** 拼写字母格实时同步：输入字符写入对应格（首格锁定），只读不回写文本。 */
+    private void syncTiles(String typed) {
+        if (tileViews.isEmpty()) return;
+        String t = typed == null ? "" : typed;
+        for (int i = 0; i < tileViews.size(); i++) {
+            TextView tile = tileViews.get(i);
+            if (i == 0) continue;   // 首字母锁定
+            if (i < t.length() + 1) {
+                char c = t.charAt(i - 1);
+                tile.setText(String.valueOf(c).toUpperCase());
+                tile.setTextColor(Ui.GOLD);
+                tile.setBackground(Ui.card(8, Ui.CARD2, 1, Ui.GOLD));
+            } else {
+                tile.setText("");
+                tile.setTextColor(Ui.TXT);
+                tile.setBackground(Ui.card(8, Ui.BG0, 1, Ui.LINE));
+            }
+        }
+    }
+
+    /** 选项题对错高亮：答对绿色放大，答错红色抖动；正确答案始终绿框，其余变暗。 */
+    private void highlightOptions(String picked, String correct) {
+        for (int i = 0; i < optionViews.size(); i++) {
+            View v = optionViews.get(i);
+            if (v == null) continue;
+            String val = i < optionValues.size() ? optionValues.get(i) : "";
+            boolean isCorrect = val.equals(correct);
+            boolean isPicked = val.equals(picked);
+            if (isCorrect) {
+                v.setBackground(Ui.card(12, 0x1434D399, 2, Ui.GREEN));
+                v.animate().scaleX(1.06f).scaleY(1.06f).setDuration(180).start();
+            } else if (isPicked) {
+                v.setBackground(Ui.card(12, 0x26F87171, 2, Ui.RED));
+                shake(v, 320);
+            } else {
+                v.setAlpha(0.42f);
+            }
+            v.setClickable(false);
+        }
+    }
+
+    /** 拼写答对：字母格从左到右逐个点亮为绿色（魔法铭刻感）。 */
+    private void spellTilesReveal(String word, boolean ok) {
+        String w = word == null ? "" : word;
+        for (int i = 0; i < tileViews.size(); i++) {
+            final TextView tile = tileViews.get(i);
+            final int idx = i;
+            char ch = i < w.length() ? w.charAt(i) : ' ';
+            main.postDelayed(() -> {
+                try {
+                    tile.setText(String.valueOf(Character.toUpperCase(ch)));
+                    tile.setTextColor(Ui.GREEN);
+                    tile.setBackground(Ui.card(8, 0x1434D399, 2, Ui.GREEN));
+                    tile.animate().scaleX(1.18f).scaleY(1.18f).setDuration(90)
+                            .withEndAction(() -> tile.animate().scaleX(1f).scaleY(1f).setDuration(120).start()).start();
+                } catch (Throwable ignore) {}
+            }, 80L * idx);
+        }
+    }
+
+    /** 拼写答错：格子红抖，随后 0.6s 起逐个揭晓正确答案（金色）。 */
+    private void spellTilesWrong(String word) {
+        for (TextView tile : tileViews) {
+            if (tile == null) continue;
+            tile.setTextColor(Ui.RED);
+            tile.setBackground(Ui.card(8, 0x26F87171, 1, Ui.RED));
+        }
+        if (tileRow != null) shake(tileRow, 380);
+        String w = word == null ? "" : word;
+        for (int i = 0; i < tileViews.size(); i++) {
+            final TextView tile = tileViews.get(i);
+            final int idx = i;
+            char ch = i < w.length() ? w.charAt(i) : ' ';
+            main.postDelayed(() -> {
+                try {
+                    tile.setText(String.valueOf(Character.toUpperCase(ch)));
+                    tile.setTextColor(Ui.GOLD);
+                    tile.setBackground(Ui.card(8, Ui.CARD2, 2, Ui.GOLD));
+                } catch (Throwable ignore) {}
+            }, 600L + 90L * idx);
+        }
     }
 
     private void submitJudge(String ans) { submit(ans); }
@@ -568,6 +714,13 @@ public class BattleView extends FrameLayout {
                 comboSub.setText(combo >= 8 ? "输出高涨！" : combo >= 5 ? "心流加成中" : "");
                 comboNum.setTextColor(combo >= 5 ? Ui.PURPLE : Ui.GOLD);
                 if (combo > 0 && combo % 5 == 0) ringBurst();   // V11.3 心流里程碑光环
+                // V11.5 答题反馈：选项题高亮答对的选项（绿框+放大，其余变暗）；拼写题格子逐个点亮
+                boolean isSpell = "spell".equals(quiz.optString("qtype"));
+                if (isSpell) {
+                    spellTilesReveal(correctAnswer, true);
+                } else {
+                    highlightOptions(answer, correctAnswer);
+                }
                 // 答对：拼写框立即清空并收键盘，进入打击反馈
                 if (spellInput != null) { spellInput.setText(""); }
                 hideKeyboard();
@@ -598,6 +751,8 @@ public class BattleView extends FrameLayout {
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
                     showFeed("正确答案：" + correctAnswer, Ui.RED);
+                    // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
+                    spellTilesWrong(correctAnswer);
                     try {
                         final EditText f = spellInput;
                         f.setTextColor(Ui.RED);
@@ -614,6 +769,8 @@ public class BattleView extends FrameLayout {
                     } catch (Throwable ignore) {}
                 } else {
                     showFeed("✗ 正确答案：" + correctAnswer, Ui.RED);
+                    // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
+                    highlightOptions(answer, correctAnswer);
                 }
                 pauseThenNext(spellWrong);
             }

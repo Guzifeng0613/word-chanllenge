@@ -12,6 +12,8 @@ import java.util.Map;
 public class RunState {
     public Map<String, Boolean> wrong = new HashMap<>();
     public Map<String, Integer> seen = new HashMap<>();
+    /** 本局已以非拼写题型出现过的词（先见过一次，才允许拼写） */
+    public Map<String, Boolean> exposed = new HashMap<>();
 
     public RunState() {}
 
@@ -30,6 +32,13 @@ public class RunState {
             for (java.util.Iterator<String> it = s.keys(); it.hasNext(); ) {
                 String k = it.next();
                 r.seen.put(k, s.optInt(k));
+            }
+        }
+        JSONObject ex = o.optJSONObject("exposed");
+        if (ex != null) {
+            for (java.util.Iterator<String> it = ex.keys(); it.hasNext(); ) {
+                String k = it.next();
+                r.exposed.put(k, ex.optBoolean(k));
             }
         }
         return r;
@@ -57,6 +66,9 @@ public class RunState {
             for (Map.Entry<String, Integer> e : seen.entrySet()) s.put(e.getKey(), e.getValue());
             o.put("wrong", w);
             o.put("seen", s);
+            JSONObject ex = new JSONObject();
+            for (Map.Entry<String, Boolean> e : exposed.entrySet()) ex.put(e.getKey(), e.getValue());
+            o.put("exposed", ex);
         } catch (Exception e) {
             // 内部结构固定
         }

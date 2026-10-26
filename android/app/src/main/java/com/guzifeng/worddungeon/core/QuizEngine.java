@@ -131,8 +131,17 @@ public class QuizEngine {
         WordRec rec = progress.get(word);
         String qtype = a.force != null ? a.force : SrsEngine.typeForWord(rec);
         if ("spell".equals(qtype) && word.length() > 8) qtype = "cn2en";
+        // 用户规则：单词先以非拼写题型出现过一次，才允许拼写（force=用户显式选型，尊重）
+        if (a.force == null) qtype = guardSpell(runState, qtype, word);
 
         return buildQuiz(qtype, word, rec, runState, fromReview, null);
+    }
+
+    /** 拼写守卫：本局未以非拼写题型出现过的词，拼写题降级为选词（cn2en），先见一次 */
+    public static String guardSpell(RunState rs, String qtype, String word) {
+        if (!"spell".equals(qtype)) return qtype;
+        if (rs != null && Boolean.TRUE.equals(rs.exposed.get(word))) return qtype;
+        return "cn2en";
     }
 
     private List<String> collectUnseen(List<String> bookWords, Map<String, WordRec> progress, Integer tier) {
