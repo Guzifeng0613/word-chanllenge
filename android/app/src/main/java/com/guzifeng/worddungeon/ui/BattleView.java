@@ -429,6 +429,9 @@ public class BattleView extends FrameLayout {
                 row.addView(spacer(8));
                 row.addView(no, new LinearLayout.LayoutParams(0, -2, 1f));
                 col.addView(row);
+                // V11.6 对/错按钮纳入反馈高亮（答对绿放大 / 答错红抖，正确答案标绿）
+                optionViews.add(yes); optionValues.add("yes");
+                optionViews.add(no);  optionValues.add("no");
                 break;
             }
             case "en2cn": {
@@ -768,7 +771,10 @@ public class BattleView extends FrameLayout {
                         }, 600);
                     } catch (Throwable ignore) {}
                 } else {
-                    showFeed("✗ 正确答案：" + correctAnswer, Ui.RED);
+                    // V11.6 judge 题把 yes/no 转成 对/错 展示，与按钮高亮一致
+                    String display = "judge".equals(quiz.optString("qtype"))
+                            ? ("yes".equals(correctAnswer) ? "对" : "错") : correctAnswer;
+                    showFeed("✗ 正确答案：" + display, Ui.RED);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
