@@ -130,6 +130,7 @@ class DrawReq(BaseModel):
     book: Optional[str] = None
     difficulty: Optional[int] = None
     adaptive: bool = True
+    mode: str = "campaign"
     run_state: Optional[dict] = None
 
 
@@ -163,7 +164,7 @@ def quiz_draw(req: DrawReq, user=Depends(current_user)):
     theta = user["theta"] if req.adaptive else None
     q = core.draw_question(req.layer, prog, req.force,
                           req.book, req.difficulty, theta, new_today,
-                          run_state=req.run_state)
+                          run_state=req.run_state, mode=req.mode)
     return q
 
 

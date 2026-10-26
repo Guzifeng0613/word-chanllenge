@@ -41,7 +41,35 @@ CONFIG = {
                  "match": 0.70, "stretch": 0.15, "consolidate": 0.15,
                  "targetRate": 0.85},
     "daily": {"newCap": 20},
+    # V4.5 无尽模式：不限深度，难度随深度单调递增
+    "endless": {
+        "hpStep": 0.15, "atkStep": 0.10,
+        "tierEvery": 3,
+        "timeStart": 4, "timeEvery": 3, "timeMax": 3,
+        "championEvery": 5, "championHp": 1.25, "championAtk": 3},
 }
+
+# 无尽深度 → 敌人 HP/ATK 缩放（线性，单调）
+def endless_scale(depth):
+    e = CONFIG["endless"]
+    return {"hp": 1 + e["hpStep"] * (depth - 1),
+            "atk": 1 + e["atkStep"] * (depth - 1)}
+
+# 无尽深度 → 词难度下限（d1-3 档1，d4-6 档2，d7+ 档3）
+def endless_tier_floor(depth):
+    return min(3, 1 + (depth - 1) // CONFIG["endless"]["tierEvery"])
+
+# 无尽深度 → 限时收紧（秒）
+def endless_time_cut(depth):
+    e = CONFIG["endless"]
+    if depth < e["timeStart"]:
+        return 0
+    return min(e["timeMax"],
+               1 + (depth - e["timeStart"]) // e["timeEvery"])
+
+# 无尽深度是否为冠军 Boss
+def is_champion_depth(depth):
+    return depth % CONFIG["endless"]["championEvery"] == 0
 
 # V4.2 SM-2 间隔梯（分钟）：10分钟→1天→3天→7天→16天→30天
 SRS_LADDER = [10, 1440, 4320, 10080, 23040, 43200]
@@ -254,12 +282,13 @@ def due_graduated(progress, now):
 # ---------------- 组卷（V4.3 题型阶梯驱动） ----------------
 def draw_question(layer=1, progress=None, force=None,
                   book=None, difficulty=None, theta=None,
-                  new_today=0, now=None, run_state=None):
+                  new_today=0, now=None, run_state=None, mode="campaign"):
     """出一道题。
     优先级：到期未毕业（错词/中段学习）→ 到期已毕业（SM-2 复习）→ 新词（step0）。
     θ / 手动难度控制"选词难度档"；题型由单词的 step / stage 决定（拼写压轴）。
-    run_state：单局（一次远征）状态，限制答错的词只再出现 1 次（首次答错+1次重现=2次），
+    run_state：单局状态，限制答错的词只再出现 1 次（首次答错+1次重现=2次），
     达到上限后本局不再抽，仅归档进错词本/后续复习。
+    mode='endless'：词难度随深度（layer）抬升（作为下限）；run_state 由前端在每个深度重置。
     """
     progress = progress or {}
     now_ms = now if now is not None else int(time.time() * 1000)
@@ -287,6 +316,11 @@ def draw_question(layer=1, progress=None, force=None,
         tier = difficulty
     else:
         tier = min(layer, 3) if not book else None
+
+    # 无尽模式：词难度随深度抬升（下限）
+    if mode == "endless":
+        floor = endless_tier_floor(layer)
+        tier = max(tier, floor) if tier is not None else floor
 
     # 到期队列（限定当前词书，并遵守单局重现上限）
     dl = [w for w in due_learning(progress, now_ms)

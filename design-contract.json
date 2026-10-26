@@ -334,6 +334,27 @@
         "run.state",
         "run.record"
       ]
+    },
+    {
+      "id": "RULE-ENDLESS",
+      "title": "无尽模式（无上限·死亡即结束）",
+      "definition": "主页提供远征/无尽两个入口。无尽模式击败每个深度 Boss 后深度+1继续、永不通关，HP归零才结束。每深度节点 normal,normal,elite,normal,spring,shop,boss。敌人 HP/攻击随深度线性单调缩放：HP×(1+0.15(d-1))、ATK×(1+0.10(d-1))；词难度下限 d1-3档1/d4-6档2/d7+档3；限时 d≥4起每3深度-1秒（最多-3）；每5深度为冠军Boss（HP×1.25、攻+3、词魂×1.5）。Boss机制循环但数值用固定基线单调缩放。题型阶梯/SM-2/错词分级/复仇/θ全部沿用；单局2次封顶在无尽按深度重置；每日新词20上限仍生效；不计入远征每日目标。记录最高深度 endlessBest，新纪录在结算页标注；成就 endless5/endless10。",
+      "priority": "P0",
+      "parameter_ids": [
+        "PAR-ENDLESS-HP-STEP",
+        "PAR-ENDLESS-ATK-STEP",
+        "PAR-ENDLESS-TIER-EVERY",
+        "PAR-ENDLESS-CHAMPION-EVERY"
+      ],
+      "state_machine_ids": [
+        "SM-WORD-MEMORY"
+      ],
+      "authority_ids": [],
+      "fields": [
+        "endless.scaling",
+        "endless.record",
+        "endless.ui"
+      ]
     }
   ],
   "parameters": [
@@ -895,6 +916,42 @@
       "source": "design_initial",
       "min": 0,
       "max": 3
+    },
+    {
+      "id": "PAR-ENDLESS-HP-STEP",
+      "name": "endless_hp_step",
+      "value": 0.15,
+      "unit": "ratio",
+      "source": "design_initial",
+      "min": 0.05,
+      "max": 0.3
+    },
+    {
+      "id": "PAR-ENDLESS-ATK-STEP",
+      "name": "endless_atk_step",
+      "value": 0.1,
+      "unit": "ratio",
+      "source": "design_initial",
+      "min": 0.05,
+      "max": 0.25
+    },
+    {
+      "id": "PAR-ENDLESS-TIER-EVERY",
+      "name": "endless_tier_every",
+      "value": 3,
+      "unit": "depth",
+      "source": "design_initial",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "id": "PAR-ENDLESS-CHAMPION-EVERY",
+      "name": "endless_champion_every",
+      "value": 5,
+      "unit": "depth",
+      "source": "design_initial",
+      "min": 3,
+      "max": 10
     }
   ],
   "numeric_requirements": [
@@ -1697,6 +1754,17 @@
       "precondition": "开始远征，将一个到期词每次都答错",
       "action": "浏览器连续对同一词提交错误（resolve timeout），记录该词出现次数；后端重复 draw/answer 并透传 run_state",
       "expected": "该词在本局恰好出现2次（首次答错+1次重现），之后不再被抽（runWrongSeen=1 被排除）；wrong_count 照记、归档进错词本，后续远征/到期复习仍会出现；计数贯穿3层不重置",
+      "status": "passed"
+    },
+    {
+      "id": "TEST-ENDLESS",
+      "type": "normal",
+      "rule_ids": [
+        "RULE-ENDLESS"
+      ],
+      "precondition": "主页选择无尽模式并开始；先全对推进若干深度，再全错死亡",
+      "action": "浏览器驱动连续答对（自动选正确答案），跨多个 Boss 深度；随后提交错误直到 HP 归零；后端以 mode=endless 重复 draw",
+      "expected": "击败 Boss 后深度+1继续（无通关）；敌人 HP/攻击随深度单调递增（Boss 无锯齿）；词难度 d1-3档1/d4-6档2/d7+档3；每5深度为冠军；死亡进入结果页『无尽挑战·抵达第N层』，endlessBest 更新、新纪录标注；2次封顶按深度重置；每日远征目标不被计入",
       "status": "passed"
     }
   ],

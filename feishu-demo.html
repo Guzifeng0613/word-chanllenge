@@ -45,6 +45,9 @@
   .bigbtn{display:block; width:100%; padding:16px; border:none; border-radius:12px; font-size:18px; font-weight:700;
     background:linear-gradient(90deg,#2563eb,#38bdf8); color:#fff; margin:18px 0 10px; box-shadow:0 6px 18px rgba(56,189,248,.35);}
   .bigbtn:active{transform:translateY(1px);}
+  .bigbtn-endless{background:linear-gradient(90deg,#7c3aed,#db2777); margin-top:10px;
+    box-shadow:0 6px 18px rgba(219,39,119,.35);}
+  .bigbtn-endless:active{transform:translateY(1px);}
   .ghostbtn{display:block; width:100%; padding:12px; border-radius:10px; border:1px solid var(--line);
     background:transparent; color:var(--mut); font-size:14px; margin-top:8px;}
   .bigbtn.ghost{background:linear-gradient(90deg,#0e2a4a,#123a5c); color:var(--gold); border:1px solid rgba(251,191,36,.35); box-shadow:none; padding:13px;}
@@ -210,6 +213,9 @@
   .result-face .big{font-size:34px; font-weight:800;}
   .result-face.win .big{color:var(--gold);}
   .result-face.lose .big{color:var(--red);}
+  .result-face.endless .big{background:linear-gradient(90deg,#a855f7,#ec4899);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;}
+  .endless-best{margin-top:10px; font-size:14px; font-weight:700; color:#c084fc;}
   .statgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
   .statcell{background:#1a2d4d; border:1px solid var(--line); border-radius:10px; padding:11px; text-align:center;}
   .statcell .v{font-size:21px; font-weight:800; color:var(--cyan);}
@@ -405,7 +411,18 @@ const C = {
   focus:{ wrongStreak:2, extraTime:2 },   // 凝神：连续答错 2 题，下一题限时 +2
   revenge:{ base:1.5, perMiss:0.25, cap:2.0 },  // 复仇：错过的词答对伤害更高，按错过次数递增
   xp:{ correct:2, newWord:5, master:10, base:120 },  // XP 与升级曲线
-  daily:{ questions:40, newWords:15, run:1 }         // 每日目标
+  daily:{ questions:40, newWords:15, run:1 },        // 每日目标
+  endless:{
+    nodeSeq:['normal','normal','elite','normal','spring','shop','boss'],  // 无尽：每深度 7 节点（战斗更密，泉/商店仍在 Boss 前）
+    hpStep:0.15,        // 每加深 1 层，敌人 HP +15%（线性）
+    atkStep:0.10,       // 每加深 1 层，敌人攻击 +10%（线性）
+    tierStart:4,        // 深度 ≥4 起词难度阶梯抬升
+    tierEvery:3,        // 之后每 3 深度抬一档词难度
+    timeStart:4,        // 深度 ≥4 起限时开始收紧
+    timeEvery:3,        // 每 3 深度 -1 秒
+    timeMax:3,          // 限时最多收紧 3 秒
+    championEvery:5     // 每 5 深度为“冠军 Boss”（额外强化 + 额外奖励）
+  }
 };
 
 /* ============================================================
@@ -499,7 +516,9 @@ const ACHIEVEMENTS = [
  {id:'master30', icon:'🎓', name:'渐入佳境', desc:'累计掌握 30 个词'},
  {id:'master60', icon:'🎓', name:'词汇达人', desc:'累计掌握 60 个词'},
  {id:'streak3', icon:'📅', name:'坚持不懈', desc:'连续打卡 3 天'},
- {id:'streak7', icon:'📅', name:'一周不辍', desc:'连续打卡 7 天'}
+ {id:'streak7', icon:'📅', name:'一周不辍', desc:'连续打卡 7 天'},
+ {id:'endless5', icon:'🌀', name:'深渊行者', desc:'无尽模式抵达第 5 层'},
+ {id:'endless10', icon:'💀', name:'深渊主宰', desc:'无尽模式抵达第 10 层'}
 ];
 const AMAP={}; ACHIEVEMENTS.forEach(a=>AMAP[a.id]=a);
 
@@ -556,6 +575,7 @@ function defaultMeta(){
     level:1, xp:0,
     theta:1.5,
     streak:0, lastActive:'',
+    endlessBest:0,
     daily:{date:'', questions:0, newWords:0, run:0},
     ach:{}
   };
@@ -686,16 +706,16 @@ function applySrs(word,correct,fast){
  * ============================================================ */
 let G=null;
 const MIN=60*1000, DAY=24*60*60*1000;
-function newRun(){
+function newRun(mode){
   G={
-    screen:'home', layer:1, node:0,
+    screen:'home', mode:mode||'campaign', layer:1, node:0,
     hp:C.player.maxHp, shield:0, gold:0, combo:0,
     flow:false, wrongStreak:0, focus:false,
     cards:[], vengeance:0, blessForLayer:0,
     layerWords:[], queue:[], wrongWords:{}, wrongCount:{}, answeredThisLayer:0,
     runWrong:{}, runWrongSeen:{},
     battle:null, choice:null,
-    stats:{questions:0,correct:0,wrong:0,maxCombo:0,newWords:new Set(),reviewWords:new Set()}
+    stats:{questions:0,correct:0,wrong:0,maxCombo:0,newWords:new Set(),reviewWords:new Set(),kills:0}
   };
 }
 
@@ -817,13 +837,32 @@ function enterLayer(){
   G.queue = rshuffle(G.layerWords.slice());
   G.wrongWords={}; G.wrongCount={}; G.answeredThisLayer=0;
   G.node=0;
+  // 无尽模式：单局“2 次封顶”按深度重置（每个深度都是一次新的小循环），否则整个无尽会话会过早把错词封死
+  if(G.mode==='endless'){ G.runWrong={}; G.runWrongSeen={}; }
   nextNode();
 }
+function isEndless(){ return G.mode==='endless'; }
+function activeNodeSeq(){ return isEndless()?C.endless.nodeSeq:C.nodeSeq; }
+// 无尽深度缩放：HP/攻击线性增长
+function endlessScale(d){
+  return {hp:1+C.endless.hpStep*(d-1), atk:1+C.endless.atkStep*(d-1)};
+}
+// 无尽深度 → 词难度下限（d1-3 档1，d4-6 档2，d7+ 档3）
+function endlessTierFloor(d){
+  return Math.min(3, 1+Math.floor((d-1)/C.endless.tierEvery));
+}
+// 无尽深度 → 限时收紧（秒），d≥4 起每 3 深度 -1 秒，最多 -3 秒
+function endlessTimeCut(d){
+  if(d<C.endless.timeStart) return 0;
+  return Math.min(C.endless.timeMax, 1+Math.floor((d-C.endless.timeStart)/C.endless.timeEvery));
+}
+// 无尽深度是否为冠军 Boss（每 5 深度）
+function isChampionDepth(d){ return d%C.endless.championEvery===0; }
 function nextNode(){
-  if(G.node>=C.nodeSeq.length){ // 本层结束（boss 是最后节点，胜利后会直接处理层推进）
+  if(G.node>=activeNodeSeq().length){ // 本层结束（boss 是最后节点，胜利后会直接处理层推进）
     return;
   }
-  const kind=C.nodeSeq[G.node];
+  const kind=activeNodeSeq()[G.node];
   if(kind==='spring'){ startSpring(); }
   else if(kind==='shop'){ startShop(); }
   else { startBattle(kind); }
@@ -837,7 +876,27 @@ function advanceFromNode(){
  * 战斗
  * ============================================================ */
 function buildEnemy(kind){
-  const li=G.layer-1;
+  const d=G.layer;
+  if(isEndless()){
+    const sc=endlessScale(d);
+    const champion=isChampionDepth(d);
+    if(kind==='boss'){
+      // 机制（fog/blur/rage）随深度循环提供变化，但血量/攻击用固定基线（boss1）单调缩放，避免模板差异造成锯齿
+      const tpl=ENEMY.boss[(d-1)%ENEMY.boss.length];
+      const baseHp=ENEMY.boss[0].hp, baseAtk=ENEMY.boss[0].atk;
+      const champMul=champion?1.25:1, champAtk=champion?3:0;
+      const hp=Math.round(baseHp*sc.hp*champMul);
+      const atk=Math.round(baseAtk*sc.atk)+champAtk;
+      return {tpl,name:champion?('冠军·'+tpl.name):tpl.name,maxHp:hp,hp,atk,boss:true,champion};
+    }
+    const pool = kind==='elite'?ENEMY.elite:ENEMY.normal;
+    const t=rpick(pool);
+    const baseHp=t.hp[0], baseAtk=t.atk[0];   // 无尽以第 1 层数值为基线再缩放
+    const hp=Math.round(baseHp*sc.hp);
+    const atk=Math.round(baseAtk*sc.atk);
+    return {tpl:t,name:t.name,maxHp:hp,hp,atk,elite:kind==='elite'};
+  }
+  const li=d-1;
   if(kind==='boss'){
     const t=ENEMY.boss[li];
     return {tpl:t, name:t.name, maxHp:t.hp, hp:t.hp, atk:t.atk, boss:true};
@@ -868,6 +927,7 @@ function questionLimit(qtype,wordLen){
   if(G.battle.fog) lim=Math.round(lim/2);
   G.cards.forEach(id=>{ const c=CMAP[id]; if(c.timeAdd) lim+=c.timeAdd; });
   if(G.battle.enemy.boss && G.battle.enemy.tpl.mech==='rage' && G.battle.enemy.hp<=G.battle.enemy.maxHp*0.5) lim-=2;
+  if(isEndless()) lim-=endlessTimeCut(G.layer);   // 无尽深度：限时随深度收紧
   if(G.focus) lim+=C.focus.extraTime;
   return Math.max(4,lim);
 }
@@ -889,6 +949,11 @@ function pickWordAndType(prefer){
     targetTier=adaptiveTier(P.meta.theta).tier;
   } else if(SETTINGS.difficulty){
     targetTier=SETTINGS.difficulty;
+  }
+  // 无尽：词难度随深度抬升（作为下限，防止深了还在出最简单的词）
+  if(isEndless()){
+    const floor=endlessTierFloor(G.layer);
+    targetTier = targetTier?Math.max(targetTier,floor):floor;
   }
   const now=Date.now();
   // 单局（一次远征）重现上限：答错的词只再出现 1 次（首次答错+1次重现=2次），之后本局不再抽，仅记录归档
@@ -1355,21 +1420,28 @@ function floatText(cls,txt,leftPct){
 /* 战斗胜利 / 失败 */
 function winBattle(){
   const b=G.battle, kind=b.kind;
+  G.stats.kills++;
   // flawless 微目标：敌人倒下且全程未错
   if(b.goal&&b.goal.kind==='flawless'&&!b.goal.failed&&!b.goal.done) completeGoal();
-  // Boss 成就
-  if(kind==='boss'){
+  // Boss 成就（仅远征模式按层解锁）
+  if(kind==='boss'&&!isEndless()){
     const li=G.layer-1;
     if(li===0) unlockAch('boss1');
     if(li===1) unlockAch('boss2');
     if(li===2) unlockAch('boss3');
   }
+  // 无尽：抵达深度成就（第 5/10 层）
+  if(kind==='boss'&&isEndless()){
+    if(G.layer>=5) unlockAch('endless5');
+    if(G.layer>=10) unlockAch('endless10');
+  }
   // 词魂
   let reward = kind==='boss'?C.gold.boss: kind==='elite'?C.gold.elite:C.gold.normal;
   if(hasCard('soulmagnet')) reward=Math.round(reward*1.4);
+  if(kind==='boss'&&b.enemy.champion) reward=Math.round(reward*1.5);   // 冠军 Boss 额外词魂
   G.gold+=reward;
-  // 三选一
-  const rare = kind==='boss';
+  // 三选一：无尽 Boss 每深度都给（含稀有机会），冠军深度必给稀有
+  const rare = kind==='boss' && (isEndless()?b.enemy.champion:true);
   const pool=CARDS.filter(c=>!G.cards.includes(c.id) && c.rare===(rare?1:0));
   const other=CARDS.filter(c=>!G.cards.includes(c.id)&&c.rare===(rare?0:1));
   const cand=rshuffle(pool.concat(rare?other:[]).slice()).slice(0,3);
@@ -1392,18 +1464,29 @@ function pickCard(id){
   afterNodeResolved();
 }
 function defeat(){
-  G.battle=null; G.result='lose'; G.screen='result';
+  G.battle=null;
+  if(isEndless()){
+    // 无尽：结算最高深度纪录
+    G.newRecord = G.layer>P.meta.endlessBest;
+    if(G.newRecord) P.meta.endlessBest=G.layer;
+  }
+  G.result='lose'; G.screen='result';
   Save.write(P);
   render();
 }
 function afterNodeResolved(){
   // 非战斗节点（泉/商店）或战斗结束后推进
-  if(G.screen==='choice'){
-    // 刚选完卡
-  }
-  const cur=C.nodeSeq[G.node];
+  const cur=activeNodeSeq()[G.node];
   if(cur==='boss'){
-    // Boss 过：进入下一层或通关
+    // Boss 过
+    if(isEndless()){
+      // 无尽：继续下潜，永不通关（直到死亡）
+      G.layer++; G.screen='map';
+      setTimeout(()=>{ enterLayer(); }, 250);
+      render();
+      return;
+    }
+    // 远征：进入下一层或通关
     if(G.layer>=C.layerCount){
       G.result='win'; G.screen='result';
       markStreak();
@@ -1481,12 +1564,13 @@ function buy(kind,id){
  * ============================================================ */
 const app=document.getElementById('app');
 function topbar(){
-  const dots=C.nodeSeq.map((k,i)=>{
+  const seq=activeNodeSeq();
+  const dots=seq.map((k,i)=>{
     let cls=i<G.node?'done':(i===G.node&&G.screen!=='home'?'cur':'');
     return `<span class="dot ${cls}"></span>`;
   }).join('');
   return `<div class="topbar">
-    <span class="layer-tag">第 ${G.layer} 层 · 词境</span>
+    <span class="layer-tag">${isEndless()?'无尽 · ':''}第 ${G.layer} 层 · 词境</span>
     <span class="dots">${dots}</span></div>`;
 }
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
@@ -1556,7 +1640,8 @@ function viewHome(){
          : `当前词书 ${BOOKS.find(b=>b.id===SETTINGS.book).name}${DIFFS.find(d=>d.id===SETTINGS.difficulty).name!=='全部'?' · '+DIFFS.find(d=>d.id===SETTINGS.difficulty).name:''}，共 ${bookWords().length} 词`}
      </div>
    </div>
-   <button class="bigbtn" data-act="start">开始远征（3 层 · 约 11 分钟）</button>
+   <button class="bigbtn" data-act="start-campaign">远征模式（3 层 · 约 11 分钟）</button>
+   <button class="bigbtn bigbtn-endless" data-act="start-endless">无尽模式（挑战最深 · 最高 ${P.meta.endlessBest} 层）</button>
    ${wrongBookBtn()}
    <div class="card" style="margin-top:14px;">
      <div class="sec-h">成就墙（${achCount}/${ACHIEVEMENTS.length}）</div>
@@ -1805,14 +1890,21 @@ function viewShop(){
 function viewResult(){
   const s=G.stats;
   const acc=s.questions?Math.round(s.correct/s.questions*100):0;
+  const endless=isEndless();
   const win=G.result==='win';
   const newArr=[...s.newWords], wrongArr=[...new Set(Object.keys(G.wrongWords).filter(w=>G.wrongWords[w]))];
   const m=P.meta;
   const xpPct=Math.round(m.xp/xpNeeded(m.level)*100);
+  const headBig = endless ? `无尽挑战 · 抵达第 ${G.layer} 层` : (win?'远征通关！':'远征失败');
+  const headSub = endless
+    ? (G.newRecord?'新纪录！你比以往任何一次都潜得更深。':'深渊终将吞噬所有词灵使，但错词已为你保留。')
+    : (win?'你击败了三层词魇，词库又厚了一页。':'别灰心，错词已经全部保留，会在复习中再出现。');
+  const restartLabel = endless?'再战深渊':(win?'再来一局':'再战一局');
   return `
-   <div class="card result-face ${win?'win':'lose'}">
-     <div class="big">${win?'远征通关！':'远征失败'}</div>
-     <div class="mut" style="margin-top:6px;">${win?'你击败了三层词魇，词库又厚了一页。':'别灰心，错词已经全部保留，会在复习中再出现。'}</div>
+   <div class="card result-face ${win?'win':'lose'} ${endless?'endless':''}">
+     <div class="big">${headBig}</div>
+     <div class="mut" style="margin-top:6px;">${headSub}</div>
+     ${endless?`<div class="endless-best">最高纪录：第 ${m.endlessBest} 层</div>`:''}
    </div>
    <div class="card level-card" style="margin-top:12px;">
      <div class="level-badge">${m.level}</div>
@@ -1822,10 +1914,11 @@ function viewResult(){
      </div>
    </div>
    <div class="statgrid">
+     ${endless?`<div class="statcell"><div class="v">${s.kills}</div><div class="l">击败敌人</div></div>`:''}
      <div class="statcell"><div class="v">${s.questions}</div><div class="l">答题数</div></div>
      <div class="statcell"><div class="v">${acc}%</div><div class="l">正确率</div></div>
      <div class="statcell"><div class="v">${s.maxCombo}</div><div class="l">最高连击</div></div>
-     <div class="statcell"><div class="v">${newArr.length}</div><div class="l">新学词</div></div>
+     ${endless?'':`<div class="statcell"><div class="v">${newArr.length}</div><div class="l">新学词</div></div>`}
    </div>
    <div class="card">
      <div class="sec-h">本次新学的词</div>
@@ -1833,7 +1926,7 @@ function viewResult(){
      <div class="sec-h">仍需复习的错词</div>
      <div class="wordlist">${wrongArr.map(w=>`<span class="wchip wrong">${esc(w)}</span>`).join('')||'<span class="mut">无</span>'}</div>
    </div>
-   <button class="bigbtn" data-act="restart">${win?'再来一局':'再战一局'}</button>`;
+   <button class="bigbtn ${endless?'bigbtn-endless':''}" data-act="restart">${restartLabel}</button>`;
 }
 
 function render(){
@@ -1962,8 +2055,9 @@ function afterRender(){
   document.querySelectorAll('[data-act]').forEach(el=>{
     el.addEventListener('click',()=>{
       const a=el.getAttribute('data-act');
-      if(a==='start'){ rnd=mulberry32(Date.now()%2147483647); newRun(); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
-      if(a==='restart'){ newRun(); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
+      if(a==='start-campaign'){ rnd=mulberry32(Date.now()%2147483647); newRun('campaign'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
+      if(a==='start-endless'){ rnd=mulberry32(Date.now()%2147483647); newRun('endless'); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
+      if(a==='restart'){ const mode=G.mode; rnd=mulberry32(Date.now()%2147483647); newRun(mode); rnd=mulberry32(Date.now()%2147483647); G.screen='map'; enterLayer(); }
       if(a==='wrongbook'){ G.screen='wrongbook'; render(); }
       if(a==='reset'){ if(confirm('确定清空所有学习进度？')){ Save.reset(); P={words:{}}; newRun(); render(); } }
     });
