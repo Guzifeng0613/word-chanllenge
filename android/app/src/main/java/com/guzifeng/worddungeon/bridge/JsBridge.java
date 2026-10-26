@@ -6,25 +6,28 @@ import android.os.Looper;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
+import com.guzifeng.worddungeon.MainActivity;
 import com.guzifeng.worddungeon.server.BackendRouter;
 
 import org.json.JSONObject;
 
 /**
- * WebView JavaScriptInterface 直连桥（异步回调版，参考纸片项目几十个真机版本的成熟模式）。
+ * WebView JavaScriptInterface 直连桥（异步回调版，纸片项目同款成熟模式）。
  * JS 端：window.WordDungeon.call(callId, route, payloadJson)
- * 原生端处理完成后：runOnUiThread -> web.evaluateJavascript("window.__wdCb('callId', <json>)")
+ * 原生处理完成后：runOnUiThread -> web.evaluateJavascript("window.__wdCb('callId', <json>)")
  * 零网络层、零注入时序问题，长耗时操作不阻塞 JS 线程。
  */
 public class JsBridge {
 
     private final BackendRouter router;
     private final WebView web;
+    private final MainActivity activity;
     private final Handler main = new Handler(Looper.getMainLooper());
 
-    public JsBridge(Context ctx, WebView web) {
+    public JsBridge(Context ctx, WebView web, MainActivity activity) {
         this.router = new BackendRouter(ctx);
         this.web = web;
+        this.activity = activity;
     }
 
     @JavascriptInterface
@@ -42,6 +45,16 @@ public class JsBridge {
         main.post(() -> {
             try {
                 web.evaluateJavascript(js, null);
+            } catch (Throwable ignore) {}
+        });
+    }
+
+    /** 退出 App（前端主页返回键默认行为） */
+    @JavascriptInterface
+    public void exit() {
+        main.post(() -> {
+            try {
+                if (activity != null) activity.finish();
             } catch (Throwable ignore) {}
         });
     }

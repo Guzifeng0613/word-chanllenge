@@ -1277,7 +1277,7 @@ const MIN=60*1000, DAY=24*60*60*1000;
 
 /* ═══ 前后端接入层（V8.1）：App 内走 Capacitor 插件桥直调 Java 后端；浏览器走 HTTP（开发）═══ */
 /* 运行环境：App 内（Capacitor）优先插件桥（无网络层，最可靠）；浏览器读取 localStorage 配置（开发用） */
-const IS_APP = !!(window.Capacitor && window.Capacitor.platform && window.Capacitor.platform !== 'web');
+const IS_APP = !!(window.WordDungeon && window.WordDungeon.call) || !!(window.Capacitor && window.Capacitor.platform && window.Capacitor.platform !== 'web');
 /* 通道优先级：① JavaScriptInterface 直连桥（addJavascriptInterface，页面加载前已注册，零时序问题）
                 ② Capacitor 插件桥（页面加载后注入，需轮询等待）
                 ③ HTTP 本地服务（浏览器/调试） */
@@ -3609,14 +3609,18 @@ function handleAndroidBack(){
     case 'choice': case 'spring': case 'shop':
       G.screen='battle'; render(); break;
     default:
+      if(window.WordDungeon&&window.WordDungeon.exit){ window.WordDungeon.exit(); return; }
       if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App){
         window.Capacitor.Plugins.App.exitApp();
       }
   }
 }
 function initAndroidBack(){
-  if(!(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App)) return;
-  window.Capacitor.Plugins.App.addListener('backButton',()=>handleAndroidBack());
+  /* 原生返回键由 MainActivity 调 window.__wdBack（新架构，无 Capacitor 依赖） */
+  window.__wdBack=handleAndroidBack;
+  if(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App){
+    window.Capacitor.Plugins.App.addListener('backButton',()=>handleAndroidBack());
+  }
   const bc=document.getElementById('backconfirm');
   const cancel=document.getElementById('bc-cancel');
   const ok=document.getElementById('bc-ok');

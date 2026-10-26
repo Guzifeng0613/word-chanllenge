@@ -147,3 +147,10 @@
 - 调研同环境 APK 项目「纸片」（38443854002369026/notes-app，v3→v15 几十个真机版本）：原生自建 WebView + addJavascriptInterface(new Bridge(),"AndroidBridge")，异步回调模式（JS post(callId,method,payload) → 原生 evaluateJavascript("window.__cb(callId,result)")）；数据存 getFilesDir()/library/library.json + SharedPreferences。
 - 结论：一加13 等真机上 WebView+JS 桥完全可行，问题不在手机而在通道选择（Capacitor 插件注入时序 / HTTP 链路）。
 - 落地：JsBridge 改异步回调桥（callId + __wdCb），前端 jsiCall 封装 Promise + 超时兜底；playwright mock 桥端到端验证 PASS（主页 3674 词）。
+
+## 20. 根因定案：Capacitor 壳在真机的 JS 桥注册时序不可靠 → V9.2 弃用自建 WebView
+- 症状链：V8.0 HTTP 链路失败 → V9.0 插件桥时序失败 → V9.1 JS 直连桥仍不可达。
+- 核心根因：Capacitor BridgeActivity 的 getBridge()/插件注入/WebView 获取时机在真机不可靠，任何一环失败即整条链路不可用，且无法远程定位（无 logcat）。
+- 定案架构（V9.2，纸片项目同构）：MainActivity 弃用 Capacitor，继承 AppCompatActivity 自建 WebView；WebViewClient 拦截 https://app.local/ 返回 assets/public/index.html；addJavascriptInterface(JsBridge) 直连桥（自建即生效）；返回键 onBackPressed → __wdBack；前端 IS_APP 主判 window.WordDungeon；发音用 HTML5 Audio。
+- 验证：playwright 无 Capacitor 环境下 JS 桥端到端 PASS（3674 词）。
+- 教训：Capacitor 壳在 Android 上引入的"注入/时序/网络策略"黑盒问题难远程排查；纯本地单文件应用直接自建 WebView + addJavascriptInterface 最可靠（纸片 v3→v15 背书）。
