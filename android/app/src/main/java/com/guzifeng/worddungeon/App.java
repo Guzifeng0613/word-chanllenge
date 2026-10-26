@@ -52,6 +52,21 @@ public class App extends Application {
         }
     }
 
+    /** 立即写入崩溃（供 onCreate 兜底 catch 调用） */
+    public static void saveCrashNow(Throwable e) {
+        try {
+            StringWriter sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            String text = "[" + java.text.SimpleDateFormat.getDateTimeInstance().format(new java.util.Date())
+                    + "] " + Thread.currentThread().getName() + " :: " + sw;
+            File f = new File(instance.getFilesDir(), CRASH_LOG);
+            try (FileOutputStream os = new FileOutputStream(f, true)) {
+                os.write(text.getBytes("UTF-8"));
+                os.write('\n');
+            }
+        } catch (Throwable ignore) {}
+    }
+
     public static Context ctx() {
         return instance;
     }

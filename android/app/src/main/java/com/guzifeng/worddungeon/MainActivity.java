@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -56,24 +57,46 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
+        try {
+            createApp();
+        } catch (Throwable e) {
+            Log.e(TAG, "启动异常", e);
+            try { App.saveCrashNow(e); } catch (Throwable ignore) {}
+            try {
+                Toast.makeText(this, "启动异常：" + e.getMessage(), Toast.LENGTH_LONG).show();
+            } catch (Throwable ignore) {}
+        }
+    }
+
+    private void createApp() {
+        // 上次崩溃自诊断：setContentView 后立即 Toast（不依赖页面渲染）
+        final String crash = App.takeCrash();
+        if (crash != null && !crash.isEmpty()) {
+            Log.e(TAG, "检测到上次崩溃:\n" + crash);
+            String shortC = crash.replaceAll("[\\r\\n]+", " → ");
+            shortC = shortC.length() > 260 ? shortC.substring(0, 260) + "…" : shortC;
+            Toast.makeText(this, "上次启动异常：" + shortC, Toast.LENGTH_LONG).show();
+        }
+
         root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG0);
         setContentView(root);
 
-        home = new HomeView(this);
-        battle = new BattleView(this);
-        result = new ResultView(this);
-        wrongbook = new WrongbookView(this);
-        settings = new SettingsView(this);
-        achievements = new AchievementsView(this);
+        // View 创建全部防御化：任何页面构造失败都不阻断启动
+        try { home = new HomeView(this); } catch (Throwable e) { Log.e(TAG, "HomeView 构造失败", e); }
+        try { battle = new BattleView(this); } catch (Throwable e) { Log.e(TAG, "BattleView 构造失败", e); }
+        try { result = new ResultView(this); } catch (Throwable e) { Log.e(TAG, "ResultView 构造失败", e); }
+        try { wrongbook = new WrongbookView(this); } catch (Throwable e) { Log.e(TAG, "WrongbookView 构造失败", e); }
+        try { settings = new SettingsView(this); } catch (Throwable e) { Log.e(TAG, "SettingsView 构造失败", e); }
+        try { achievements = new AchievementsView(this); } catch (Throwable e) { Log.e(TAG, "AchievementsView 构造失败", e); }
 
-        show(Screen.HOME);
+        if (crash != null && !crash.isEmpty() && home != null) {
+            try { home.onCrashInfo(crash); } catch (Throwable ignore) {}
+        }
 
-        // 上次崩溃自诊断
-        final String crash = App.takeCrash();
-        if (crash != null && !crash.isEmpty()) {
-            Log.e(TAG, "检测到上次崩溃:\n" + crash);
-            home.onCrashInfo(crash);
+        try { show(Screen.HOME); } catch (Throwable e) {
+            Log.e(TAG, "主页显示失败", e);
+            try { Toast.makeText(this, "主页显示失败：" + e.getMessage(), Toast.LENGTH_LONG).show(); } catch (Throwable ignore) {}
         }
 
         // 后端后台线程初始化（词库解析 + SQLite），不阻塞 UI
@@ -87,8 +110,10 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "后端初始化失败: " + backendErr, e);
             }
             main.post(() -> {
-                home.onBackendState(backendReady, backendErr);
-                if (backendReady) home.refreshMeta();
+                try {
+                    home.onBackendState(backendReady, backendErr);
+                    if (backendReady) home.refreshMeta();
+                } catch (Throwable ignore) {}
             });
         }, "wd-backend-init").start();
     }
@@ -105,15 +130,25 @@ public class MainActivity extends AppCompatActivity {
         screen = s;
         root.removeAllViews();
         switch (s) {
-            case HOME: root.addView(home); break;
-            case BATTLE:
-                root.addView(battle);
-                battle.startRun();
+            case HOME:
+                if (home != null) root.addView(home);
                 break;
-            case RESULT: root.addView(result); break;
-            case WRONGBOOK: root.addView(wrongbook); wrongbook.refresh(); break;
-            case SETTINGS: root.addView(settings); break;
-            case ACHIEVEMENTS: root.addView(achievements); break;
+            case BATTLE:
+                if (battle != null) { root.addView(battle); battle.startRun(); }
+                else { Toast.makeText(this, "战斗页不可用", Toast.LENGTH_SHORT).show(); show(Screen.HOME); }
+                break;
+            case RESULT:
+                if (result != null) root.addView(result);
+                break;
+            case WRONGBOOK:
+                if (wrongbook != null) { root.addView(wrongbook); wrongbook.refresh(); }
+                break;
+            case SETTINGS:
+                if (settings != null) root.addView(settings);
+                break;
+            case ACHIEVEMENTS:
+                if (achievements != null) root.addView(achievements);
+                break;
         }
     }
 
