@@ -150,43 +150,75 @@ public class WordBank {
         return null;
     }
 
-    private List<String> samePos(String word) {
-        WordEntry cur = byWord.get(word);
-        String pos = cur == null ? null : cur.p;
-        List<String> out = new ArrayList<>();
-        if (pos == null || pos.isEmpty()) return out;
+    /**
+     * 出题候选池（V7.0 buildQuestion/drawQuickLocal）：词书范围内、排除本词、
+     * 默认排除同组易混词；shuffle 后的顺序。
+     */
+    private List<String> layerPool(String word, String book) {
+        List<String> g = confuseGroup(word);
+        List<String> pool = new ArrayList<>();
         for (WordEntry e : words) {
             if (e.w.equals(word)) continue;
-            if (pos.equals(e.p)) out.add(e.w);
+            if (book != null && !e.inBook(book)) continue;
+            if (g != null && g.contains(e.w)) continue;
+            pool.add(e.w);
         }
-        return out;
+        Collections.shuffle(pool, rnd);
+        return pool;
     }
 
-    /** 英文干扰词（cn2en 用）：优先易混组，再补同词性词。 */
-    public List<String> distractorWords(String word, int n) {
+    /**
+     * 英文干扰词（cn2en 用）：confuse 敌人优先取同组，再从词书池补齐 n 个不重复词。
+     */
+    public List<String> distractorWords(String word, int n, String book, boolean confuseEnemy) {
         List<String> out = new ArrayList<>();
-        List<String> seen = new ArrayList<>();
-        List<String> g = confuseGroup(word);
-        if (g != null) {
-            for (String w : g) {
-                if (!w.equals(word) && byWord.containsKey(w) && !seen.contains(w)) {
-                    out.add(w); seen.add(w);
+        if (confuseEnemy) {
+            List<String> g = confuseGroup(word);
+            if (g != null) {
+                for (String w : g) {
+                    if (!w.equals(word) && byWord.containsKey(w) && !out.contains(w)) out.add(w);
                 }
             }
         }
-        for (String w : samePos(word)) {
-            if (!seen.contains(w)) { out.add(w); seen.add(w); }
+        for (String x : layerPool(word, book)) {
             if (out.size() >= n) break;
+            if (!out.contains(x)) out.add(x);
         }
-        Collections.shuffle(out, rnd);
         return out.subList(0, Math.min(n, out.size()));
     }
 
-    /** 释义干扰项（en2cn 用）：优先易混组，再补同词性词，返回释义。 */
-    public List<String> makeDistractors(String word, int n) {
-        List<String> src = distractorWords(word, n);
+    /** 释义干扰项（en2cn 用）：同语义去重，返回释义文本。 */
+    public List<String> makeDistractors(String word, int n, String book, boolean confuseEnemy) {
         List<String> out = new ArrayList<>();
-        for (String w : src) out.add(byWord.get(w).m);
-        return out;
+        if (confuseEnemy) {
+            List<String> g = confuseGroup(word);
+            if (g != null) {
+                for (String w : g) {
+                    if (!w.equals(word) && byWord.containsKey(w)) {
+                        String m = byWord.get(w).m;
+                        if (!out.contains(m)) out.add(m);
+                    }
+                }
+            }
+        }
+        for (String x : layerPool(word, book)) {
+            if (out.size() >= n) break;
+            String m = byWord.get(x).m;
+            if (!out.contains(m)) out.add(m);
+        }
+        return out.subList(0, Math.min(n, out.size()));
+    }
+
+    /** judge 错题的错误释义：优先同组兄弟词，否则词书池随机（排除同组）。 */
+    public String judgeWrongMean(String word, String book) {
+        List<String> g = confuseGroup(word);
+        if (g != null) {
+            for (String w : g) {
+                if (!w.equals(word) && byWord.containsKey(w)) return byWord.get(w).m;
+            }
+        }
+        List<String> pool = layerPool(word, book);
+        if (pool.isEmpty()) return byWord.get(word).m;
+        return byWord.get(pool.get(rnd.nextInt(pool.size()))).m;
     }
 }

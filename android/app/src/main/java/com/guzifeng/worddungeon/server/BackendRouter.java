@@ -2,6 +2,7 @@ package com.guzifeng.worddungeon.server;
 
 import android.content.Context;
 
+import com.guzifeng.worddungeon.core.CardCatalog;
 import com.guzifeng.worddungeon.core.DamageCalc;
 import com.guzifeng.worddungeon.core.EnemyModel;
 import com.guzifeng.worddungeon.core.Quiz;
@@ -17,12 +18,9 @@ import com.guzifeng.worddungeon.store.ProgressStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 后端路由分发（V10.1：对齐 V7.0 前端数据口径）
@@ -34,7 +32,6 @@ public class BackendRouter {
     public static final int DAILY_NEW_WORDS = 15;
     public static final int XP_CORRECT = 2;
     public static final int XP_NEW_WORD = 5;
-    public static final int XP_MASTER = 10;
     public static final int XP_BASE = 120;
 
     private final Context ctx;
@@ -69,6 +66,9 @@ public class BackendRouter {
         if ("/progress/reset".equals(route)) return progressReset();
         if ("/enemy/spawn".equals(route)) return enemySpawn(body == null ? new JSONObject() : body);
         if ("/reward/xp".equals(route)) return rewardXp(body == null ? new JSONObject() : body);
+        if ("/card/draw".equals(route)) return cardDraw(body == null ? new JSONObject() : body);
+        if ("/shop/buy".equals(route)) return shopBuy(body == null ? new JSONObject() : body);
+        if ("/shop/souls".equals(route)) return shopSouls();
         throw new RuntimeException("未知路由: " + route);
     }
 
@@ -101,6 +101,7 @@ public class BackendRouter {
         boolean adaptive = b.optBoolean("adaptive", true);
         String mode = b.optString("mode", "campaign");
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
+        boolean enemyConfuse = b.optBoolean("enemy_confuse", false);
         RunState runState = RunState.fromJson(b.optJSONObject("run_state"));
 
         Map<String, WordRec> progress = store.loadProgress();
@@ -121,6 +122,7 @@ public class BackendRouter {
             a.newToday = newToday;
             a.runState = runState;
             a.mode = mode;
+            a.confuse = enemyConfuse;
             q = quizEngine.draw(a);
         }
         return q.toJson();
@@ -136,6 +138,13 @@ public class BackendRouter {
         boolean crit = b.optBoolean("crit", false);
         double critMult = b.optDouble("crit_mult", 2.0);
         double cardMult = b.optDouble("card_mult", 1.0);
+        // 卡效果入参（R2-A）：暴击率（未显式指定 crit 时由后端掷骰）/汲词回血比例
+        double critChance = b.optDouble("crit_chance", 0.0);
+        double lifestealPct = b.optDouble("lifesteal_pct", 0.0);
+        // 击杀即入账：本答是否为击杀 + 敌人类型（普通15/精英35/Boss60，冠军×1.5）
+        boolean kill = b.optBoolean("kill", false);
+        String killKind = b.optString("kill_kind", "normal");
+        boolean champion = b.optBoolean("champion", false);
         String shown = b.isNull("shown") ? null : b.optString("shown", null);
         String mode = b.optString("mode", "campaign");
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
@@ -162,30 +171,35 @@ public class BackendRouter {
         Map<String, WordRec> progress = store.loadProgress();
         WordRec oldRec = progress.get(word);
         String state = oldRec == null ? "NEW" : oldRec.state;
-        int wrongCount = oldRec == null ? 0 : oldRec.wrongCount;
+        // 复仇倍率用单局错过次数（V7.0 G.wrongCount[word]），非累计 wrong_count
+        int runMisses = runState.runMisses(word);
 
         int dmg = 0;
+        int healBack = 0;
         DamageCalc.Result dr = null;
         if (isCorrect) {
+            if (!crit && critChance > 0 && WordBank.get().rnd.nextDouble() < critChance) crit = true;
             dr = DamageCalc.calc(word, state, combo, qtype, timeLimit, remain,
-                    wrongCount, crit, critMult, cardMult);
+                    runMisses, crit, critMult, cardMult);
             dmg = dr.total;
+            if (lifestealPct > 0) healBack = (int) Math.round(dmg * lifestealPct);
+        }
+
+        // 击杀词魂即时入账 DB（V7.0 C.gold：普通15/精英35/Boss60，冠军×1.5）
+        int souls = store.getMeta().optInt("souls", 0);
+        if (isCorrect && kill && !"quick".equals(mode)) {
+            int reward = "boss".equals(killKind) ? 60 : "elite".equals(killKind) ? 35 : 15;
+            if (champion) reward = Math.round(reward * 1.5f);
+            souls = store.addSouls(reward);
         }
 
         WordRec newRec = oldRec == null ? new WordRec() : oldRec;
         SrsEngine.schedule(newRec, isCorrect, fast, nowMs);
 
         if ("quick".equals(mode) && quickLevel != null) {
+            // V7.0：wrong_by 仅快刷记录；答对（任意档）若无任何错误记录则置 quick_pass
             if (!isCorrect) QuickEngine.markQuickWrong(newRec, quickLevel, qtype);
-            else if ("normal".equals(quickLevel)) QuickEngine.markQuickPass(newRec);
-        } else if (!isCorrect) {
-            // 远征/无尽模式的错过计入 normal 档，供错词本“错过地点”标签展示
-            Map<String, Integer> row = newRec.wrongBy.get("normal");
-            if (row == null) {
-                row = new HashMap<>();
-                newRec.wrongBy.put("normal", row);
-            }
-            row.put(qtype, row.getOrDefault(qtype, 0) + 1);
+            else QuickEngine.markQuickPass(newRec);
         }
 
         double newTheta = SrsEngine.updateTheta(store.getTheta(), isCorrect, fast);
@@ -227,6 +241,9 @@ public class BackendRouter {
         out.put("xp", meta.optInt("xp", 0));
         out.put("xp_gained", xpGain);
         out.put("level", meta.optInt("level", 1));
+        out.put("crit", crit);
+        out.put("heal_back", healBack);
+        out.put("souls", souls);
         out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
         meta.remove("new_ach");
         return out;
@@ -366,16 +383,16 @@ public class BackendRouter {
         return out;
     }
 
-    /** 每日打卡：今日首启时按昨天是否活跃续/断 streak。 */
-    private void ensureDaily(JSONObject meta, long today0Sec) throws Exception {
+    /** 打卡（V7.0 markStreak）：仅完成一次远征才记；今天已打过则不重复累计。 */
+    private void markStreak(JSONObject meta, long today0Sec) throws Exception {
         long last = meta.optLong("last_day", 0);
         if (last == today0Sec) return;
         long yest0Sec = today0Sec - 86400;
-        int streak = meta.optInt("streak", 0);
-        if (last == yest0Sec) streak++;
-        else streak = 1;
+        int streak = last == yest0Sec ? meta.optInt("streak", 0) + 1 : 1;
         meta.put("streak", streak);
         meta.put("last_day", today0Sec);
+        if (streak >= 3) unlock(meta, "streak3");
+        if (streak >= 7) unlock(meta, "streak7");
         store.saveMeta(meta);
     }
 
@@ -384,10 +401,7 @@ public class BackendRouter {
         long today0Sec = nowSec / 86400 * 86400;
         int[] s = store.dailyStats(today0Sec);
         JSONObject meta = store.getMeta();
-        ensureDaily(meta, today0Sec);
         int streak = meta.optInt("streak", 0);
-        if (streak >= 3) unlock(meta, "streak3");
-        if (streak >= 7) unlock(meta, "streak7");
         Map<String, WordRec> progress = store.loadProgress();
         long nowMs = System.currentTimeMillis();
         int dueLearning = SrsEngine.dueLearning(progress, nowMs).size();
@@ -413,6 +427,7 @@ public class BackendRouter {
         out.put("endless_best", meta.optInt("endless_best", 0));
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         out.put("daily", daily);
+        out.put("souls", meta.optInt("souls", 0));
         out.put("due_learning", dueLearning);
         out.put("due_graduated", dueGraduated);
         out.put("new_today", newToday);
@@ -432,10 +447,19 @@ public class BackendRouter {
         long today0Sec = nowSec / 86400 * 86400;
 
         JSONObject meta = store.getMeta();
-        ensureDaily(meta, today0Sec);
 
-        // 每日远征目标
-        store.insertAnswer("__run__", "run", true, 0, nowSec);
+        // 一局收集词典卡数（V7.0 cards5/cards10）
+        int cards = b.optInt("cards", 0);
+        if (cards >= 5) unlock(meta, "cards5");
+        if (cards >= 10) unlock(meta, "cards10");
+
+        // 累计掌握数成就（master30/60，answer 路径外再补一道幂等解锁）
+        int mastered = store.masteredCount();
+        if (mastered >= 30) unlock(meta, "master30");
+        if (mastered >= 60) unlock(meta, "master60");
+
+        // 词魂已在击杀时（/quiz/answer kill=true）即时入账 DB；此处只读回，不重复发放
+        int souls = store.getMeta().optInt("souls", 0);
 
         if ("endless".equals(mode)) {
             int best = meta.optInt("endless_best", 0);
@@ -446,13 +470,14 @@ public class BackendRouter {
             if (best >= 5) unlock(meta, "endless5");
             if (best >= 10) unlock(meta, "endless10");
         }
-        if (win) {
-            if ("campaign".equals(mode)) {
-                unlock(meta, "first_win");
-                if (layer >= 1) unlock(meta, "boss1");
-                if (layer >= 2) unlock(meta, "boss2");
-                if (layer >= 3) unlock(meta, "boss3");
-            }
+        if (win && "campaign".equals(mode)) {
+            // 每日远征目标 + 打卡 streak（仅完成远征才记）
+            store.insertAnswer("__run__", "run", true, 0, nowSec);
+            markStreak(meta, today0Sec);
+            unlock(meta, "first_win");
+            if (layer >= 1) unlock(meta, "boss1");
+            if (layer >= 2) unlock(meta, "boss2");
+            if (layer >= 3) unlock(meta, "boss3");
         }
         if (maxCombo >= 10) unlock(meta, "combo10");
         int correct = b.optInt("correct", 0);
@@ -465,6 +490,7 @@ public class BackendRouter {
         out.put("level", meta.optInt("level", 1));
         out.put("xp", meta.optInt("xp", 0));
         out.put("streak", meta.optInt("streak", 0));
+        out.put("souls", souls);
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         return out;
     }
@@ -530,7 +556,89 @@ public class BackendRouter {
         String kind = b.optString("kind", "normal");
         int layer = b.optInt("layer", 1);
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
-        if ("quick".equals(mode) && quickLevel != null) return enemy.spawnQuick(quickLevel);
-        return enemy.spawn(mode, kind, layer);
+        JSONObject o;
+        if ("quick".equals(mode) && quickLevel != null) o = enemy.spawnQuick(quickLevel);
+        else o = enemy.spawn(mode, kind, layer);
+        // 本场微目标（V7.0 BATTLE_GOALS 随机抽一）：streak4=连击4 / hit5=答对5 / flawless=无胜
+        String[] goals = {"streak4", "hit5", "flawless"};
+        o.put("goal", goals[WordBank.get().rnd.nextInt(goals.length)]);
+        return o;
+    }
+
+    /** 词典卡三槽抽取（V7.0 drawChoice，pity/epicPity 由前端 run 状态传入，返回新计数）。 */
+    private JSONObject cardDraw(JSONObject b) throws Exception {
+        String kind = b.optString("kind", "normal");
+        int layer = b.optInt("layer", 1);
+        boolean endless = "endless".equals(b.optString("mode", ""));
+        int pity = b.optInt("pity", 0);
+        int epicPity = b.optInt("epic_pity", 0);
+        JSONArray owned = b.optJSONArray("cards");
+        List<String> ownedIds = new java.util.ArrayList<>();
+        if (owned != null) for (int i = 0; i < owned.length(); i++) ownedIds.add(owned.optString(i));
+        JSONObject out = CardCatalog.draw(kind, layer, endless, pity, epicPity, ownedIds, WordBank.get().rnd);
+        out.put("catalog", CardCatalog.catalog());
+        return out;
+    }
+
+    /** 读回词魂余额（冷启/进商店/抽卡前对账）。 */
+    private JSONObject shopSouls() throws Exception {
+        JSONObject o = new JSONObject();
+        o.put("souls", store.getMeta().optInt("souls", 0));
+        return o;
+    }
+
+    /** 商店购买：扣词魂并返回余额；血药/祝福为道具，卡按 rarity 发卡数据。 */
+    private JSONObject shopBuy(JSONObject b) throws Exception {
+        String item = b.optString("item", "");
+        int rarity = b.optInt("rarity", 0);
+        int price;
+        switch (item) {
+            case "potion": price = CardCatalog.PRICE_POTION; break;
+            case "bless":  price = CardCatalog.PRICE_BLESS; break;
+            case "card":
+                price = rarity == 2 ? CardCatalog.PRICE_CARD_EPIC
+                        : rarity == 1 ? CardCatalog.PRICE_CARD_RARE : CardCatalog.PRICE_CARD_COMMON;
+                break;
+            case "reroll": price = CardCatalog.REROLL_COST; break;
+            default: throw new RuntimeException("未知商品: " + item);
+        }
+        int souls = store.getMeta().optInt("souls", 0);
+        if (souls < price) {
+            JSONObject o = new JSONObject();
+            o.put("ok", false);
+            o.put("reason", "souls_not_enough");
+            o.put("souls", souls);
+            return o;
+        }
+        souls = store.addSouls(-price);
+        if (souls < 0) {   // 并发/异常兜底：余额扣穿则回滚，不允许负余额
+            store.addSouls(price);
+            souls = store.getMeta().optInt("souls", 0);
+            JSONObject o = new JSONObject();
+            o.put("ok", false);
+            o.put("reason", "souls_not_enough");
+            o.put("souls", souls);
+            return o;
+        }
+        JSONObject o = new JSONObject();
+        o.put("ok", true);
+        o.put("item", item);
+        o.put("price", price);
+        o.put("souls", souls);
+        if ("card".equals(item)) {
+            // 商店直购卡：按稀有度从目录抽一张返回卡数据
+            CardCatalog.Card c = CardCatalog.byId(randomCardId(rarity));
+            if (c != null) o.put("card", c.toJson());
+        }
+        return o;
+    }
+
+    private String randomCardId(int rarity) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (int i = 0; i < CardCatalog.catalog().length(); i++) {
+            JSONObject co = CardCatalog.catalog().optJSONObject(i);
+            if (co != null && co.optInt("rarity") == rarity) ids.add(co.optString("id"));
+        }
+        return ids.isEmpty() ? "" : ids.get(WordBank.get().rnd.nextInt(ids.size()));
     }
 }

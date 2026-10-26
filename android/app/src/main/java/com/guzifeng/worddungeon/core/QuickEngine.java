@@ -174,7 +174,9 @@ public class QuickEngine {
         }
 
         WordRec rec = progress.get(word);
-        Quiz q = QuizEngine.buildQuiz(qtype, word, rec, runState, false, this);
+        // 先见后拼记录：非拼写题出现即记 exposed，下次允许拼写
+        if (!"spell".equals(qtype)) runState.exposed.put(word, true);
+        Quiz q = QuizEngine.buildQuiz(qtype, word, rec, runState, false, this, book, false);
         q.quickLevel = level;
         q.timeLimit = "spell".equals(qtype) ? q.timeLimit : GameConfig.QUICK_CHOICE_T;
         return q;

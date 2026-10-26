@@ -179,6 +179,23 @@ public final class Ui {
         } catch (Throwable ignore) {}
     }
 
+    /** V7.0 POS_COLOR 词性 badge：n→cyan / v→orange / adj→green / adv→teal / prep→purple / conj/pron→mut */
+    public static TextView posBadge(Context c, String p) {
+        String label = p == null ? "" : p.trim();
+        int color = MUT;
+        String l = label.toLowerCase();
+        if (l.startsWith("n")) color = CYAN;
+        else if (l.startsWith("v")) color = ORANGE;
+        else if (l.startsWith("adj")) color = GREEN;
+        else if (l.startsWith("adv")) color = TEAL;
+        else if (l.startsWith("prep")) color = PURPLE;
+        else if (l.startsWith("conj") || l.startsWith("pron")) color = MUT;
+        TextView t = text(c, label, 10.5f, color, true);
+        t.setPadding(dp(c, 7), dp(c, 2), dp(c, 7), dp(c, 2));
+        t.setBackground(pill(BG_PILL, color));
+        return t;
+    }
+
     /** 横分隔线 */
     public static View divider(Context c) {
         View v = new View(c);

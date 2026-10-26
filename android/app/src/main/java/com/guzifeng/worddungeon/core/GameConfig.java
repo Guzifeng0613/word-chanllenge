@@ -93,16 +93,10 @@ public final class GameConfig {
     // SM-2 间隔梯（分钟）
     public static final int[] SRS_LADDER = {10, 1440, 4320, 10080, 23040, 43200};
 
-    // 题型阶梯
+    // 题型阶梯（题型由 step/stage 决定；V7.0 的 C.question.pool 权重池为死代码，不实现）
     public static final String[] TYPE_LADDER = {"judge", "en2cn", "cn2en", "spell"};
     public static final int[] STEP_DELAY_MIN = {2, 3, 5};
     public static final String[] GRAD_REVIEW_TYPE = {"cn2en", "spell", "en2cn", "cn2en", "en2cn", "spell"};
-
-    // 题型分布（旧，保留）
-    public static final double POOL_EN2CN = 0.55;
-    public static final double POOL_CN2EN = 0.15;
-    public static final double POOL_SPELL = 0.10;
-    public static final double POOL_JUDGE = 0.20;
 
     // 关卡（远征）
     public static final int LAYER_COUNT = 3;

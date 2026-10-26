@@ -75,6 +75,7 @@ public class ResultView extends FrameLayout {
                 b.put("win", win);
                 b.put("max_combo", maxCombo);
                 b.put("correct", correct);
+                b.put("cards", act.runCards);   // GAP-05：本局选卡数（成就 cards5/cards10 计数）
                 act.router().dispatch("/progress/finish", "POST", b);
             } catch (Throwable ignore) {}
         }).start();
@@ -124,29 +125,31 @@ public class ResultView extends FrameLayout {
         body.addView(lv);
         body.addView(spacer(10));
 
-        // statgrid
-        statGridHost = new LinearLayout(getContext());
-        statGridHost.setOrientation(LinearLayout.HORIZONTAL);
-        addStat(statGridHost, questions + "", "答题数", true);
-        addStat(statGridHost, acc + "%", "正确率", false);
-        addStat(statGridHost, maxCombo + "", "最高连击", true);
-        if (!endless) addStat(statGridHost, String.valueOf(Math.max(0, questions - wrong)), "新学词", false);
-        if (endless) addStat(statGridHost, kills + "", "击败敌人", true);
-        body.addView(statGridHost);
+        // statgrid（V7.0：2×2 统计格）
+        LinearLayout row1 = new LinearLayout(getContext());
+        row1.setOrientation(HORIZONTAL);
+        addStat(row1, questions + "", "答题数", true);
+        addStat(row1, acc + "%", "正确率", false);
+        body.addView(row1);
+        body.addView(spacer(8));
+        LinearLayout row2 = new LinearLayout(getContext());
+        row2.setOrientation(HORIZONTAL);
+        addStat(row2, maxCombo + "", "最高连击", true);
+        if (!endless) addStat(row2, String.valueOf(act.runNewWords.size()), "新学词", false);   // GAP-14：与下方 chips 同一数据源
+        if (endless) addStat(row2, kills + "", "击败敌人", true);
+        body.addView(row2);
         body.addView(spacer(10));
 
-        // 词卡（新学/错词）
+        // 词卡（新学/错词 pill chips）
         wordCardHost = new LinearLayout(getContext());
         wordCardHost.setOrientation(VERTICAL);
         wordCardHost.setPadding(dp(14), dp(12), dp(14), dp(12));
         wordCardHost.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
         wordCardHost.addView(Ui.text(getContext(), "本次新学的词", 13, Ui.TXT, true));
-        TextView newChips = chipsOf(correct > 0 ? "答对 " + correct + " 题 · 新词已入进度" : "无", Ui.CYAN);
-        wordCardHost.addView(newChips);
+        wordCardHost.addView(chipsRow(act.runNewWords, Ui.CYAN));
         wordCardHost.addView(spacer(8));
         wordCardHost.addView(Ui.text(getContext(), "仍需复习的错词", 13, Ui.TXT, true));
-        TextView wrongChips = chipsOf(wrong > 0 ? wrong + " 词已记入错词本" : "无", Ui.RED);
-        wordCardHost.addView(wrongChips);
+        wordCardHost.addView(chipsRow(act.runWrongWords, Ui.RED));
         body.addView(wordCardHost);
         body.addView(spacer(14));
 
@@ -187,9 +190,8 @@ public class ResultView extends FrameLayout {
         // V11.3 逐项入场
         Ui.entrance(face, 60);
         Ui.entrance(lv, 200);
-        Ui.entrance(statGridHost, 330);
-        Ui.entrance(wordCardHost, 460);
-        Ui.entrance(againBtn, 590);
+        Ui.entrance(wordCardHost, 330);
+        Ui.entrance(againBtn, 460);
     }
 
     private void addStat(LinearLayout row, String v, String l, boolean count) {
@@ -248,6 +250,25 @@ public class ResultView extends FrameLayout {
         TextView t = Ui.text(getContext(), text, 12, color, false);
         t.setPadding(0, dp(4), 0, 0);
         return t;
+    }
+
+    /** V7.0 词 pill chips：一排圆角描边小胶囊，空则显示「无」。 */
+    private LinearLayout chipsRow(java.util.List<String> words, int color) {
+        LinearLayout wrap = new LinearLayout(getContext());
+        wrap.setOrientation(HORIZONTAL);
+        wrap.setPadding(0, dp(5), 0, dp(2));
+        if (words == null || words.isEmpty()) {
+            wrap.addView(Ui.text(getContext(), "无", 12, Ui.MUT, false));
+            return wrap;
+        }
+        for (int i = 0; i < words.size(); i++) {
+            TextView chip = Ui.text(getContext(), words.get(i), 12, color, true);
+            chip.setPadding(dp(10), dp(4), dp(10), dp(4));
+            chip.setBackground(Ui.pill(Ui.BG_PILL, color));
+            wrap.addView(chip);
+            if (i < words.size() - 1) wrap.addView(Ui.spacer(getContext(), 6));
+        }
+        return wrap;
     }
 
     private void fillLevelCard(TextView badge, TextView ll, LinearLayout barl) {

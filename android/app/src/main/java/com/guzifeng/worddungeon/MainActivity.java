@@ -44,6 +44,13 @@ public class MainActivity extends AppCompatActivity {
     public int lastBest = 0;                // 无尽最高纪录（主页展示）
     public boolean speak = true;
     public JSONObject bankMeta = null;
+    // V11.7 对齐 V7.0：词魂钱包（战斗胜利发放，商店消费；持久化依赖 Agent3 后端字段，前端先本地维护）
+    public int souls = 0;
+    // 本局词收集（结算页 chip 展示）
+    public final java.util.List<String> runNewWords = new java.util.ArrayList<>();
+    public final java.util.List<String> runWrongWords = new java.util.ArrayList<>();
+    // GAP-05：本局累计选卡/购卡数（成就 cards5/cards10 计数上报）
+    public int runCards = 0;
 
     private HomeView home;
     private BattleView battle;
@@ -71,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createApp() {
+        loadPrefs();   // GAP-08：冷启恢复词书/难度/快刷档
         // 上次崩溃自诊断：setContentView 后立即 Toast（不依赖页面渲染）
         final String crash = App.takeCrash();
         if (crash != null && !crash.isEmpty()) {
@@ -122,6 +130,28 @@ public class MainActivity extends AppCompatActivity {
 
     public BackendRouter router() {
         return router;
+    }
+
+    /** GAP-08：冷启恢复用户上次的词书/难度/快刷档选择。 */
+    private void loadPrefs() {
+        try {
+            android.content.SharedPreferences sp =
+                    getSharedPreferences("wd_prefs", MODE_PRIVATE);
+            book = sp.getString("book", book);
+            difficulty = sp.getString("difficulty", difficulty);
+            quickLevel = sp.getString("quickLevel", quickLevel);
+        } catch (Throwable ignore) {}
+    }
+
+    /** 设置页改动词书/难度/快刷档时调用，写回 SharedPreferences。 */
+    public void savePrefs() {
+        try {
+            getSharedPreferences("wd_prefs", MODE_PRIVATE).edit()
+                    .putString("book", book)
+                    .putString("difficulty", difficulty)
+                    .putString("quickLevel", quickLevel)
+                    .apply();
+        } catch (Throwable ignore) {}
     }
 
     public boolean backendReady() {

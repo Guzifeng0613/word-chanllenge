@@ -158,6 +158,7 @@ public class HomeView extends LinearLayout {
             Ui.pressable(box);
             box.setOnClickListener(v -> {
                 act.quickLevel = quickIds[idx];
+                act.savePrefs();   // GAP-08：持久化快刷档
                 for (int j = 0; j < quickBtns.length; j++) {
                     LinearLayout target = (LinearLayout) quickBtns[j].getParent();
                     target.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
@@ -375,6 +376,8 @@ public class HomeView extends LinearLayout {
             int streak = stats.optInt("streak", 0);
             int best = stats.optInt("endless_best", 0);
             act.lastBest = best;
+            // R2-B：冷启以权威 souls 余额读回（后端 /stats/daily 携带 souls）
+            if (stats.has("souls")) act.souls = stats.optInt("souls", act.souls);
 
             lvlBadge.setText(String.valueOf(level));
             streakTxt.setText("🔥 " + streak + " 天");

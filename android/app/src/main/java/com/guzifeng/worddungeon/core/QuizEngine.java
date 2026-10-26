@@ -28,6 +28,8 @@ public class QuizEngine {
         public Long now = null;
         public RunState runState = null;
         public String mode = "campaign";
+        /** 当前敌人是否「易混词妖」（confuse）：干扰项优先同组 */
+        public boolean confuse = false;
     }
 
     private final WordBank bank;
@@ -134,7 +136,10 @@ public class QuizEngine {
         // 用户规则：单词先以非拼写题型出现过一次，才允许拼写（force=用户显式选型，尊重）
         if (a.force == null) qtype = guardSpell(runState, qtype, word);
 
-        return buildQuiz(qtype, word, rec, runState, fromReview, null);
+        // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
+        if (!"spell".equals(qtype)) runState.exposed.put(word, true);
+
+        return buildQuiz(qtype, word, rec, runState, fromReview, null, a.book, a.confuse);
     }
 
     /** 拼写守卫：本局未以非拼写题型出现过的词，拼写题降级为选词（cn2en），先见一次 */
@@ -157,6 +162,13 @@ public class QuizEngine {
     /** 构建题目（快刷与闯关共用，按题型填充 options/correct/timeLimit）。 */
     public static Quiz buildQuiz(String qtype, String word, WordRec rec, RunState runState,
                                  boolean fromReview, QuickEngine qengine) {
+        return buildQuiz(qtype, word, rec, runState, fromReview, qengine, null, false);
+    }
+
+    /** 构建题目：book 限定词书范围（干扰项池=G.layerWords），confuseEnemy 时干扰项优先同组。 */
+    public static Quiz buildQuiz(String qtype, String word, WordRec rec, RunState runState,
+                                 boolean fromReview, QuickEngine qengine,
+                                 String book, boolean confuseEnemy) {
         WordBank bank = WordBank.get();
         WordEntry e = bank.entry(word);
         Quiz q = new Quiz();
@@ -176,7 +188,7 @@ public class QuizEngine {
 
         switch (qtype) {
             case "en2cn": {
-                List<String> opts = bank.makeDistractors(word, 3);
+                List<String> opts = bank.makeDistractors(word, 3, book, confuseEnemy);
                 opts.add(e.m);
                 Collections.shuffle(opts, bank.rnd);
                 q.options = opts;
@@ -185,7 +197,7 @@ public class QuizEngine {
                 break;
             }
             case "cn2en": {
-                List<String> opts = bank.distractorWords(word, 3);
+                List<String> opts = bank.distractorWords(word, 3, book, confuseEnemy);
                 opts.add(word);
                 Collections.shuffle(opts, bank.rnd);
                 q.options = opts;
@@ -202,13 +214,10 @@ public class QuizEngine {
             }
             default: { // judge
                 boolean isFirst = rec == null || (!rec.graduated && rec.step == 0);
-                if (isFirst) {
-                    q.judgeShown = e.m; q.correct = "yes";
-                } else if (bank.rnd.nextDouble() < 0.5) {
+                if (isFirst || bank.rnd.nextDouble() < 0.5) {
                     q.judgeShown = e.m; q.correct = "yes";
                 } else {
-                    List<String> d = bank.makeDistractors(word, 1);
-                    q.judgeShown = d.isEmpty() ? e.m : d.get(0);
+                    q.judgeShown = bank.judgeWrongMean(word, book);
                     q.correct = "no";
                 }
                 q.timeLimit = (int) GameConfig.NORMAL_T;
