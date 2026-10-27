@@ -154,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
             {"boss2", "穿透迷雾"},
             {"boss3", "征服深渊"},
             {"first_win", "远征通关"},
-            {"combo10", "连击 10！"},
+            {"combo10", "连击高手"},   // 与成就墙 AchievementsView.ACH_DEFS 命名对齐（终期微修）
             {"correct50", "弹无虚发"},
             {"cards5", "初具规模"},
             {"cards10", "词典大成"},

@@ -97,7 +97,10 @@ public class ResultView extends FrameLayout {
                 final JSONArray fafter = after;
                 final JSONArray fbefore = before;
                 final java.util.List<String> fresh = new java.util.ArrayList<>();
-                if (fafter != null) {
+                // 终期微修：快照基线（dispatch 前 /stats/daily 的 ach）为 null 时无法 diff——
+                // 若仍进入循环，fbefore==null 会把 finish 响应里的全量 ach 全部误判为本局新成就，
+                // 弹出错误的「成就解锁」toast；故基线缺失时跳过 diff、不弹 toast。
+                if (fafter != null && fbefore != null) {
                     for (int i = 0; i < fafter.length(); i++) {
                         String id = fafter.optString(i, "");
                         if (id.isEmpty()) continue;
