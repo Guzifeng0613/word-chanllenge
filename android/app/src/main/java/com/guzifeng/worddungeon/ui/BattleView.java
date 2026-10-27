@@ -2042,6 +2042,8 @@ public class BattleView extends FrameLayout {
     private int lastFillTargetPx = -1;   // 上一次已请求的填充像素宽，未变化则跳过动画重建
     private int lastTickSec = -1;        // V12.5 上一次滴答的整秒
     private AnimatorSet dangerPulse;     // V12.5 倒计时危机脉冲
+    private boolean dangerStarted = false;                    // UI-iteration-02：标记危机是否已进入，避免每 100ms 重复切背景
+    private android.graphics.drawable.Drawable timerDangerBg; // UI-iteration-02：红橙危机填充，懒建一次
 
     /** V12.5 倒计时危机：计时数字 0.5s 缩放脉冲（重复反向）。 */
     private void startDangerPulse() {
@@ -2051,8 +2053,11 @@ public class BattleView extends FrameLayout {
             ObjectAnimator sy = ObjectAnimator.ofFloat(timerTxt, "scaleY", 1f, 1.1f);
             sx.setRepeatCount(ObjectAnimator.INFINITE); sx.setRepeatMode(ObjectAnimator.REVERSE);
             sy.setRepeatCount(ObjectAnimator.INFINITE); sy.setRepeatMode(ObjectAnimator.REVERSE);
+            // UI-iteration-02：红条同步呼吸 alpha 1.0↔0.35，与数字同 480ms 反向
+            ObjectAnimator fa = ObjectAnimator.ofFloat(timerFill, "alpha", 1f, 0.35f);
+            fa.setRepeatCount(ObjectAnimator.INFINITE); fa.setRepeatMode(ObjectAnimator.REVERSE);
             dangerPulse = new AnimatorSet();
-            dangerPulse.playTogether(sx, sy);
+            dangerPulse.playTogether(sx, sy, fa);
             dangerPulse.setDuration(480);
             dangerPulse.start();
         } catch (Throwable ignore) {}
@@ -2062,6 +2067,7 @@ public class BattleView extends FrameLayout {
         try {
             if (dangerPulse != null) { dangerPulse.cancel(); dangerPulse = null; }
             if (timerTxt != null) { timerTxt.setScaleX(1f); timerTxt.setScaleY(1f); }
+            if (timerFill != null) timerFill.setAlpha(1f);   // UI-iteration-02：复位红条呼吸透明度
         } catch (Throwable ignore) {}
     }
 
@@ -2092,6 +2098,8 @@ public class BattleView extends FrameLayout {
         lastFillTargetPx = -1;       // R2-1：新题重置填充目标，确保回满
         lastTickSec = -1;            // V12.5 滴答重置
         stopDangerPulse();
+        dangerStarted = false;   // UI-iteration-02：新题退出危机，还原松弛金橙
+        if (timerFill != null) timerFill.setBackground(Ui.gradient(999, Ui.GOLD, Ui.ORANGE, 0));
         setTimerText(secText(remainSec), Ui.MUT);
         setTimerFill(1f);
         timerTick = new Runnable() {
@@ -2112,6 +2120,11 @@ public class BattleView extends FrameLayout {
                 float pct = (float) Math.max(0, remainSec / timeLimit);
                 boolean danger = remainSec <= 3;   // V12.5 最后 3 秒危机
                 if (danger) {
+                    if (!dangerStarted) {   // UI-iteration-02：首次进入危机，整条填充切红橙
+                        dangerStarted = true;
+                        if (timerDangerBg == null) timerDangerBg = Ui.gradient(999, Ui.RED, Ui.ORANGE, 0);
+                        timerFill.setBackground(timerDangerBg);
+                    }
                     startDangerPulse();
                     int cs = (int) Math.ceil(remainSec);
                     if (cs != lastTickSec) { lastTickSec = cs; Sfx.play(getContext(), Sfx.TICK); }
