@@ -577,6 +577,7 @@ public class BattleView extends FrameLayout {
             enemyEmoji.setAlpha(0f);                 // 淡入起点
             enemyEmoji.setTranslationY(dp(10));     // 轻微上浮入场起点（下方 10dp）
             enemyHp.setRatio(1f);
+            enemyHp.setCritical(false);   // UI-iteration-04：新敌满血不闪
             int maxHp = e.optInt("maxHp", 100);
             hpNumTxt.setText(maxHp + " / " + maxHp);
             int atk = e.optInt("atk", 10);
@@ -1470,6 +1471,8 @@ public class BattleView extends FrameLayout {
         try {
             enemyHp.setRatio((float) left / enemy.optInt("maxHp", 100));
             enemyHp.flashHit();   // R2-5：怪物受击血条白闪反馈（独立于 160ms 平滑）
+            // UI-iteration-04：敌人残血（>0 且 ≤30%）血条持续闪烁，已死不闪
+            enemyHp.setCritical(left > 0 && (float) left / enemy.optInt("maxHp", 100) <= 0.30f);
             hpNumTxt.setText(left + " / " + enemy.optInt("maxHp", 100));
             enemyEmoji.animate().scaleX(1.35f).scaleY(1.35f).setDuration(70)
                     .withEndAction(() -> enemyEmoji.animate().scaleX(1f).scaleY(1f).setDuration(210).start()).start();

@@ -14,6 +14,8 @@ public class HpBar extends View {
     private int fg = Ui.RED;
     private final int bg;
     private boolean dynamicColor = false;   // UI-iteration-03：玩家血条随比例绿→金→红
+    private boolean critical = false;       // UI-iteration-04：敌人濒死持续闪烁
+    private android.animation.ObjectAnimator critAnim;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();          // R2-5：复用 RectF，避免每帧 onDraw 分配
     // R2-5：受击亮闪（白叠加）衰减量，独立于 ratio 动画
@@ -49,6 +51,22 @@ public class HpBar extends View {
 
     /** UI-iteration-03：开启后 onDraw 按当前 ratio 临时决定前景色（不改 this.fg，避免与 setColor/flashHit 冲突）。 */
     public void setDynamicColor(boolean d) { dynamicColor = d; invalidate(); }
+
+    /** UI-iteration-04：濒死持续闪烁——on=true 整条 alpha 1.0↔0.35/500ms 反向无限；on=false 复位 alpha=1。幂等，与 flashHit 白闪互不干扰。 */
+    public void setCritical(boolean on) {
+        if (on == critical) return;
+        critical = on;
+        if (critAnim != null) { critAnim.cancel(); critAnim = null; }
+        if (on) {
+            critAnim = android.animation.ObjectAnimator.ofFloat(this, "alpha", 1f, 0.35f);
+            critAnim.setDuration(500);
+            critAnim.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+            critAnim.setRepeatMode(android.animation.ObjectAnimator.REVERSE);
+            critAnim.start();
+        } else {
+            setAlpha(1f);
+        }
+    }
 
     /** R2-5：受击瞬间白闪（高亮叠加，≤200ms 内衰减恢复）。怪物/玩家受击链路接入；与 setRatio 互不干扰。 */
     public void flashHit() {
