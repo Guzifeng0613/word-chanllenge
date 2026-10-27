@@ -22,6 +22,7 @@ import android.widget.TextView;
 import com.guzifeng.worddungeon.MainActivity;
 import com.guzifeng.worddungeon.core.RunState;
 import com.guzifeng.worddungeon.core.DamageCalc;
+import com.guzifeng.worddungeon.core.GameConfig;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -46,6 +47,11 @@ public class BattleView extends FrameLayout {
     private String difficulty;
     private RunState runState = new RunState();
     private int layer = 1;
+    private int enc = 0;                  // V12.0：本层内第几场（0 起），过层归零
+    private int layerEncTotal = 1;        // 本层总场数（后端下发 layer_enc_total）
+    private boolean layerFinal = false;    // 刚召唤的这场是否本层末场（后端下发 is_layer_final）
+    private String layerName = "";        // 层名（后端下发）
+    private AmbientBackground ambient;   // 氛围背景引用，用于按层切辉光色相
     private int hp = 100;
     private int combo = 0;
     private int wrongInRun = 0;
@@ -134,7 +140,8 @@ public class BattleView extends FrameLayout {
     public BattleView(Context c) {
         super(c);
         act = (MainActivity) c;
-        setBackground(new AmbientBackground(34));   // V11.3 地下城氛围底（战斗页粒子略多）
+        ambient = new AmbientBackground(34);   // V11.3 地下城氛围底（战斗页粒子略多）
+        setBackground(ambient);              // V12.0：保留引用以便按层切辉光色相
         build();
     }
 
@@ -356,6 +363,9 @@ public class BattleView extends FrameLayout {
         difficulty = act.difficulty;
         runState = new RunState();
         layer = 1;
+        enc = 0;          // V12.0：本层场次归零
+        layerEncTotal = 1;
+        layerFinal = false;
         hp = 100;
         combo = 0;
         wrongInRun = 0;
@@ -408,13 +418,24 @@ public class BattleView extends FrameLayout {
         try {
             JSONObject body = new JSONObject();
             body.put("mode", mode);
-            String kind = "quick".equals(mode) ? "quick" : (mode.equals("endless") ? "normal" : layerKind());
-            body.put("kind", kind);
             body.put("layer", layer);
+            boolean campaign = "campaign".equals(mode);
+            if (campaign) {
+                body.put("enc", enc);   // V12.0：后端按 enc 裁决普通/守门者
+            } else {
+                body.put("kind", "endless".equals(mode) ? "normal" : layerKind());
+            }
             JSONObject e = "quick".equals(mode)
                     ? act.router().dispatch("/enemy/spawn", "POST", bodyWithQuickLevel(body))
                     : act.router().dispatch("/enemy/spawn", "POST", body);
             enemy = e;
+            // V12.0：读取后端下发的本层场次裁决
+            if (campaign) {
+                layerEncTotal = Math.max(1, e.optInt("layer_enc_total", 1));
+                layerFinal = e.optBoolean("is_layer_final", false);
+                layerName = e.optString("layer_name", "");
+                if (ambient != null) ambient.setLayer(layer);
+            }
             enemyName.setText(e.optString("name", "词魔"));
             enemyEmoji.setText(EMOJI.getOrDefault(e.optJSONObject("tpl").optString("id", ""), "👹"));
             // R1-7/R2-3：先瞬时复位上一轮击杀消散残留（scale 归位，绝不残留消散态），
@@ -438,7 +459,21 @@ public class BattleView extends FrameLayout {
                     .withEndAction(this::idleFloat).start();
             warnTxt.setText("答错 / 超时将受到 " + atk + " 点伤害");
             enemyName.setTextColor(e.optBoolean("champion", false) ? Ui.GOLD : Ui.TXT);
-            topTxt.setText("第 " + layer + " 层 · 词境");
+            if (campaign) {
+                topTxt.setText("第 " + layer + " 层 · " + layerName + "  " + (enc + 1) + "/" + layerEncTotal);
+                // 每层第一场播报层名
+                if (enc == 0 && !layerName.isEmpty()) {
+                    showFeed("🗺 " + layerName, Ui.GOLD);
+                }
+                // 第 5 层最终 Boss 出场仪式：红光冲击 + 震波 + 播报
+                if (layer >= GameConfig.LAYER_COUNT && boss) {
+                    flashRed(enemyEmoji);
+                    Ui.vibrate(getContext(), new long[]{0, 60, 40, 80, 40, 120});
+                    showFeed("⚠ 最终Boss · 词魇·深渊领主 降临", Ui.RED);
+                }
+            } else {
+                topTxt.setText("第 " + layer + " 层 · 词境");
+            }
             buildTopRight();
             pickGoal(boss, elite);
             soulNum.setText("词魂 " + act.souls);
@@ -459,8 +494,9 @@ public class BattleView extends FrameLayout {
             topRight.addView(done);
             return;
         }
-        int nodes = "campaign".equals(mode) ? 3 : 5;
-        int cur = "campaign".equals(mode) ? Math.min(layer, 3) : ((layer - 1) % 5) + 1;
+        // V12.0：远征节点数 3→5，当前节点 clamp 到 5
+        int nodes = "campaign".equals(mode) ? GameConfig.LAYER_COUNT : 5;
+        int cur = "campaign".equals(mode) ? Math.min(layer, GameConfig.LAYER_COUNT) : ((layer - 1) % 5) + 1;
         for (int i = 1; i <= nodes; i++) {
             View dot = new View(getContext());
             int sz = dp(9);
@@ -512,10 +548,11 @@ public class BattleView extends FrameLayout {
         return body;
     }
 
+    /** 卡片抽包用敌人类型：按当前敌人实际身份（V12.0：不再按固定层数，直接读敌人标签）。 */
     private String layerKind() {
         if ("endless".equals(mode)) return "normal";
-        if (layer == 3) return "boss";
-        if (layer == 2) return "elite";
+        if (enemy != null && enemy.optBoolean("boss", false)) return "boss";
+        if (enemy != null && enemy.optBoolean("elite", false)) return "elite";
         return "normal";
     }
 
@@ -1380,12 +1417,26 @@ public class BattleView extends FrameLayout {
             finishRun(true);
             return;
         }
-        // 远征通关（第 3 层 Boss）→ 结算
-        if ("campaign".equals(mode) && layer >= 3) {
-            finishRun(true);
+        if ("campaign".equals(mode)) {
+            // V12.0：本层末场之前 → 直接召唤下一场小怪，不开复习之泉/商店
+            if (!layerFinal) {
+                enc++;
+                showFeed("第 " + layer + " 层 · 第 " + (enc + 1) + "/" + layerEncTotal + " 场", Ui.CYAN);
+                spawnEnemy();
+                main.postDelayed(this::nextQuiz, 480);
+                return;
+            }
+            // 本层末场：第 5 层最终 Boss → 通关结算
+            if (layer >= GameConfig.LAYER_COUNT) {
+                finishRun(true);
+                return;
+            }
+            // 过层：走现有层间链（精英末场翻牌 → 复习之泉 → 商店 → 下一层）
+            if (shouldDrawReward()) main.postDelayed(this::openRewardDraw, 550);
+            else main.postDelayed(this::openSpring, 550);
             return;
         }
-        // 层间节点链：翻卡（精英/冠军）→ 复习之泉 → 词境商店 → 下一层
+        // 无尽：层间节点链：翻卡（冠军）→ 复习之泉 → 词境商店 → 下一层
         // R1-7：浮层延迟 380→550ms，让敌人消散演出可见后再盖浮层
         if (shouldDrawReward()) main.postDelayed(this::openRewardDraw, 550);
         else main.postDelayed(this::openSpring, 550);
@@ -1400,9 +1451,9 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** 是否翻牌：远征精英（第 2 层）；无尽冠军（每 5 层）。 */
+    /** 是否翻牌：远征刚击杀的本层末场是精英（自然覆盖第 2、4 层；最终Boss前不翻牌）；无尽冠军（每 5 层）。 */
     private boolean shouldDrawReward() {
-        if ("campaign".equals(mode)) return layer == 2;
+        if ("campaign".equals(mode)) return enemy != null && enemy.optBoolean("elite", false);
         if ("endless".equals(mode)) return layer % 5 == 0;
         return false;
     }
@@ -1410,11 +1461,12 @@ public class BattleView extends FrameLayout {
     /** 进入下一层。 */
     private void advanceLayer() {
         layer++;
+        enc = 0;   // V12.0：进入新层，本层场次归零
         if (pendingBless) {
             bonusDamageMult = 1.25;   // V7.0 临时祝福：下一层伤害 +25%
             pendingBless = false;
         }
-        showFeed("⚔ 击杀！进入第 " + layer + " 层", Ui.GOLD);
+        showFeed("⚔ 层末守门者已破！进入第 " + layer + " 层", Ui.GOLD);
         spawnEnemy();
         main.postDelayed(this::nextQuiz, 500);
     }

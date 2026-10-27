@@ -35,6 +35,23 @@ public class AmbientBackground extends Drawable {
     private ValueAnimator anim;
     private float t = 0f;
     private boolean seeded = false;
+    // V12.0：按层切两团辉光色相（1青→2青蓝→3金→4橙→5红），保留深蓝底色
+    private int glowLayer = 1;
+    private boolean themed = false;   // 是否已调用 setLayer（否则保持原始青+金，无尽不回归）
+    private static final int[] GLOW_A = {0x38BDF8, 0x3B82F6, 0xFBBF24, 0xFB923C, 0xF87171};
+    private static final int[] GLOW_B = {0x2DD4BF, 0x60A5FA, 0xF59E0B, 0xF97316, 0xEF4444};
+
+    /** 按层切换辉光色相（青→青蓝→金→橙→红）；层号钳到 1..5。 */
+    public void setLayer(int layer) {
+        int nl = Math.max(1, Math.min(GLOW_A.length, layer));
+        if (!themed || nl != glowLayer) {
+            themed = true;
+            glowLayer = nl;
+            glowCyan = null;   // 强制下一帧用新色重建 shader
+            glowGold = null;
+            invalidateSelf();
+        }
+    }
 
     public AmbientBackground() {
         this(26);
@@ -81,13 +98,15 @@ public class AmbientBackground extends Drawable {
         }
         canvas.drawRect(0, 0, w, h, bgPaint);
 
-        // 辉光 shader 仅按基础半径建一次；每帧靠 canvas.translate/scale 定位 + setAlpha 呼吸（零分配）
+        // 辉光 shader 仅按基础半径/层色建一次；每帧靠 canvas.translate/scale 定位 + setAlpha 呼吸（零分配）
         float R = Math.max(w, h);
         if (R != glowBaseR || glowCyan == null) {
             glowBaseR = R;
-            // 中心色带原 base alpha（青 0x55 / 金 0x40），边缘全透；呼吸亮度交给 paint.setAlpha
-            glowCyan = new RadialGradient(0, 0, R, 0x5538BDF8, 0x0038BDF8, Shader.TileMode.CLAMP);
-            glowGold = new RadialGradient(0, 0, R, 0x40FBBF24, 0x00FBBF24, Shader.TileMode.CLAMP);
+            // 未主题化（无尽/默认）保持原始 青+金；主题化后按 glowLayer 取两团辉光 RGB
+            int ca = themed ? GLOW_A[glowLayer - 1] : 0x38BDF8;
+            int cb = themed ? GLOW_B[glowLayer - 1] : 0xFBBF24;
+            glowCyan = new RadialGradient(0, 0, R, (0x55 << 24) | ca, (0x00 << 24) | ca, Shader.TileMode.CLAMP);
+            glowGold = new RadialGradient(0, 0, R, (0x40 << 24) | cb, (0x00 << 24) | cb, Shader.TileMode.CLAMP);
         }
         // 两团辉光（青 / 金）：位置漂移 + 半径呼吸 + 亮度呼吸
         drawGlow(canvas,

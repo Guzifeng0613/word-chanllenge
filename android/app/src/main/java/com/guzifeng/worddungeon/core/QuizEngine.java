@@ -67,6 +67,12 @@ public class QuizEngine {
             int floor = endlessTierFloor(a.layer);
             tier = tier == null ? floor : Math.max(tier, floor);
         }
+        // 远征（V12.0）：以 CAMPAIGN_TIER[layer-1] 为该层词难度下限；
+        // 带手动/自适应难度取 max(tier, 下限)；"all"/无下限(tier==null) 直接用该层下限。
+        if ("campaign".equals(a.mode)) {
+            int floor = GameConfig.CAMPAIGN_TIER[layerIdx(a.layer)];
+            tier = (tier == null) ? floor : Math.max(tier, floor);
+        }
 
         // 到期队列
         List<String> dl = new ArrayList<>();
@@ -132,6 +138,11 @@ public class QuizEngine {
         // 题型：force 覆盖；否则按阶梯；超长词不拼写
         WordRec rec = progress.get(word);
         String qtype = a.force != null ? a.force : SrsEngine.typeForWord(rec);
+        // 远征拼写权重（V12.0）：在基础题型上按层概率把题型升级为 spell（后期拼写为主）
+        if (a.force == null && "campaign".equals(a.mode)) {
+            double bias = GameConfig.CAMPAIGN_SPELL_BIAS[layerIdx(a.layer)];
+            if (bias > 0 && rnd.nextDouble() < bias) qtype = "spell";
+        }
         if ("spell".equals(qtype) && word.length() > 8) qtype = "cn2en";
         // 用户规则：单词先以非拼写题型出现过一次，才允许拼写（force=用户显式选型，尊重）
         if (a.force == null) qtype = guardSpell(runState, qtype, word);
@@ -139,7 +150,20 @@ public class QuizEngine {
         // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
         if (!"spell".equals(qtype)) runState.exposed.put(word, true);
 
-        return buildQuiz(qtype, word, rec, runState, fromReview, null, a.book, a.confuse);
+        Quiz quiz = buildQuiz(qtype, word, rec, runState, fromReview, null, a.book, a.confuse);
+        // 远征限时（V12.0）：非拼写选择题用逐层收紧限时；拼写在基线之上加逐层额外秒。
+        // 无尽/快刷不经过此覆盖，逻辑保持不变。
+        if ("campaign".equals(a.mode)) {
+            int li = layerIdx(a.layer);
+            if ("spell".equals(qtype)) quiz.timeLimit += GameConfig.CAMPAIGN_SPELL_TIME_ADD[li];
+            else quiz.timeLimit = GameConfig.CAMPAIGN_CHOICE_TIME[li];
+        }
+        return quiz;
+    }
+
+    /** 层下标 clamp：layer 钳到 [1,LAYER_COUNT] 后转 0 基下标，防越界（下界与 BackendRouter/EnemyModel 对齐）。 */
+    private static int layerIdx(int layer) {
+        return Math.max(1, Math.min(GameConfig.LAYER_COUNT, layer)) - 1;
     }
 
     /** 拼写守卫：本局未以非拼写题型出现过的词，拼写题降级为选词（cn2en），先见一次 */

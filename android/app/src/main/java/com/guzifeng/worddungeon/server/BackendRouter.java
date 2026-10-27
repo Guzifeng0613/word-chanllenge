@@ -5,6 +5,7 @@ import android.content.Context;
 import com.guzifeng.worddungeon.core.CardCatalog;
 import com.guzifeng.worddungeon.core.DamageCalc;
 import com.guzifeng.worddungeon.core.EnemyModel;
+import com.guzifeng.worddungeon.core.GameConfig;
 import com.guzifeng.worddungeon.core.Quiz;
 import com.guzifeng.worddungeon.core.QuizEngine;
 import com.guzifeng.worddungeon.core.QuickEngine;
@@ -556,12 +557,31 @@ public class BackendRouter {
 
     private JSONObject enemySpawn(JSONObject b) throws Exception {
         String mode = b.optString("mode", "campaign");
-        String kind = b.optString("kind", "normal");
         int layer = b.optInt("layer", 1);
         String quickLevel = b.isNull("quick_level") ? null : b.optString("quick_level", null);
         JSONObject o;
-        if ("quick".equals(mode) && quickLevel != null) o = enemy.spawnQuick(quickLevel);
-        else o = enemy.spawn(mode, kind, layer);
+        if ("quick".equals(mode) && quickLevel != null) {
+            o = enemy.spawnQuick(quickLevel);
+        } else if ("campaign".equals(mode)) {
+            // V12.0：前端只下发 enc（本层第几场，0 起）；后端按 MINIONS/CLIMBER 裁决普通/守门者
+            int enc = b.optInt("enc", 0);
+            int lc = Math.max(1, Math.min(layer, GameConfig.LAYER_COUNT));
+            int li = lc - 1;
+            int minions = GameConfig.CAMPAIGN_MINIONS[li];
+            String climber = GameConfig.CAMPAIGN_CLIMBER[li];
+            int total = minions + ("none".equals(climber) ? 0 : 1);
+            int encIdx = Math.max(0, Math.min(enc, total - 1));
+            String kind = encIdx < minions ? "normal" : climber;
+            o = enemy.spawn("campaign", kind, lc);
+            o.put("enc_index", encIdx);
+            o.put("layer_enc_total", total);
+            o.put("is_layer_final", encIdx == total - 1);
+            o.put("layer_name", GameConfig.CAMPAIGN_LAYER_NAME[li]);
+        } else {
+            // 无尽：沿用前端 kind 入参（normal/elite/boss），不按 enc 裁决
+            String kind = b.optString("kind", "normal");
+            o = enemy.spawn("endless", kind, layer);
+        }
         // 本场微目标（V7.0 BATTLE_GOALS 随机抽一）：streak4=连击4 / hit5=答对5 / flawless=无胜
         String[] goals = {"streak4", "hit5", "flawless"};
         o.put("goal", goals[WordBank.get().rnd.nextInt(goals.length)]);

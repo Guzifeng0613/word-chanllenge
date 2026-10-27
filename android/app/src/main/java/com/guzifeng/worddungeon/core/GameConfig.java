@@ -98,9 +98,24 @@ public final class GameConfig {
     public static final int[] STEP_DELAY_MIN = {2, 3, 5};
     public static final String[] GRAD_REVIEW_TYPE = {"cn2en", "spell", "en2cn", "cn2en", "en2cn", "spell"};
 
-    // 关卡（远征）
-    public static final int LAYER_COUNT = 3;
+    // 关卡（远征）——V12.0：3 层改 5 层，每层难度阶梯递增。
+    // 下列数组均按下标 layer-1 索引（layer 从 1 起），所有取值必须单调不减/递增。
+    public static final int LAYER_COUNT = 5;
     public static final int QUESTION_TIMEOUT = 12;
+    /** 每层词难度档下限（单调不减）：{热身,精英,词难断层,精英殿卫,深渊王座} */
+    public static final int[] CAMPAIGN_TIER = {1, 2, 3, 3, 3};
+    /** 每层守门者之前的普通小怪数量 */
+    public static final int[] CAMPAIGN_MINIONS = {2, 2, 3, 2, 1};
+    /** 层末守门者类型：none / elite / boss */
+    public static final String[] CAMPAIGN_CLIMBER = {"none", "elite", "none", "elite", "boss"};
+    /** 非拼写选择题限时（秒），逐层收紧 */
+    public static final int[] CAMPAIGN_CHOICE_TIME = {8, 7, 6, 5, 5};
+    /** 在基础题型之上，本题被升级为拼写题的概率（后期拼写为主） */
+    public static final double[] CAMPAIGN_SPELL_BIAS = {0.0, 0.10, 0.25, 0.40, 0.60};
+    /** 拼写题额外秒数（在 SPELL_BASE+PER_CHAR*len 之上） */
+    public static final int[] CAMPAIGN_SPELL_TIME_ADD = {0, 0, 0, 1, 2};
+    /** 每层播报名 */
+    public static final String[] CAMPAIGN_LAYER_NAME = {"热身回廊", "精英哨站", "词难断层", "精英殿卫", "深渊王座"};
 
     public static double proficiencyOf(String state) {
         if (state == null) return PROF_NEW;
