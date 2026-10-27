@@ -266,8 +266,11 @@ public class QuizEngine {
                 break;
             }
             default: { // judge
+                // V12.4：判断题必须有错误选项——新词 60% 正确/40% 错误、复习 45% 正确/55% 错误，
+                // 不再让新词 100% 出"正确"，避免判断题永远是对的（用户需要真理解释义才能答对）。
                 boolean isFirst = rec == null || (!rec.graduated && rec.step == 0);
-                if (isFirst || bank.rnd.nextDouble() < 0.5) {
+                double correctBias = isFirst ? 0.60 : 0.45;
+                if (bank.rnd.nextDouble() < correctBias) {
                     q.judgeShown = e.m; q.correct = "yes";
                 } else {
                     q.judgeShown = bank.judgeWrongMean(word, book);

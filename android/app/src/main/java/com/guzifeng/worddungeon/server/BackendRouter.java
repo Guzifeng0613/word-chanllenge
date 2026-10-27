@@ -233,6 +233,8 @@ public class BackendRouter {
         String correctAnswerVal = "spell".equals(qtype) ? entry.w
                 : ("judge".equals(qtype) ? (entry.m.equals(shown) ? "yes" : "no") : entry.m);
         out.put("correct_answer", correctAnswerVal);
+        // V12.4：判断题答错也要告诉正确释义——补充返回该词真实释义，前端展示"对/错：释义"
+        if ("judge".equals(qtype)) out.put("correct_mean", entry.m);
         out.put("state", newRec.state);
         out.put("wrong_count", newRec.wrongCount);
         out.put("grade", newRec.wrongCount > 0 ? SrsEngine.gradeOf(newRec.wrongCount) : 0);

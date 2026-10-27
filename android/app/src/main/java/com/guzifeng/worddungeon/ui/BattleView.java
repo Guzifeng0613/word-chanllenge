@@ -89,6 +89,7 @@ public class BattleView extends FrameLayout {
     private TextView goalLab;              // 本场微目标文案
     private String goalKind = "";           // none / combo4 / correct5 / flawless
     private int quickDone = 0;             // 快刷已刷词数
+    private int quickKills = 0;            // 快刷连续击杀数（持续模式）
     private final java.util.Map<String, String[]> layerWrong = new java.util.LinkedHashMap<>(); // 本层错词 word→[pos,mean]
     private android.speech.tts.TextToSpeech tts;
     private boolean ttsReady = false;
@@ -377,6 +378,7 @@ public class BattleView extends FrameLayout {
         wrongStreak = 0;
         flowOn = false;
         quickDone = 0;
+        quickKills = 0;
         layerWrong.clear();
         act.runNewWords.clear();
         act.runWrongWords.clear();
@@ -1180,8 +1182,15 @@ public class BattleView extends FrameLayout {
                     } catch (Throwable ignore) {}
                 } else {
                     // V11.6 judge 题把 yes/no 转成 对/错 展示，与按钮高亮一致
-                    String display = "judge".equals(quiz.optString("qtype"))
-                            ? ("yes".equals(correctAnswer) ? "对" : "错") : correctAnswer;
+                    // V12.4：判断题答错补上正确释义（correct_mean），选择题照旧显示正确选项
+                    String display;
+                    if ("judge".equals(quiz.optString("qtype"))) {
+                        String jm = res.optString("correct_mean", "");
+                        display = ("yes".equals(correctAnswer) ? "对" : "错")
+                                + (jm.isEmpty() ? "" : "，释义：" + jm);
+                    } else {
+                        display = correctAnswer;
+                    }
                     showFeed("✗ 正确答案：" + display, Ui.RED);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
@@ -1412,9 +1421,13 @@ public class BattleView extends FrameLayout {
         if (soulMagnet) act.souls += Math.round(soulGain * 0.4f);
         soulNum.setText("词魂 " + act.souls);
         showFeed("击杀入账 词魂 +" + (soulMagnet ? Math.round(soulGain * 1.4f) : soulGain), Ui.GOLD);
-        // 快刷：一局一个敌人，击杀即结算（保持"快速"节奏，不翻牌）
+        // 快刷持续模式（V12.2）：击杀后立刻召唤下一个敌人继续刷，不结算、不翻牌、不进层间，
+        // 直到用户主动点「退出快刷」（快刷击杀不发词魂，后端 kill 入账已排除 quick）。
         if ("quick".equals(mode)) {
-            finishRun(true);
+            quickKills++;
+            if (quickKills % 5 == 0) showFeed("已连续击杀 " + quickKills + " · 已刷 " + quickDone + " 词", Ui.CYAN);
+            spawnEnemy();
+            main.postDelayed(this::nextQuiz, 420);
             return;
         }
         if ("campaign".equals(mode)) {
@@ -1760,12 +1773,21 @@ public class BattleView extends FrameLayout {
             return;
         }
         try {
-            new android.app.AlertDialog.Builder(getContext())
-                    .setTitle("放弃本层战斗？")
-                    .setMessage("本局进度与词魂将不保留，错词仍会记入错词本。")
-                    .setNegativeButton("继续战斗", null)
-                    .setPositiveButton("放弃", (d, w) -> exitToHome())
-                    .show();
+            if ("quick".equals(mode)) {
+                new android.app.AlertDialog.Builder(getContext())
+                        .setTitle("退出快刷？")
+                        .setMessage("本次已刷 " + quickDone + " 词；退出后返回主页，学习进度已保存，错词已记入错词本。")
+                        .setNegativeButton("继续刷", null)
+                        .setPositiveButton("退出", (d, w) -> exitToHome())
+                        .show();
+            } else {
+                new android.app.AlertDialog.Builder(getContext())
+                        .setTitle("放弃本层战斗？")
+                        .setMessage("本局进度与词魂将不保留，错词仍会记入错词本。")
+                        .setNegativeButton("继续战斗", null)
+                        .setPositiveButton("放弃", (d, w) -> exitToHome())
+                        .show();
+            }
         } catch (Throwable ignore) {
             exitToHome();
         }
