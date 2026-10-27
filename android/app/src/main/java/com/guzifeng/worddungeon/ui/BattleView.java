@@ -90,6 +90,7 @@ public class BattleView extends FrameLayout {
     private TextView goalLab;              // 本场微目标文案
     private String goalKind = "";           // none / combo4 / correct5 / flawless
     private boolean lastGoalDone = false;   // UI-iteration-07：记录目标达成跳变帧，只跳一次
+    private int lastHp = 100;               // UI-iteration-12：记录上次玩家血量，判断是否受扣血
     private int quickDone = 0;             // 快刷已刷词数
     private int quickKills = 0;            // 快刷连续击杀数（持续模式）
     private final java.util.Map<String, String[]> layerWrong = new java.util.LinkedHashMap<>(); // 本层错词 word→[pos,mean]
@@ -422,11 +423,24 @@ public class BattleView extends FrameLayout {
     /** V11.8 玩家 HUD 统一刷新：血条百分比 + 词魂余额。 */
     private void updateHud() {
         try {
-            if (hpLab != null) hpLab.setText("生命 " + Math.max(0, hp) + "/100");
-            if (playerHp != null) playerHp.setRatio(Math.max(0f, hp) / 100f);
+            int newHp = Math.max(0, hp);
+            if (hpLab != null) {
+                hpLab.setText("生命 " + newHp + "/100");
+                // UI-iteration-12：受扣血（newHp<lastHp）时数字闪红，与敌人数受击弹跳 i11 对称的负面反馈；回血不闪
+                if (newHp < lastHp) {
+                    hpLab.setTextColor(Ui.RED);
+                    hpLab.removeCallbacks(this::hpLabReset);
+                    hpLab.postDelayed(this::hpLabReset, 350);
+                }
+            }
+            lastHp = newHp;
+            if (playerHp != null) playerHp.setRatio(newHp / 100f);
             if (soulNum != null) soulNum.setText("💠 词魂 " + act.souls);
         } catch (Throwable ignore) {}
     }
+
+    /** UI-iteration-12：玩家血量数字闪红后恢复常规色（方法引用作 Runnable，避免前向引用）。 */
+    private void hpLabReset() { if (hpLab != null) hpLab.setTextColor(Ui.TXT); }
 
     /** V12.6 弹性空隙：占满剩余空间，用于答题区垂直居中。 */
     private View flexSpacer() {
