@@ -1,6 +1,7 @@
 package com.guzifeng.worddungeon.ui;
 
 import android.animation.ObjectAnimator;
+import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.os.Handler;
@@ -254,6 +255,10 @@ public class BattleView extends FrameLayout {
         qBody.setGravity(Gravity.CENTER);
         headRow.addView(qBody, new LinearLayout.LayoutParams(0, -2, 1f));
         posTag = Ui.text(getContext(), "", 12, Ui.GOLD, true);
+        posTag.setSingleLine(true);   // V12.5 词性标签不换行、不被挤压
+        LinearLayout.LayoutParams posLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        posTag.setLayoutParams(posLp);
         headRow.addView(posTag);
         revTag = Ui.text(getContext(), "", 12, Ui.PURPLE, true);
         headRow.addView(revTag);
@@ -405,6 +410,7 @@ public class BattleView extends FrameLayout {
             enemyCard.setVisibility(VISIBLE);
             playerHudBox.setVisibility(VISIBLE);
             spawnEnemy();
+            battleIntro();
         }
         nextQuiz();
     }
@@ -739,11 +745,20 @@ public class BattleView extends FrameLayout {
                 tileRow = new LinearLayout(getContext());
                 tileRow.setOrientation(LinearLayout.HORIZONTAL);
                 tileRow.setGravity(Gravity.CENTER);
+                // V12.5 格子按词长自适应：短词放大居中、长词收紧，视觉重心稳定
+                int cellDp, gapDp;
+                if (len <= 2) { cellDp = 50; gapDp = 10; }
+                else if (len == 3) { cellDp = 46; gapDp = 8; }
+                else if (len == 4) { cellDp = 42; gapDp = 6; }
+                else if (len <= 6) { cellDp = 36; gapDp = 5; }
+                else if (len <= 8) { cellDp = 32; gapDp = 4; }
+                else { cellDp = 28; gapDp = 3; }
                 for (int i = 0; i < len; i++) {
+                    float fs = cellDp >= 46 ? 21 : cellDp >= 36 ? 18 : 16;
                     TextView t = Ui.text(getContext(), i == 0 ? String.valueOf(word.charAt(0)).toUpperCase() : "",
-                            17, i == 0 ? Ui.GOLD : Ui.TXT, true);
+                            fs, i == 0 ? Ui.GOLD : Ui.TXT, true);
                     t.setGravity(Gravity.CENTER);
-                    int ts = dp(i == 0 ? 30 : 30);
+                    int ts = dp(cellDp);
                     t.setLayoutParams(new LinearLayout.LayoutParams(ts, ts));
                     t.setBackground(Ui.card(8, i == 0 ? Ui.CARD2 : Ui.BG0, 1,
                             i == 0 ? Ui.GOLD : Ui.LINE));
@@ -751,8 +766,10 @@ public class BattleView extends FrameLayout {
                     final TextView ft = t;
                     t.setClickable(true);
                     t.setOnClickListener(v -> focusSpell());
+                    LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(ts, ts);
+                    t.setLayoutParams(cl);
                     tileRow.addView(t);
-                    if (i < len - 1) tileRow.addView(spacer(4));
+                    if (i < len - 1) tileRow.addView(spacer(gapDp));
                     tileViews.add(t);
                 }
                 col.addView(tileRow);
@@ -1083,6 +1100,22 @@ public class BattleView extends FrameLayout {
                 comboSub.setText(comboSubText(combo));
                 comboNum.setTextColor(combo >= 5 ? Ui.CYAN : Ui.GOLD);
                 updateComboDots(combo);
+                // V12.5 连击里程碑：每 5 连击全屏横幅
+                if (combo % 5 == 0) showComboBanner(combo);
+                // V12.5 快答判定：拼写按剩余比例、选择按耗时
+                String qt0 = quiz.optString("qtype");
+                double tlim0 = quiz.optDouble("timeLimit", 6);
+                String grade = null;
+                if ("spell".equals(qt0)) {
+                    double frac = tlim0 > 0 ? remainSec / tlim0 : 0;
+                    if (frac >= 0.75) grade = "perfect";
+                    else if (frac >= 0.45) grade = "good";
+                } else {
+                    double elapsed = tlim0 - remainSec;
+                    if (elapsed <= GameConfig.FAST_T) grade = "perfect";
+                    else if (elapsed <= GameConfig.NORMAL_T) grade = "good";
+                }
+                if (grade != null) showJudgePop(grade);
                 // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅，每答对 +1 词魂
                 if (combo >= 5) {
                     if (!flowOn) { flowOn = true; triggerFlow(); }
@@ -1121,6 +1154,8 @@ public class BattleView extends FrameLayout {
                 } else {
                     showFeed("+" + damage, Ui.GOLD);
                 }
+                // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
+                showJudgeGrade(quiz.optString("qtype"), quiz.optDouble("timeLimit", 6));
                 if (xpGain > 0) popXp(xpGain);
                 if (newLevel > playerLevel) {
                     playerLevel = newLevel;
@@ -1421,6 +1456,7 @@ public class BattleView extends FrameLayout {
         bonusDamageMult = 1.0;   // 上一轮伤害增益作用于刚击杀的敌人，到此结算重置
         Ui.vibrate(getContext(), new long[]{0, 50, 40, 70, 40, 90});   // 击杀胜利反馈
         Sfx.play(getContext(), Sfx.KILL);                              // V11.8 击杀琶音
+        killFlash();   // V12.5 击杀全屏白金光闪
         // R1-7：敌人消散演出（缩放+alpha 渐隐 ~300ms）
         dissolveEnemy();
         // R1-7：击杀粒子比暴击更盛——金+青双层粒子（暴击仅单层 14 个，此处 22+14）
@@ -1844,6 +1880,30 @@ public class BattleView extends FrameLayout {
     private String lastTimerText = "";
     private int lastTimerColor = 0;
     private int lastFillTargetPx = -1;   // 上一次已请求的填充像素宽，未变化则跳过动画重建
+    private int lastTickSec = -1;        // V12.5 上一次滴答的整秒
+    private AnimatorSet dangerPulse;     // V12.5 倒计时危机脉冲
+
+    /** V12.5 倒计时危机：计时数字 0.5s 缩放脉冲（重复反向）。 */
+    private void startDangerPulse() {
+        try {
+            if (dangerPulse != null && dangerPulse.isRunning()) return;
+            ObjectAnimator sx = ObjectAnimator.ofFloat(timerTxt, "scaleX", 1f, 1.1f);
+            ObjectAnimator sy = ObjectAnimator.ofFloat(timerTxt, "scaleY", 1f, 1.1f);
+            sx.setRepeatCount(ObjectAnimator.INFINITE); sx.setRepeatMode(ObjectAnimator.REVERSE);
+            sy.setRepeatCount(ObjectAnimator.INFINITE); sy.setRepeatMode(ObjectAnimator.REVERSE);
+            dangerPulse = new AnimatorSet();
+            dangerPulse.playTogether(sx, sy);
+            dangerPulse.setDuration(480);
+            dangerPulse.start();
+        } catch (Throwable ignore) {}
+    }
+
+    private void stopDangerPulse() {
+        try {
+            if (dangerPulse != null) { dangerPulse.cancel(); dangerPulse = null; }
+            if (timerTxt != null) { timerTxt.setScaleX(1f); timerTxt.setScaleY(1f); }
+        } catch (Throwable ignore) {}
+    }
 
     /** R2-1：timerTxt 仅在文本或颜色真正变化时才写 TextView（避免每 100ms 触发 relayout）。 */
     private void setTimerText(String s, int color) {
@@ -1870,6 +1930,8 @@ public class BattleView extends FrameLayout {
         lastTimerText = "";          // R2-1：切题后强制首帧写入
         lastTimerColor = 0;
         lastFillTargetPx = -1;       // R2-1：新题重置填充目标，确保回满
+        lastTickSec = -1;            // V12.5 滴答重置
+        stopDangerPulse();
         setTimerText(secText(remainSec), Ui.MUT);
         setTimerFill(1f);
         timerTick = new Runnable() {
@@ -1888,7 +1950,13 @@ public class BattleView extends FrameLayout {
                     return;
                 }
                 float pct = (float) Math.max(0, remainSec / timeLimit);
-                int color = remainSec <= 2.5 ? Ui.ORANGE : Ui.MUT;
+                boolean danger = remainSec <= 3;   // V12.5 最后 3 秒危机
+                if (danger) {
+                    startDangerPulse();
+                    int cs = (int) Math.ceil(remainSec);
+                    if (cs != lastTickSec) { lastTickSec = cs; Sfx.play(getContext(), Sfx.TICK); }
+                }
+                int color = danger ? Ui.RED : Ui.MUT;
                 setTimerText(secText(remainSec), color);   // R2-1：仅变化时写
                 setTimerFill(pct);
                 main.postDelayed(this, 100);
@@ -2113,6 +2181,133 @@ public class BattleView extends FrameLayout {
     }
 
     /** V7.0 心流/凝神横幅：顶部居中短闪现（青色=心流，紫色=凝神）。 */
+    /** V12.5 快答判定弹出：PERFECT 金 / GOOD 蓝，放大上浮 800ms。 */
+    private void showJudgePop(String grade) {
+        try {
+            boolean perfect = "perfect".equals(grade);
+            int color = perfect ? Ui.GOLD : Ui.CYAN;
+            TextView t = Ui.text(getContext(), perfect ? "PERFECT" : "GOOD", 28, color, true);
+            t.setShadowLayer(16, 0, 0, color);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2);
+            lp.gravity = Gravity.CENTER;
+            lp.topMargin = -dp(70);
+            addView(t, lp);
+            t.setScaleX(0.5f); t.setScaleY(0.5f); t.setAlpha(0f);
+            t.setTranslationY(dp(20));
+            t.animate().scaleX(1.2f).scaleY(1.2f).alpha(1f).translationY(-dp(10)).setDuration(200)
+                    .withEndAction(() -> t.animate().scaleX(1f).scaleY(1f).translationY(-dp(55)).alpha(0f)
+                            .setDuration(500).start()).start();
+            main.postDelayed(() -> { try { removeView(t); } catch (Throwable ignore) {} }, 800);
+        } catch (Throwable ignore) {}
+    }
+
+    /** V12.5 击杀全屏闪光：白金径向光闪 0.5s。 */
+    private void killFlash() {
+        try {
+            View f = new View(getContext());
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.RECTANGLE);
+            g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+            g.setGradientRadius(Math.max(getWidth(), getHeight()) * 0.7f);
+            g.setColors(new int[]{0x88FFFFFF, 0x33FBBF24, 0x00000000});
+            f.setBackground(g);
+            addView(f, new FrameLayout.LayoutParams(-1, -1));
+            f.setAlpha(0f);
+            f.animate().alpha(1f).setDuration(80)
+                    .withEndAction(() -> f.animate().alpha(0f).setDuration(420)
+                            .withEndAction(() -> { try { removeView(f); } catch (Throwable ignore) {} }).start()).start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** V12.5 战斗入场横幅：1.2s 全屏层名+怪物+敌人名（快刷不打断）。 */
+    private void battleIntro() {
+        try {
+            String layerText;
+            if ("endless".equals(mode)) layerText = "无尽 · 第 " + layer + " 层";
+            else layerText = "第 " + layer + " 层" + (layerName.isEmpty() ? "" : " · " + layerName);
+            String face = enemyEmoji == null ? "👹" : enemyEmoji.getText().toString();
+            String ename = enemy == null ? "词魔" : enemy.optString("name", "词魔");
+
+            LinearLayout box = new LinearLayout(getContext());
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setGravity(Gravity.CENTER);
+            box.setBackgroundColor(0xCC0D1828);
+            TextView lt = Ui.text(getContext(), layerText, 16, Ui.CYAN, true);
+            lt.setLetterSpacing(0.2f);
+            TextView mo = Ui.text(getContext(), face, 46, Ui.TXT, false);
+            TextView en = Ui.text(getContext(), ename, 30, Ui.TXT, true);
+            en.setShadowLayer(24, 0, 0, Ui.RED);
+            box.addView(lt); box.addView(mo); box.addView(en);
+            addView(box, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+            box.setAlpha(0f);
+            box.animate().alpha(1f).setDuration(200).start();
+            box.postDelayed(() -> box.animate().alpha(0f).setDuration(350)
+                    .withEndAction(() -> { try { removeView(box); } catch (Throwable ignore) {} }).start(), 850);
+            Sfx.play(getContext(), Sfx.FLIP);
+        } catch (Throwable ignore) {}
+    }
+
+    /** V12.5 快答判定：拼写按剩余比例（≥75% PERFECT/≥45% GOOD），选择按耗时（≤3s/≤6s）。 */
+    private void showJudgeGrade(String qtype, double timeLimit) {
+        try {
+            String grade = null;
+            if ("spell".equals(qtype)) {
+                double frac = timeLimit > 0 ? remainSec / timeLimit : 0;
+                if (frac >= 0.75) grade = "PERFECT";
+                else if (frac >= 0.45) grade = "GOOD";
+            } else {
+                double elapsed = timeLimit - remainSec;
+                if (elapsed <= GameConfig.FAST_T) grade = "PERFECT";
+                else if (elapsed <= GameConfig.NORMAL_T) grade = "GOOD";
+            }
+            if (grade != null) judgePop(grade);
+        } catch (Throwable ignore) {}
+    }
+
+    /** 快答弹字：PERFECT 金 / GOOD 蓝，从屏幕中部放大上浮淡出（800ms）。 */
+    private void judgePop(String grade) {
+        try {
+            boolean perfect = "PERFECT".equals(grade);
+            int color = perfect ? Ui.GOLD : Ui.CYAN;
+            TextView t = Ui.text(getContext(), grade, perfect ? 30 : 26, color, true);
+            t.setShadowLayer(16, 0, 0, color);
+            t.setGravity(Gravity.CENTER);
+            addView(t, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+            t.setScaleX(0.5f); t.setScaleY(0.5f); t.setAlpha(0f);
+            t.setTranslationY(dp(20));
+            t.animate().scaleX(1.2f).scaleY(1.2f).alpha(1f).translationY(0).setDuration(220)
+                    .withEndAction(() -> t.animate().scaleX(1f).scaleY(1f).setDuration(120).start()).start();
+            t.postDelayed(() -> t.animate().alpha(0f).translationY(-dp(60)).setDuration(350)
+                    .withEndAction(() -> { try { removeView(t); } catch (Throwable ignore) {} }).start(), 450);
+        } catch (Throwable ignore) {}
+    }
+
+    /** V12.5 连击里程碑：每 5 连击全屏 COMBO×N 横幅 + 颜色分级（5绿/10金/15橙/20紫）。 */
+    private void showComboBanner(int n) {
+        try {
+            int color; String sub;
+            if (n >= 20) { color = Ui.PURPLE; sub = "势不可挡！"; }
+            else if (n >= 15) { color = Ui.ORANGE; sub = "输出爆表！"; }
+            else if (n >= 10) { color = Ui.GOLD; sub = "连击高手！"; }
+            else { color = Ui.GREEN; sub = "手感火热！"; }
+            LinearLayout box = new LinearLayout(getContext());
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setGravity(Gravity.CENTER);
+            TextView big = Ui.text(getContext(), "COMBO ×" + n, 40, color, true);
+            big.setShadowLayer(18, 0, 0, color);
+            TextView sb = Ui.text(getContext(), sub, 17, color, true);
+            box.addView(big); box.addView(sb);
+            addView(box, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+            box.setScaleX(0.3f); box.setScaleY(0.3f); box.setAlpha(0f);
+            box.animate().scaleX(1.1f).scaleY(1.1f).alpha(1f).setDuration(200)
+                    .withEndAction(() -> box.animate().scaleX(1f).scaleY(1f).setDuration(120).start()).start();
+            main.postDelayed(() -> box.animate().alpha(0f).setDuration(300)
+                    .withEndAction(() -> { try { removeView(box); } catch (Throwable ignore) {} }).start(), 800);
+            Sfx.play(getContext(), Sfx.EPIC);
+            Ui.vibrate(getContext(), new long[]{0, 40, 30, 60, 30, 80});
+        } catch (Throwable ignore) {}
+    }
+
     private void showFlowBanner(String text, int color) {
         try {
             flowBanner.setText(text);

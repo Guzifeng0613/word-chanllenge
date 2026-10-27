@@ -13,6 +13,7 @@ import com.guzifeng.worddungeon.server.BackendRouter;
 import com.guzifeng.worddungeon.ui.AchievementsView;
 import com.guzifeng.worddungeon.ui.BattleView;
 import com.guzifeng.worddungeon.ui.HomeView;
+import com.guzifeng.worddungeon.ui.TopToast;
 import com.guzifeng.worddungeon.ui.ResultView;
 import com.guzifeng.worddungeon.ui.SettingsView;
 import com.guzifeng.worddungeon.ui.Ui;
@@ -204,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case BATTLE:
                 if (battle != null) { root.addView(battle); battle.startRun(); }
-                else { Toast.makeText(this, "战斗页不可用", Toast.LENGTH_SHORT).show(); show(Screen.HOME); }
+                else { TopToast.error(this, "战斗页不可用"); show(Screen.HOME); }
                 break;
             case RESULT:
                 if (result != null) root.addView(result);

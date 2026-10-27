@@ -2,6 +2,7 @@ package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -95,6 +96,28 @@ public class RewardDrawView extends FrameLayout {
         panel.addView(abandon, rp);
     }
 
+    /** V12.5 稀有度光柱：r1 蓝/r2 紫，从底部向上展开 1.5s。 */
+    private void rarityRay(int rare) {
+        try {
+            View ray = new View(getContext());
+            int w = dp(rare >= 2 ? 90 : 70);
+            int color = rare >= 2 ? 0xCCC084FC : 0xAA38BDF8;
+            android.graphics.drawable.GradientDrawable g =
+                    new android.graphics.drawable.GradientDrawable(
+                            android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
+                            new int[]{color, 0x00000000});
+            ray.setBackground(g);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w,
+                    FrameLayout.LayoutParams.MATCH_PARENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            addView(ray, lp);
+            ray.setScaleY(0f); ray.setAlpha(0f);
+            ray.setPivotY(getHeight());
+            ray.animate().scaleY(1f).alpha(1f).setDuration(300)
+                    .withEndAction(() -> ray.animate().alpha(0f).setDuration(1000)
+                            .withEndAction(() -> { try { removeView(ray); } catch (Throwable ignore) {} }).start()).start();
+        } catch (Throwable ignore) {}
+    }
+
     /** 解析后端槽位并按稀有度从低到高依次自动翻开。 */
     private void loadSlots(JSONObject drawRes) {
         slots.clear();
@@ -171,6 +194,7 @@ public class RewardDrawView extends FrameLayout {
             root.removeAllViews();
             int rare = rare();
             int color = rare >= 2 ? Ui.PURPLE : rare == 1 ? Ui.GOLD : Ui.CYAN;
+            if (rare >= 1) rarityRay(rare);   // V12.5 稀有度光柱
             root.setBackground(Ui.card(12, Ui.BG1, rare >= 2 ? 2 : 1, rare >= 1 ? Ui.GOLD : Ui.LINE));
             TextView pill = Ui.text(getContext(), rarityName(rare), 10, color, true);
             pill.setGravity(Gravity.CENTER);

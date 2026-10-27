@@ -26,10 +26,11 @@ public final class Sfx {
     public static final int EPIC = 6;     // 史诗揭晓：明亮琶音
     public static final int WIN = 7;      // 结算胜利：琶音延音
     public static final int FAIL = 8;     // 结算失败：双下行音
+    public static final int TICK = 9;     // 倒计时滴答：短促高频
 
     private static final int SR = 22050;                 // 采样率
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
-    private static final byte[][] CACHE = new byte[9][]; // 预生成 PCM 缓存
+    private static final byte[][] CACHE = new byte[10][]; // 预生成 PCM 缓存
 
     private Sfx() {}
 
@@ -95,6 +96,7 @@ public final class Sfx {
                     tone(784, 784, 90, 0.8), tone(1046, 1046, 140, 0.85),
                     tone(784, 784, 90, 0.75), tone(1046, 1046, 200, 0.8)); break;
             case FAIL:  mix = join(tone(330, 330, 110, 0.8), tone(262, 262, 110, 0.8), tone(196, 196, 160, 0.8)); break;
+            case TICK:  mix = tone(1200, 1200, 28, 0.55); break;
             default: return new byte[0];
         }
         byte[] out = new byte[mix.length * 2];
