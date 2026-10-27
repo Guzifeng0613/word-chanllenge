@@ -140,7 +140,41 @@ public class MainActivity extends AppCompatActivity {
             book = sp.getString("book", book);
             difficulty = sp.getString("difficulty", difficulty);
             quickLevel = sp.getString("quickLevel", quickLevel);
+            // R3：speak 冷启回读（与 SettingsView 的写入键一致：wd_ui/speak，未设置时维持默认 true）
+            android.content.SharedPreferences ui =
+                    getSharedPreferences("wd_ui", MODE_PRIVATE);
+            speak = ui.getBoolean("speak", speak);
         } catch (Throwable ignore) {}
+    }
+
+    // ── R3：成就 key → 中文名称映射（与设置页成就墙命名一致），集中定义供 BattleView 答题 toast 与
+    // ResultView 结算 toast 复用，避免两处各写一份映射漏 key ──
+    private static final String[][] ACH_NAMES = {
+            {"boss1", "初战告捷"},
+            {"boss2", "穿透迷雾"},
+            {"boss3", "征服深渊"},
+            {"first_win", "远征通关"},
+            {"combo10", "连击 10！"},
+            {"correct50", "弹无虚发"},
+            {"cards5", "初具规模"},
+            {"cards10", "词典大成"},
+            {"master30", "渐入佳境"},
+            {"master60", "词汇达人"},
+            {"streak3", "坚持不懈"},
+            {"streak7", "一周不辍"},
+            {"endless5", "深渊行者"},
+            {"endless10", "深渊主宰"},
+    };
+
+    /** 成就 key 转中文名；未登记的 key 原样返回，不静默吞掉。 */
+    public static String achName(String key) {
+        if (key == null || key.isEmpty()) return "";
+        try {
+            for (String[] e : ACH_NAMES) {
+                if (e[0].equals(key)) return e[1];
+            }
+        } catch (Throwable ignore) {}
+        return key;
     }
 
     /** 设置页改动词书/难度/快刷档时调用，写回 SharedPreferences。 */

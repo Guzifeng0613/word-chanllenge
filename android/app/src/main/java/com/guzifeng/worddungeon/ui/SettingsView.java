@@ -90,7 +90,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V11.0 · 快速刷题版", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V11.9 · 快速刷题版", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -185,12 +185,12 @@ public class SettingsView extends LinearLayout {
 
         SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
         card.addView(audioRow("打击音效", "命中 / 暴击 / 复仇 / 受击", "sfx", sp));
-        card.addView(audioRow("背景音乐 BGM", "主页 / 战斗 / Boss 三种场景", "bgm", sp));
+        // R3：诚实化——「背景音乐 BGM」开关与「BGM 音量」滑条无任何读取方（前端纯合成音效、无 BGM 引擎），
+        // 已移除；保留音效开关 / 音效音量滑条 / 震动 / 发音
         card.addView(audioRow("震动触感", "命中、暴击、受击时震动", "vibrate", sp));
         card.addView(audioRow("单词发音", "进入新卡片自动读美式发音（离线 TTS）", "speak", sp));
-        // V7.0 音量滑条（音效 / BGM 两条；纯展示侧持久化，音频引擎在前端合成层）
+        // V7.0 音量滑条（音效；纯展示侧持久化，音频引擎在前端合成层）
         card.addView(volumeRow("音效音量", "vol_sfx", sp, 85));
-        card.addView(volumeRow("BGM 音量", "vol_bgm", sp, 50));
         body.addView(card);
         body.addView(spacer(10));
     }

@@ -22,6 +22,7 @@ public class WrongbookView extends LinearLayout {
     private final MainActivity act;
     private final LinearLayout body;
     private final List<String> queue = new ArrayList<>();
+    private final List<JSONObject> reviewCache = new ArrayList<>();   // R3-3a：复习批次内存缓存，与 queue 同序对齐
     private int idx = 0;
     private int remembered = 0;
     private boolean revealed = false;   // V11.5 闪卡：是否已揭晓释义
@@ -55,6 +56,7 @@ public class WrongbookView extends LinearLayout {
         remembered = 0;
         revealed = false;
         queue.clear();
+        reviewCache.clear();
         try {
             JSONObject r = act.router().dispatch("/wrongbook", "GET", null);
             JSONArray words = r.getJSONArray("words");
@@ -66,6 +68,24 @@ public class WrongbookView extends LinearLayout {
     }
 
     private void buildList(JSONArray words, JSONObject summary) {
+        // R3-3c：前端按错次 wrong_count 降序展示（数据源已含 wrong_count 字段，只读排序不动后端）；
+        // 组内（顽固/易错/生疏）顺序即为错次从高到低
+        final JSONArray sortedWords = new JSONArray();
+        try {
+            List<JSONObject> copy = new ArrayList<>();
+            for (int i = 0; i < words.length(); i++) {
+                JSONObject w = words.optJSONObject(i);
+                if (w != null) copy.add(w);
+            }
+            java.util.Collections.sort(copy, (a, b) ->
+                    Integer.compare(b.optInt("wrong_count", 1), a.optInt("wrong_count", 1)));
+            for (JSONObject w : copy) sortedWords.put(w);
+        } catch (Throwable ignore) {
+            for (int i = 0; i < words.length(); i++) sortedWords.put(words.optJSONObject(i));
+        }
+        words = sortedWords;
+        final JSONArray sw = words;   // lambda 捕获需 effectively final
+
         // 顶栏（V7.0 规范：返回键在左上）
         LinearLayout top = new LinearLayout(getContext());
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -144,7 +164,7 @@ public class WrongbookView extends LinearLayout {
                 new int[]{0xFFFCD34D, 0xFFF59E0B});
         gd.setCornerRadius(dp(13));
         start.setBackground(gd);
-        start.setOnClickListener(v -> startReview(words));
+        start.setOnClickListener(v -> startReview(sw));
         body.addView(start);
         body.addView(spacer(8));
         TextView home = Ui.text(getContext(), "返回主页", 13, Ui.MUT, true);
@@ -229,11 +249,17 @@ public class WrongbookView extends LinearLayout {
 
     private void startReview(JSONArray words) {
         queue.clear();
-        // 顽固优先：grade 3 → 2 → 1
+        reviewCache.clear();
+        // 顽固优先：grade 3 → 2 → 1（组内已按错次降序）；R3-3a：批次词条一次性载入内存缓存，
+        // 翻卡不再每张全表扫 DB（/wrongbook 仍只读调用，数据一致性靠后端 review 接口回写保证）
         for (int g = 3; g >= 1; g--) {
             for (int i = 0; i < words.length(); i++) {
                 JSONObject w = words.optJSONObject(i);
-                if (w.optInt("grade", 0) == g) queue.add(w.optString("word", ""));
+                if (w == null) continue;
+                if (w.optInt("grade", 0) == g) {
+                    queue.add(w.optString("word", ""));
+                    reviewCache.add(w);
+                }
             }
         }
         idx = 0;
@@ -259,17 +285,14 @@ public class WrongbookView extends LinearLayout {
         }
         final String word = queue.get(idx);
         try {
-            JSONObject wb = act.router().dispatch("/wrongbook", "GET", null);
-            JSONArray words = wb.getJSONArray("words");
+            // R3-3a：释义/词性/错次直接取批次内存缓存（与 queue 同序），不再 dispatch /wrongbook 全表扫描
+            JSONObject w = idx < reviewCache.size() ? reviewCache.get(idx) : null;
             String pos = "", mean = "";
             int wrong = 0;
-            for (int i = 0; i < words.length(); i++) {
-                if (word.equals(words.optJSONObject(i).optString("word"))) {
-                    pos = words.optJSONObject(i).optString("pos", "");
-                    mean = words.optJSONObject(i).optString("mean", "");
-                    wrong = words.optJSONObject(i).optInt("wrong_count", 1);
-                    break;
-                }
+            if (w != null) {
+                pos = w.optString("pos", "");
+                mean = w.optString("mean", "");
+                wrong = w.optInt("wrong_count", 1);
             }
             LinearLayout card = new LinearLayout(getContext());
             card.setOrientation(LinearLayout.VERTICAL);

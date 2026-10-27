@@ -21,6 +21,7 @@ public class HomeView extends LinearLayout {
     private final MainActivity act;
 
     private TextView lvlBadge, streakTxt, xpLab;
+    private TextView goalTxt;   // R3：banner 内「今日目标进度」行（无数据时 GONE，只读消费 /stats/daily）
     private View fillView;
     private LinearLayout xpBarWrap;
     private TextView modeDescLab;
@@ -95,6 +96,13 @@ public class HomeView extends LinearLayout {
         xpLab.setPadding(0, dp(5), 0, 0);
         singleLine(xpLab);
         banner.addView(xpLab);
+
+        // R3：今日目标进度行（默认隐藏，refreshMeta 拿到 /stats/daily 后填充并显示）
+        goalTxt = Ui.text(getContext(), "", 10.5f, Ui.GOLD, false);
+        goalTxt.setPadding(0, dp(4), 0, 0);
+        singleLine(goalTxt);
+        goalTxt.setVisibility(GONE);
+        banner.addView(goalTxt);
         addView(banner);
         addView(spacer(12));
     }
@@ -378,6 +386,27 @@ public class HomeView extends LinearLayout {
             act.lastBest = best;
             // R2-B：冷启以权威 souls 余额读回（后端 /stats/daily 携带 souls）
             if (stats.has("souls")) act.souls = stats.optInt("souls", act.souls);
+
+            // R3：今日目标进度行——只读消费 /stats/daily 的 daily 对象，无数据优雅隐藏；
+            // 异常字段一律 opt + 默认值，不闪屏
+            if (daily != null) {
+                int q = daily.optInt("questions", 0);
+                int nw = daily.optInt("new_words", 0);
+                int run = daily.optInt("run", 0);
+                int qg = Math.max(1, daily.optInt("questions_goal", 40));
+                int nwg = Math.max(1, daily.optInt("new_words_goal", 15));
+                int rg = Math.max(1, daily.optInt("run_goal", 1));
+                float pct = (Math.min(q, qg) / (float) qg
+                        + Math.min(nw, nwg) / (float) nwg
+                        + Math.min(run, rg) / (float) rg) / 3f * 100f;
+                goalTxt.setText("🎯 今日目标 答对 " + q + "/" + qg
+                        + " · 新学 " + nw + "/" + nwg
+                        + " · 远征 " + run + "/" + rg
+                        + " · " + Math.round(pct) + "%");
+                goalTxt.setVisibility(VISIBLE);
+            } else {
+                goalTxt.setVisibility(GONE);
+            }
 
             lvlBadge.setText(String.valueOf(level));
             streakTxt.setText("🔥 " + streak + " 天");

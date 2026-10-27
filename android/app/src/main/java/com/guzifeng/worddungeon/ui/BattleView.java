@@ -1044,13 +1044,13 @@ public class BattleView extends FrameLayout {
                 if ("NEW".equals(res.optString("state", "")) && !act.runNewWords.contains(quiz.optString("word"))) {
                     act.runNewWords.add(quiz.optString("word"));
                 }
-                // V7.0 成就解锁金色 toast（后端 new_ach 数组）
+                // V7.0 成就解锁金色 toast（后端 new_ach 数组）；R3：key 经 MainActivity.achName 集中映射为中文名，不再直弹英文 key
                 JSONArray na = res.optJSONArray("new_ach");
                 if (na != null && na.length() > 0) {
                     StringBuilder sb = new StringBuilder("🏆 成就解锁：");
                     for (int i = 0; i < na.length(); i++) {
                         if (i > 0) sb.append("、");
-                        sb.append(na.optString(i));
+                        sb.append(MainActivity.achName(na.optString(i)));
                     }
                     showAchToast(sb.toString());
                 }
@@ -1727,6 +1727,11 @@ public class BattleView extends FrameLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        // R3：统一清理本页 Handler 上悬挂回调（计时/自动提交/题链 + R1 连击塌缩复位 postDelayed +
+        // 成就 toast 自动隐藏等），与 exitToHome 的 removeCallbacksAndMessages 并存幂等、不冲突
+        try { main.removeCallbacksAndMessages(null); } catch (Throwable ignore) {}
+        // R3：倒计时填充动画一并取消，防离开战斗后 fillAnim 仍回调 applyFillWidth
+        try { if (fillAnim != null) { fillAnim.cancel(); fillAnim = null; } } catch (Throwable ignore) {}
         if (getBackground() instanceof AmbientBackground) ((AmbientBackground) getBackground()).stop();
         if (idleAnim != null) idleAnim.cancel();
         try { if (tts != null) { tts.stop(); tts.shutdown(); tts = null; ttsReady = false; } } catch (Throwable ignore) {}
