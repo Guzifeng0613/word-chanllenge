@@ -161,9 +161,9 @@ public class QuizEngine {
         return quiz;
     }
 
-    /** 层下标 clamp：layer 钳到 [1,LAYER_COUNT] 后转 0 基下标，防越界。 */
+    /** 层下标 clamp：layer 钳到 [1,LAYER_COUNT] 后转 0 基下标，防越界（下界与 BackendRouter/EnemyModel 对齐）。 */
     private static int layerIdx(int layer) {
-        return Math.max(0, Math.min(GameConfig.LAYER_COUNT, layer)) - 1;
+        return Math.max(1, Math.min(GameConfig.LAYER_COUNT, layer)) - 1;
     }
 
     /** 拼写守卫：本局未以非拼写题型出现过的词，拼写题降级为选词（cn2en），先见一次 */
