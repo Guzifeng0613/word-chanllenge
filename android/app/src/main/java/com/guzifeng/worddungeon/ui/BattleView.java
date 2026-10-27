@@ -989,7 +989,13 @@ public class BattleView extends FrameLayout {
             qBody.animate().cancel();
             qBody.setAlpha(0f);
             qBody.setTranslationY(dp(6));
-            qBody.animate().alpha(1f).translationY(0f).setDuration(180).start();
+            qBody.setScaleX(0.92f);   // UI-iteration-06：单词入场 scale pop 落定
+            qBody.setScaleY(0.92f);
+            qBody.animate().alpha(1f).translationY(0f)
+                    .scaleX(1f).scaleY(1f)
+                    .setDuration(180)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.2f))
+                    .start();
             answerArea.animate().cancel();
             answerArea.setAlpha(0f);
             answerArea.setTranslationY(dp(6));
