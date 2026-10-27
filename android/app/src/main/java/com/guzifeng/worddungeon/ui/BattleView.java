@@ -417,10 +417,13 @@ public class BattleView extends FrameLayout {
             enemy = e;
             enemyName.setText(e.optString("name", "词魔"));
             enemyEmoji.setText(EMOJI.getOrDefault(e.optJSONObject("tpl").optString("id", ""), "👹"));
-            // R1-7：复位上一轮击杀消散残留（瞬间复原，不做新怪淡入）
+            // R1-7/R2-3：先瞬时复位上一轮击杀消散残留（scale 归位，绝不残留消散态），
+            // 再做 R2 新怪入场：从透明 + 下方 10dp 上浮淡入（230ms），结束后交回 idleFloat 待机浮动。
             enemyEmoji.animate().cancel();
+            if (idleAnim != null) idleAnim.cancel();   // 停掉上一层待机浮动，避免与入场 translationY 冲突
             enemyEmoji.setScaleX(1f); enemyEmoji.setScaleY(1f);
-            enemyEmoji.setAlpha(1f);
+            enemyEmoji.setAlpha(0f);                 // 淡入起点
+            enemyEmoji.setTranslationY(dp(10));     // 轻微上浮入场起点（下方 10dp）
             enemyHp.setRatio(1f);
             int maxHp = e.optInt("maxHp", 100);
             hpNumTxt.setText(maxHp + " / " + maxHp);
@@ -430,7 +433,9 @@ public class BattleView extends FrameLayout {
             enemyTag.setText(boss ? "Boss 战" : elite ? "精英战" : "普通战");
             enemyTag.setTextColor(boss ? Ui.RED : elite ? Ui.ORANGE : Ui.CYAN);
             applyEnemyGlow(boss, elite, e.optBoolean("champion", false));
-            idleFloat();
+            // R2-3：新怪入场演出（淡入+上浮 230ms），结束后启动待机浮动循环
+            enemyEmoji.animate().alpha(1f).translationY(0f).setDuration(230)
+                    .withEndAction(this::idleFloat).start();
             warnTxt.setText("答错 / 超时将受到 " + atk + " 点伤害");
             enemyName.setTextColor(e.optBoolean("champion", false) ? Ui.GOLD : Ui.TXT);
             topTxt.setText("第 " + layer + " 层 · 词境");
@@ -767,6 +772,23 @@ public class BattleView extends FrameLayout {
             }
         }
         startTimer();
+        // R2-2：切题从"硬切"改为 180ms 淡入 + 6dp 轻微上移（题干 + 答案区/选项容器）。
+        // 仅消除瞬时替换，不改变答对 350ms / 答错 1100/1600ms 的答题节奏。
+        quizEnterTransition();
+    }
+
+    /** R2-2：题干 qBody 与答案区 answerArea（含选项容器）从下方 6dp 淡入上浮，180ms 到位。 */
+    private void quizEnterTransition() {
+        try {
+            qBody.animate().cancel();
+            qBody.setAlpha(0f);
+            qBody.setTranslationY(dp(6));
+            qBody.animate().alpha(1f).translationY(0f).setDuration(180).start();
+            answerArea.animate().cancel();
+            answerArea.setAlpha(0f);
+            answerArea.setTranslationY(dp(6));
+            answerArea.animate().alpha(1f).translationY(0f).setDuration(180).start();
+        } catch (Throwable ignore) {}
     }
 
     private void addOptions(LinearLayout col, JSONArray options, boolean en2cn) {
@@ -1181,6 +1203,7 @@ public class BattleView extends FrameLayout {
     private void impactEnemy(int damage, boolean big, boolean crit, boolean revenge, int left) {
         try {
             enemyHp.setRatio((float) left / enemy.optInt("maxHp", 100));
+            enemyHp.flashHit();   // R2-5：怪物受击血条白闪反馈（独立于 160ms 平滑）
             hpNumTxt.setText(left + " / " + enemy.optInt("maxHp", 100));
             enemyEmoji.animate().scaleX(1.35f).scaleY(1.35f).setDuration(70)
                     .withEndAction(() -> enemyEmoji.animate().scaleX(1f).scaleY(1f).setDuration(210).start()).start();
@@ -1226,6 +1249,7 @@ public class BattleView extends FrameLayout {
             showFeed("✨ 不朽：致命伤害被抵挡，以 1 HP 存活！", Ui.GOLD);
         }
         updateHud();
+        playerHp.flashHit();   // R2-5：玩家受击血条白闪反馈（独立于 160ms 平滑）
         flashRed(playerEmoji);
         // V7.0 低血量红 vignette：hp≤30 显现，否则收起
         lowHpVignette.setVisibility(hp <= 30 ? VISIBLE : GONE);
@@ -1716,6 +1740,22 @@ public class BattleView extends FrameLayout {
     private Runnable timerTick;
     private Runnable autoSubmit;   // 计时到点的空答案提交（纳入 stopTimer 统一移除，防悬挂）
     private boolean timerOn = false;
+    // R2-1：计时渲染去冗余——仅在文本/颜色实际变化时 setText/setColor，避免每 100ms 无谓 relayout
+    private String lastTimerText = "";
+    private int lastTimerColor = 0;
+    private int lastFillTargetPx = -1;   // 上一次已请求的填充像素宽，未变化则跳过动画重建
+
+    /** R2-1：timerTxt 仅在文本或颜色真正变化时才写 TextView（避免每 100ms 触发 relayout）。 */
+    private void setTimerText(String s, int color) {
+        if (!s.equals(lastTimerText)) {
+            lastTimerText = s;
+            timerTxt.setText(s);
+        }
+        if (color != lastTimerColor) {
+            lastTimerColor = color;
+            timerTxt.setTextColor(color);
+        }
+    }
 
     private void startTimer() {
         if (quiz == null) return;
@@ -1727,8 +1767,10 @@ public class BattleView extends FrameLayout {
         if (bonusTime > 0) bonusTime = 0;
         remainSec = timeLimit;
         timerOn = true;
-        timerTxt.setText(secText(remainSec));
-        timerTxt.setTextColor(Ui.MUT);
+        lastTimerText = "";          // R2-1：切题后强制首帧写入
+        lastTimerColor = 0;
+        lastFillTargetPx = -1;       // R2-1：新题重置填充目标，确保回满
+        setTimerText(secText(remainSec), Ui.MUT);
         setTimerFill(1f);
         timerTick = new Runnable() {
             @Override
@@ -1737,8 +1779,7 @@ public class BattleView extends FrameLayout {
                 remainSec -= 0.1;
                 if (remainSec <= 0) {
                     remainSec = 0;
-                    timerTxt.setText("0.0 秒");
-                    timerTxt.setTextColor(Ui.RED);
+                    setTimerText("0.0 秒", Ui.RED);
                     setTimerFill(0f);
                     // 计时结束自动提交（空答案=答错）；与玩家手动提交互斥：
                     // submit() 首句 answering 守卫 + stopTimer() 会移除本回调，防双提交/连跳两题
@@ -1746,10 +1787,10 @@ public class BattleView extends FrameLayout {
                     main.postDelayed(autoSubmit, 60);
                     return;
                 }
-                timerTxt.setText(secText(remainSec));
-                setTimerFill((float) Math.max(0, remainSec / timeLimit));
-                if (remainSec <= 2.5) timerTxt.setTextColor(Ui.ORANGE);
-                else timerTxt.setTextColor(Ui.MUT);
+                float pct = (float) Math.max(0, remainSec / timeLimit);
+                int color = remainSec <= 2.5 ? Ui.ORANGE : Ui.MUT;
+                setTimerText(secText(remainSec), color);   // R2-1：仅变化时写
+                setTimerFill(pct);
                 main.postDelayed(this, 100);
             }
         };
@@ -1766,17 +1807,26 @@ public class BattleView extends FrameLayout {
         try {
             int trackW = Math.max(dp(2), timerTrack.getWidth());
             int target = Math.max(dp(2), (int) (trackW * Math.max(0f, Math.min(1f, pct))));
+            if (target == lastFillTargetPx) return;          // R2-1：目标像素宽未变化，跳过动画重建/分配
+            lastFillTargetPx = target;
             int from = Math.max(dp(2), timerFill.getWidth());
-            if (from == target) return;
+            if (from == target) { applyFillWidth(target); return; }
             if (fillAnim != null) fillAnim.cancel();
             fillAnim = ValueAnimator.ofInt(from, target);
             fillAnim.setDuration(90);
             fillAnim.setInterpolator(new LinearInterpolator());
-            fillAnim.addUpdateListener(a -> {
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) a.getAnimatedValue(), dp(8));
-                timerFill.setLayoutParams(lp);
-            });
+            fillAnim.addUpdateListener(a -> applyFillWidth((int) a.getAnimatedValue()));
             fillAnim.start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** R2-1：复用 timerFill 现有 LayoutParams，仅改 width，避免动画每帧 new LayoutParams。 */
+    private void applyFillWidth(int w) {
+        try {
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) timerFill.getLayoutParams();
+            if (lp == null || lp.width == w) return;
+            lp.width = w;
+            timerFill.setLayoutParams(lp);
         } catch (Throwable ignore) {}
     }
 
@@ -1784,7 +1834,10 @@ public class BattleView extends FrameLayout {
         timerOn = false;
         if (timerTick != null) main.removeCallbacks(timerTick);
         if (autoSubmit != null) main.removeCallbacks(autoSubmit);
-        timerTxt.setTextColor(Ui.MUT);
+        if (lastTimerColor != Ui.MUT) {   // R2-1：同步缓存，避免下次重复写
+            lastTimerColor = Ui.MUT;
+            timerTxt.setTextColor(Ui.MUT);
+        }
     }
 
     /** 收起输入法（拼写题提交/切题/退出时调用）。 */
@@ -1925,7 +1978,9 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** V7.0 升级：全屏金色放射演出「LEVEL UP · 词灵使 Lv.X」+ 粒子。 */
+    /** V7.0 升级：全屏金色放射演出「LEVEL UP · 词灵使 Lv.X」+ 粒子。
+     *  R2-4：总展示时长由 1300+400≈1700ms 压到 600+260=860ms（≤900ms），
+     *  字卡仍清晰弹出，但不再长时间遮挡新题；新题在字卡淡出后立即可读可答。 */
     private void onLevelUp() {
         try {
             TextView lv = new TextView(getContext());
@@ -1946,14 +2001,14 @@ public class BattleView extends FrameLayout {
             lv.setAlpha(0f);
             lv.setScaleX(0.6f);
             lv.setScaleY(0.6f);
-            lv.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(380).start();
+            lv.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(320).start();
             burstParticles(getWidth() / 2f, getHeight() / 2f, 26, 0xFFFBBF24, 100);
             Ui.vibrate(getContext(), new long[]{0, 40, 30, 60, 30, 80, 40, 100});
             Sfx.play(getContext(), Sfx.LEVEL);   // V11.8 升级琶音
             main.postDelayed(() -> {
-                lv.animate().alpha(0f).setDuration(400)
+                lv.animate().alpha(0f).setDuration(260)
                         .withEndAction(() -> { try { removeView(lv); } catch (Throwable ignore) {} }).start();
-            }, 1300);
+            }, 600);
         } catch (Throwable ignore) {}
     }
 

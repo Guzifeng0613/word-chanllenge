@@ -25,6 +25,13 @@ public class AmbientBackground extends Drawable {
 
     private final List<Particle> particles = new ArrayList<>();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // R2-6：缓存渐变/画笔，消除每帧 new Paint/LinearGradient/RadialGradient 的分配
+    private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private LinearGradient bgGrad;
+    private RadialGradient glowCyan, glowGold;
+    private int bgH = -1;          // 仅高度变化时重建纵向渐变
+    private float glowBaseR = -1f; // 仅基础半径变化时重建辉光 shader
     private ValueAnimator anim;
     private float t = 0f;
     private boolean seeded = false;
@@ -64,38 +71,50 @@ public class AmbientBackground extends Drawable {
         int w = getBounds().width(), h = getBounds().height();
         if (w == 0 || h == 0) return;
 
-        // 基础纵向渐变
-        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bg.setShader(new LinearGradient(0, 0, 0, h,
-                new int[]{0xFF0E1C30, 0xFF0B1526, 0xFF0A1220},
-                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-        canvas.drawRect(0, 0, w, h, bg);
+        // 基础纵向渐变（R2-6：仅高度变化时重建 shader，其余帧复用 bgPaint，零分配）
+        if (h != bgH) {
+            bgH = h;
+            bgGrad = new LinearGradient(0, 0, 0, h,
+                    new int[]{0xFF0E1C30, 0xFF0B1526, 0xFF0A1220},
+                    new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+            bgPaint.setShader(bgGrad);
+        }
+        canvas.drawRect(0, 0, w, h, bgPaint);
 
-        // 两团辉光
-        drawGlow(canvas, w, h,
+        // 辉光 shader 仅按基础半径建一次；每帧靠 canvas.translate/scale 定位 + setAlpha 呼吸（零分配）
+        float R = Math.max(w, h);
+        if (R != glowBaseR || glowCyan == null) {
+            glowBaseR = R;
+            // 中心色带原 base alpha（青 0x55 / 金 0x40），边缘全透；呼吸亮度交给 paint.setAlpha
+            glowCyan = new RadialGradient(0, 0, R, 0x5538BDF8, 0x0038BDF8, Shader.TileMode.CLAMP);
+            glowGold = new RadialGradient(0, 0, R, 0x40FBBF24, 0x00FBBF24, Shader.TileMode.CLAMP);
+        }
+        // 两团辉光（青 / 金）：位置漂移 + 半径呼吸 + 亮度呼吸
+        drawGlow(canvas,
                 w * (0.28f + 0.10f * sin(t * 6.28f)),
                 h * (0.16f + 0.05f * sin(t * 6.28f + 1.2f)),
-                Math.max(w, h) * 0.55f, 0x5538BDF8, 0.0038f,
+                R * 0.55f, glowCyan,
                 0.55f + 0.45f * sin(t * 6.28f));
-        drawGlow(canvas, w, h,
+        drawGlow(canvas,
                 w * (0.78f + 0.08f * sin(t * 6.28f + 2.6f)),
                 h * (0.92f + 0.05f * sin(t * 6.28f + 0.4f)),
-                Math.max(w, h) * 0.48f, 0x40FBBF24, 0.0025f,
+                R * 0.48f, glowGold,
                 0.45f + 0.35f * sin(t * 6.28f + 1.8f));
 
         // 粒子
         for (Particle p : particles) p.draw(canvas, w, h, t, paint);
     }
 
-    private void drawGlow(Canvas canvas, int w, int h, float cx, float cy, float r,
-                          int centerColor, float edgeFraction, float mul) {
-        int edge = withAlpha(centerColor, edgeFraction);
-        int center = withAlpha(centerColor, clamp01(mul));
-        RadialGradient rg = new RadialGradient(cx, cy, r,
-                new int[]{center, edge}, new float[]{0f, 1f}, Shader.TileMode.CLAMP);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setShader(rg);
-        canvas.drawRect(0, 0, w, h, p);
+    /** R2-6：复用 glowPaint + 预建 shader，仅平移/缩放画布定位、setAlpha 调呼吸亮度，不新建对象。 */
+    private void drawGlow(Canvas canvas, float cx, float cy, float r, RadialGradient shader, float mul) {
+        glowPaint.setShader(shader);
+        glowPaint.setAlpha((int) (clamp01(mul) * 255f));
+        float s = r / glowBaseR;
+        canvas.save();
+        canvas.translate(cx, cy);
+        canvas.scale(s, s);
+        canvas.drawRect(-glowBaseR, -glowBaseR, glowBaseR, glowBaseR, glowPaint);
+        canvas.restore();
     }
 
     private static float sin(float x) { return (float) Math.sin(x); }
