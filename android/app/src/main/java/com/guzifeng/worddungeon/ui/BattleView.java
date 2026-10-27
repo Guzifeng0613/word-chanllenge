@@ -1430,13 +1430,16 @@ public class BattleView extends FrameLayout {
                 } else {
                     hitPlayer(enemy.optInt("atk", 10));
                 }
+                // UI-iteration-15：答错反馈条补上「生命 -X」代价，与答对「伤害 +X」对称（快刷不扣血则不显示）
+                int dmgTaken = "quick".equals(mode) ? 0 : enemy.optInt("atk", 10);
+                String hurtPre = dmgTaken > 0 ? "生命 -" + dmgTaken + " · " : "";
                 refreshGoal();
                 // V3.5 拼写答错回归：先红抖展示玩家拼写，约 0.6s 后替换为正确答案（金色）
                 // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
-                    // V12.7.7 答错反馈停留 1.5s
-                    showAnswerResult(false, "正确答案：" + correctAnswer, 1500);
+                    // V12.7.7 答错反馈停留 1.5s（UI-iteration-15：补生命 -X 代价）
+                    showAnswerResult(false, hurtPre + "正确答案：" + correctAnswer, 1500);
                     // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
                     spellTilesWrong(correctAnswer);
                     try {
@@ -1464,8 +1467,8 @@ public class BattleView extends FrameLayout {
                     } else {
                         display = correctAnswer;
                     }
-                    // V12.7.7 答错反馈停留 1.5s
-                    showAnswerResult(false, "正确答案：" + display, 1500);
+                    // V12.7.7 答错反馈停留 1.5s（UI-iteration-15：补生命 -X 代价）
+                    showAnswerResult(false, hurtPre + "正确答案：" + display, 1500);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
