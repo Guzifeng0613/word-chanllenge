@@ -74,18 +74,26 @@ public class QuizEngine {
             tier = (tier == null) ? floor : Math.max(tier, floor);
         }
 
-        // 到期队列
+        // 到期队列（V12.1：本局答对过的词进入冷却，不再因短间隔立即回归）
         List<String> dl = new ArrayList<>();
         for (String w : SrsEngine.dueLearning(progress, now))
-            if (bookSet.contains(w) && runState.cap(w)) dl.add(w);
+            if (bookSet.contains(w) && runState.cap(w) && !cold(runState, w)) dl.add(w);
         List<String> dg = new ArrayList<>();
         for (String w : SrsEngine.dueGraduated(progress, now))
-            if (bookSet.contains(w) && runState.cap(w)) dg.add(w);
+            if (bookSet.contains(w) && runState.cap(w) && !cold(runState, w)) dg.add(w);
         List<String> due = new ArrayList<>();
         due.addAll(dl); due.addAll(dg);
+        // 冷却把所有到期词都滤空时（小词库/高难档），回退到含冷却词的到期队列，保证有题可出
+        if (due.isEmpty()) {
+            for (String w : SrsEngine.dueLearning(progress, now))
+                if (bookSet.contains(w) && runState.cap(w)) dl.add(w);
+            for (String w : SrsEngine.dueGraduated(progress, now))
+                if (bookSet.contains(w) && runState.cap(w)) dg.add(w);
+            due.addAll(dl); due.addAll(dg);
+        }
 
         boolean canNew = a.newToday < GameConfig.NEW_CAP;
-        boolean tryNew = canNew && (due.isEmpty() || rnd.nextDouble() < 0.30);
+        boolean tryNew = canNew && (due.isEmpty() || rnd.nextDouble() < 0.35);
 
         String word = null;
         boolean fromReview = false;
@@ -101,11 +109,17 @@ public class QuizEngine {
                         : dg.get(rnd.nextInt(dg.size()));
                 fromReview = true;
             } else {
-                // 无到期：优先推进最接近毕业的学习词
+                // 无到期：优先推进最接近毕业的学习词（V12.1：冷却滤除 + 同阶随机，避免固定重复第一个）
                 List<String> learning = new ArrayList<>();
                 for (String w : progress.keySet()) {
                     WordRec r = progress.get(w);
-                    if (!r.graduated && bookSet.contains(w) && runState.cap(w)) learning.add(w);
+                    if (!r.graduated && bookSet.contains(w) && runState.cap(w) && !cold(runState, w)) learning.add(w);
+                }
+                if (learning.isEmpty()) {
+                    for (String w : progress.keySet()) {
+                        WordRec r = progress.get(w);
+                        if (!r.graduated && bookSet.contains(w) && runState.cap(w)) learning.add(w);
+                    }
                 }
                 Collections.sort(learning, new Comparator<String>() {
                     public int compare(String x, String y) {
@@ -113,7 +127,13 @@ public class QuizEngine {
                     }
                 });
                 if (!learning.isEmpty()) {
-                    word = learning.get(0);
+                    // 在 step 最高的同阶组内随机抽，避免固定选第一个
+                    int top = progress.get(learning.get(0)).step;
+                    List<String> topGroup = new ArrayList<>();
+                    for (String w : learning) {
+                        if (progress.get(w).step == top) topGroup.add(w); else break;
+                    }
+                    word = topGroup.get(rnd.nextInt(topGroup.size()));
                 } else if (canNew) {
                     List<String> unseen = collectUnseen(bookWords, progress, tier);
                     if (unseen.isEmpty()) unseen = collectUnseen(bookWords, progress, null);
@@ -122,7 +142,12 @@ public class QuizEngine {
                 if (word == null) {
                     List<String> pool = new ArrayList<>();
                     for (String w : bookWords) {
-                        if (runState.cap(w) && (tier == null || bank.entry(w).t == tier)) pool.add(w);
+                        if (runState.cap(w) && !cold(runState, w) && (tier == null || bank.entry(w).t == tier)) pool.add(w);
+                    }
+                    if (pool.isEmpty()) {
+                        for (String w : bookWords) {
+                            if (runState.cap(w) && (tier == null || bank.entry(w).t == tier)) pool.add(w);
+                        }
                     }
                     List<String> base = pool.isEmpty() ? bookWords : pool;
                     word = base.get(rnd.nextInt(base.size()));
@@ -134,6 +159,8 @@ public class QuizEngine {
         if (Boolean.TRUE.equals(runState.wrong.get(word))) {
             runState.seen.put(word, runState.seen.getOrDefault(word, 0) + 1);
         }
+        // V12.1：本局出题计数（单局去重依据）
+        runState.drawn.put(word, runState.drawn.getOrDefault(word, 0) + 1);
 
         // 题型：force 覆盖；否则按阶梯；超长词不拼写
         WordRec rec = progress.get(word);
@@ -171,6 +198,13 @@ public class QuizEngine {
         if (!"spell".equals(qtype)) return qtype;
         if (rs != null && Boolean.TRUE.equals(rs.exposed.get(word))) return qtype;
         return "cn2en";
+    }
+
+    /** V12.1 单局冷却：本局已答对过、且非本局答错词的候选不再短期回归（错词仍按 cap 重现）。 */
+    public static boolean cold(RunState rs, String w) {
+        if (rs == null) return false;
+        if (!Boolean.TRUE.equals(rs.correctOnce.get(w))) return false;
+        return !Boolean.TRUE.equals(rs.wrong.get(w));
     }
 
     private List<String> collectUnseen(List<String> bookWords, Map<String, WordRec> progress, Integer tier) {
