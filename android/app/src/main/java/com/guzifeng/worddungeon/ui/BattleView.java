@@ -620,6 +620,14 @@ public class BattleView extends FrameLayout {
         }
     }
 
+    /** UI-iteration-05：连击数字三档成长——≤2 金24 / 3-4 橙28 / ≥5 青32（心流）。pulse 仍在其上叠加，互不冲突。 */
+    private void refreshComboNumStyle() {
+        if (comboNum == null) return;
+        if (combo >= 5)      { comboNum.setTextSize(32f); comboNum.setTextColor(Ui.CYAN); }
+        else if (combo >= 3) { comboNum.setTextSize(28f); comboNum.setTextColor(Ui.ORANGE); }
+        else                 { comboNum.setTextSize(24f); comboNum.setTextColor(Ui.GOLD); }
+    }
+
     /** V12.7 顶栏连击数：连击≥2 显示 🔥xN，否则留空。 */
     private void refreshComboTag() {
         if (comboTag == null) return;
@@ -1256,7 +1264,7 @@ public class BattleView extends FrameLayout {
                 refreshComboTag();
                 // R1-5/6：连击副文案走统一档位助手（5/8 心流档 + 10/20/30 里程碑档）
                 comboSub.setText(comboSubText(combo));
-                comboNum.setTextColor(combo >= 5 ? Ui.CYAN : Ui.GOLD);
+                refreshComboNumStyle();   // UI-iteration-05：三档字号+变色（替代旧 setColor）
                 updateComboDots(combo);
                 // V12.5 连击里程碑：每 5 连击全屏横幅
                 if (combo % 5 == 0) showComboBanner(combo);
@@ -1346,7 +1354,7 @@ public class BattleView extends FrameLayout {
                 int prevFill = Math.max(0, Math.min(5, combo));   // R1-2：清槽前已点亮格数
                 combo = comboHalved ? combo / 2 : 0;
                 comboNum.setText(String.valueOf(combo));          // comboNum 同步回落
-                comboNum.setTextColor(Ui.GOLD);
+                refreshComboNumStyle();   // UI-iteration-05：答错断连击自然回落 24 金
                 // R1-2：答错槽「红闪→塌缩清空」动画（≤350ms），结束后回到新连击态
                 collapseComboDots(prevFill, combo);
                 comboSub.setText(comboSubText(combo));
