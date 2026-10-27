@@ -452,7 +452,7 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** 词魔出现提示：召唤时短暂显示（x73 y30），1.8s 后淡出。 */
+    /** 词魔出现提示：弹出时背景由透明快速增强到清晰，停留 2 秒后快速淡出。 */
     private void showSummonBanner() {
         try {
             if (summonBanner == null) return;
@@ -463,9 +463,9 @@ public class BattleView extends FrameLayout {
             summonBanner.setScaleY(0.8f);
             summonBanner.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200).start();
             main.removeCallbacks(hideSummonBanner);
-            hideSummonBanner = () -> summonBanner.animate().alpha(0f).setDuration(300)
+            hideSummonBanner = () -> summonBanner.animate().alpha(0f).setDuration(280)
                     .withEndAction(() -> summonBanner.setVisibility(GONE)).start();
-            main.postDelayed(hideSummonBanner, 1800);
+            main.postDelayed(hideSummonBanner, 2000);
         } catch (Throwable ignore) {}
     }
 
