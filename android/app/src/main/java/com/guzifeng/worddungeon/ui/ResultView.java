@@ -11,6 +11,7 @@ import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import static android.widget.LinearLayout.HORIZONTAL;
@@ -69,9 +70,16 @@ public class ResultView extends FrameLayout {
         } else {
             Sfx.play(getContext(), Sfx.FAIL);  // V11.8 失败下行音
         }
-        // 后端结算：每日目标 / 无尽纪录 / 成就
+        // 后端结算：每日目标 / 无尽纪录 / 成就（R3：不再吞响应——解析本局新解锁成就并在结算页中文 toast + Sfx）
         new Thread(() -> {
             try {
+                // /progress/finish 响应只回全量 ach 数组、不带 new_ach（以实际响应结构为准）：
+                // 先快照基线，finish 后 diff 出本局新解锁的成就 id；全程 opt + try/catch，异常数据不闪退。
+                JSONArray before = null;
+                try {
+                    JSONObject stats = act.router().dispatch("/stats/daily", "GET", null);
+                    before = stats == null ? null : stats.optJSONArray("ach");
+                } catch (Throwable ignore) { before = null; }
                 JSONObject b = new JSONObject();
                 b.put("mode", mode);
                 b.put("layer", layer);
@@ -79,7 +87,46 @@ public class ResultView extends FrameLayout {
                 b.put("max_combo", maxCombo);
                 b.put("correct", correct);
                 b.put("cards", act.runCards);   // GAP-05：本局选卡数（成就 cards5/cards10 计数）
-                act.router().dispatch("/progress/finish", "POST", b);
+                JSONObject res = act.router().dispatch("/progress/finish", "POST", b);
+                // 优先等价字段 new_ach（后端若显式回传）；否则以全量 ach 与基线 diff
+                JSONArray after = null;
+                try {
+                    after = res == null ? null : res.optJSONArray("new_ach");
+                    if (after == null) after = res == null ? null : res.optJSONArray("ach");
+                } catch (Throwable ignore) { after = null; }
+                final JSONArray fafter = after;
+                final JSONArray fbefore = before;
+                final java.util.List<String> fresh = new java.util.ArrayList<>();
+                // 终期微修：快照基线（dispatch 前 /stats/daily 的 ach）为 null 时无法 diff——
+                // 若仍进入循环，fbefore==null 会把 finish 响应里的全量 ach 全部误判为本局新成就，
+                // 弹出错误的「成就解锁」toast；故基线缺失时跳过 diff、不弹 toast。
+                if (fafter != null && fbefore != null) {
+                    for (int i = 0; i < fafter.length(); i++) {
+                        String id = fafter.optString(i, "");
+                        if (id.isEmpty()) continue;
+                        boolean known = false;
+                        if (fbefore != null) {
+                            for (int j = 0; j < fbefore.length(); j++) {
+                                if (id.equals(fbefore.optString(j))) { known = true; break; }
+                            }
+                        }
+                        if (!known) fresh.add(id);
+                    }
+                }
+                if (!fresh.isEmpty()) {
+                    act.main().post(() -> {
+                        try {
+                            StringBuilder sb = new StringBuilder("🏆 成就解锁：");
+                            for (int i = 0; i < fresh.size(); i++) {
+                                if (i > 0) sb.append("、");
+                                sb.append(MainActivity.achName(fresh.get(i)));
+                            }
+                            android.widget.Toast.makeText(getContext(), sb.toString(),
+                                    android.widget.Toast.LENGTH_LONG).show();
+                            Sfx.play(getContext(), Sfx.EPIC);   // R3：复用现有 EPIC 枚举，不新增资源
+                        } catch (Throwable ignore) {}
+                    });
+                }
             } catch (Throwable ignore) {}
         }).start();
     }
@@ -153,6 +200,17 @@ public class ResultView extends FrameLayout {
         wordCardHost.addView(spacer(8));
         wordCardHost.addView(Ui.text(getContext(), "仍需复习的错词", 13, Ui.TXT, true));
         wordCardHost.addView(chipsRow(act.runWrongWords, Ui.RED));
+        // R3：有错词时提供直达错词本复习入口（MainActivity 路由 WRONGBOOK 已可达，直达）
+        if (!act.runWrongWords.isEmpty()) {
+            TextView toWrong = Ui.text(getContext(), "📕 去错词本复习", 13, Ui.CYAN, true);
+            toWrong.setGravity(Gravity.CENTER);
+            toWrong.setPadding(dp(10), dp(10), dp(10), dp(10));
+            toWrong.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.CYAN));
+            Ui.pressable(toWrong);
+            toWrong.setOnClickListener(v -> act.show(MainActivity.Screen.WRONGBOOK));
+            wordCardHost.addView(toWrong);
+            wordCardHost.addView(spacer(4));
+        }
         body.addView(wordCardHost);
         body.addView(spacer(14));
 

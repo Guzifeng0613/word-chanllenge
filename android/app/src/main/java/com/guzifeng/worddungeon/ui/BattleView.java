@@ -121,6 +121,8 @@ public class BattleView extends FrameLayout {
     private int tileLen = 0;
     // V11.8 连击心流槽：5 格青色 dots，答对点亮、满 5 触发心流时闪光（open loop 前瞻钩子）
     private final List<TextView> comboDots = new ArrayList<>();
+    // R1-1：上次已点亮格数，用于判定 off→on 的新点亮格触发轻微弹动
+    private int dotFillApplied = 0;
 
     private static final Map<String, String> EMOJI = new HashMap<>();
     static {
@@ -415,6 +417,13 @@ public class BattleView extends FrameLayout {
             enemy = e;
             enemyName.setText(e.optString("name", "词魔"));
             enemyEmoji.setText(EMOJI.getOrDefault(e.optJSONObject("tpl").optString("id", ""), "👹"));
+            // R1-7/R2-3：先瞬时复位上一轮击杀消散残留（scale 归位，绝不残留消散态），
+            // 再做 R2 新怪入场：从透明 + 下方 10dp 上浮淡入（230ms），结束后交回 idleFloat 待机浮动。
+            enemyEmoji.animate().cancel();
+            if (idleAnim != null) idleAnim.cancel();   // 停掉上一层待机浮动，避免与入场 translationY 冲突
+            enemyEmoji.setScaleX(1f); enemyEmoji.setScaleY(1f);
+            enemyEmoji.setAlpha(0f);                 // 淡入起点
+            enemyEmoji.setTranslationY(dp(10));     // 轻微上浮入场起点（下方 10dp）
             enemyHp.setRatio(1f);
             int maxHp = e.optInt("maxHp", 100);
             hpNumTxt.setText(maxHp + " / " + maxHp);
@@ -424,7 +433,9 @@ public class BattleView extends FrameLayout {
             enemyTag.setText(boss ? "Boss 战" : elite ? "精英战" : "普通战");
             enemyTag.setTextColor(boss ? Ui.RED : elite ? Ui.ORANGE : Ui.CYAN);
             applyEnemyGlow(boss, elite, e.optBoolean("champion", false));
-            idleFloat();
+            // R2-3：新怪入场演出（淡入+上浮 230ms），结束后启动待机浮动循环
+            enemyEmoji.animate().alpha(1f).translationY(0f).setDuration(230)
+                    .withEndAction(this::idleFloat).start();
             warnTxt.setText("答错 / 超时将受到 " + atk + " 点伤害");
             enemyName.setTextColor(e.optBoolean("champion", false) ? Ui.GOLD : Ui.TXT);
             topTxt.setText("第 " + layer + " 层 · 词境");
@@ -761,6 +772,23 @@ public class BattleView extends FrameLayout {
             }
         }
         startTimer();
+        // R2-2：切题从"硬切"改为 180ms 淡入 + 6dp 轻微上移（题干 + 答案区/选项容器）。
+        // 仅消除瞬时替换，不改变答对 350ms / 答错 1100/1600ms 的答题节奏。
+        quizEnterTransition();
+    }
+
+    /** R2-2：题干 qBody 与答案区 answerArea（含选项容器）从下方 6dp 淡入上浮，180ms 到位。 */
+    private void quizEnterTransition() {
+        try {
+            qBody.animate().cancel();
+            qBody.setAlpha(0f);
+            qBody.setTranslationY(dp(6));
+            qBody.animate().alpha(1f).translationY(0f).setDuration(180).start();
+            answerArea.animate().cancel();
+            answerArea.setAlpha(0f);
+            answerArea.setTranslationY(dp(6));
+            answerArea.animate().alpha(1f).translationY(0f).setDuration(180).start();
+        } catch (Throwable ignore) {}
     }
 
     private void addOptions(LinearLayout col, JSONArray options, boolean en2cn) {
@@ -1002,16 +1030,13 @@ public class BattleView extends FrameLayout {
                 maxCombo = Math.max(maxCombo, combo);
                 wrongStreak = 0;
                 comboNum.setText(String.valueOf(combo));
-                // V11.8 连击前瞻钩子：心流倒计时 + 里程碑 dots
-                if (combo >= 8) comboSub.setText("🔥 输出高涨！");
-                else if (combo >= 5) comboSub.setText("💫 心流加成中");
-                else if (combo > 0) comboSub.setText("⚡ 再答 " + (5 - combo) + " 题进入心流");
-                else comboSub.setText("");
+                // R1-5/6：连击副文案走统一档位助手（5/8 心流档 + 10/20/30 里程碑档）
+                comboSub.setText(comboSubText(combo));
                 comboNum.setTextColor(combo >= 5 ? Ui.CYAN : Ui.GOLD);
                 updateComboDots(combo);
                 // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅，每答对 +1 词魂
                 if (combo >= 5) {
-                    if (!flowOn) { flowOn = true; showFlowBanner("心 流", Ui.CYAN); ringBurst(); }
+                    if (!flowOn) { flowOn = true; triggerFlow(); }
                     act.souls += 1;
                     updateHud();
                 }
@@ -1019,13 +1044,13 @@ public class BattleView extends FrameLayout {
                 if ("NEW".equals(res.optString("state", "")) && !act.runNewWords.contains(quiz.optString("word"))) {
                     act.runNewWords.add(quiz.optString("word"));
                 }
-                // V7.0 成就解锁金色 toast（后端 new_ach 数组）
+                // V7.0 成就解锁金色 toast（后端 new_ach 数组）；R3：key 经 MainActivity.achName 集中映射为中文名，不再直弹英文 key
                 JSONArray na = res.optJSONArray("new_ach");
                 if (na != null && na.length() > 0) {
                     StringBuilder sb = new StringBuilder("🏆 成就解锁：");
                     for (int i = 0; i < na.length(); i++) {
                         if (i > 0) sb.append("、");
-                        sb.append(na.optString(i));
+                        sb.append(MainActivity.achName(na.optString(i)));
                     }
                     showAchToast(sb.toString());
                 }
@@ -1066,12 +1091,13 @@ public class BattleView extends FrameLayout {
             } else {
                 questionsInRun++;
                 // R2-A：势如破竹 unstop——答错连击减半（向下取整）而非清零
+                int prevFill = Math.max(0, Math.min(5, combo));   // R1-2：清槽前已点亮格数
                 combo = comboHalved ? combo / 2 : 0;
-                comboNum.setText(String.valueOf(combo));
+                comboNum.setText(String.valueOf(combo));          // comboNum 同步回落
                 comboNum.setTextColor(Ui.GOLD);
-                // V11.8 答错：槽复位 + 重新预告（减半后仍显示距心流差几题）
-                updateComboDots(combo);
-                comboSub.setText(combo > 0 ? ("⚡ 再答 " + (5 - combo) + " 题进入心流") : "");
+                // R1-2：答错槽「红闪→塌缩清空」动画（≤350ms），结束后回到新连击态
+                collapseComboDots(prevFill, combo);
+                comboSub.setText(comboSubText(combo));
                 wrongInRun++;
                 flowOn = false;
                 wrongStreak++;
@@ -1177,6 +1203,7 @@ public class BattleView extends FrameLayout {
     private void impactEnemy(int damage, boolean big, boolean crit, boolean revenge, int left) {
         try {
             enemyHp.setRatio((float) left / enemy.optInt("maxHp", 100));
+            enemyHp.flashHit();   // R2-5：怪物受击血条白闪反馈（独立于 160ms 平滑）
             hpNumTxt.setText(left + " / " + enemy.optInt("maxHp", 100));
             enemyEmoji.animate().scaleX(1.35f).scaleY(1.35f).setDuration(70)
                     .withEndAction(() -> enemyEmoji.animate().scaleX(1f).scaleY(1f).setDuration(210).start()).start();
@@ -1222,6 +1249,7 @@ public class BattleView extends FrameLayout {
             showFeed("✨ 不朽：致命伤害被抵挡，以 1 HP 存活！", Ui.GOLD);
         }
         updateHud();
+        playerHp.flashHit();   // R2-5：玩家受击血条白闪反馈（独立于 160ms 平滑）
         flashRed(playerEmoji);
         // V7.0 低血量红 vignette：hp≤30 显现，否则收起
         lowHpVignette.setVisibility(hp <= 30 ? VISIBLE : GONE);
@@ -1241,21 +1269,81 @@ public class BattleView extends FrameLayout {
         Sfx.play(getContext(), Sfx.HURT);
     }
 
-    /** V11.8 连击心流槽刷新：答对点亮、满 5 触发心流时闪光一次。 */
+    /** V11.8 连击心流槽刷新：答对点亮；R1-1 第 1~4 格 off→on 时带轻微 scale 弹动（≤200ms）。 */
     private void updateComboDots(int combo) {
+        applyComboDots(combo, true);
+    }
+
+    /** 核心点亮逻辑。pulseNew=true 时，新点亮的第 1~4 格（i<4）触发弹动；第 5 格交给心流整槽闪光。 */
+    private void applyComboDots(int combo, boolean pulseNew) {
         try {
             int fill = Math.max(0, Math.min(5, combo));
             for (int i = 0; i < comboDots.size(); i++) {
                 TextView d = comboDots.get(i);
                 boolean on = i < fill;
-                d.setBackground(Ui.pill(on ? 0xFF2DD4BF : 0xFF0E2238, on ? 0xFF2DD4BF : 0xFF33507A));
+                d.animate().cancel();
+                d.setScaleX(1f); d.setScaleY(1f);
                 d.setAlpha(on ? 1f : 0.55f);
-                if (on && combo == 5) {   // 刚满 5 触发心流：闪光一下
-                    d.setScaleX(1.5f); d.setScaleY(1.5f);
-                    d.animate().scaleX(1f).scaleY(1f).setDuration(320).start();
+                d.setBackground(Ui.pill(on ? 0xFF2DD4BF : 0xFF0E2238, on ? 0xFF2DD4BF : 0xFF33507A));
+                boolean newlyLit = pulseNew && on && i >= dotFillApplied && i < 4;
+                if (newlyLit) {
+                    d.setScaleX(1.35f); d.setScaleY(1.35f);
+                    d.animate().scaleX(1f).scaleY(1f).setDuration(180).start();
                 }
             }
+            dotFillApplied = fill;
         } catch (Throwable ignore) {}
+    }
+
+    /** R1-2 答错清槽：已点亮格整槽红闪，被清掉的格（[toFill, fromFill)）scale+alpha 塌缩（总≤350ms），
+     *  结束后一次性复位到新连击态（保留格回青、清空格回暗）。不影响后续 pauseThenNext 切题流程。 */
+    private void collapseComboDots(int fromFill, int toFill) {
+        try {
+            if (fromFill <= 0) { applyComboDots(toFill, false); return; }
+            for (int i = 0; i < comboDots.size(); i++) {
+                TextView d = comboDots.get(i);
+                if (i >= fromFill) continue;
+                d.animate().cancel();
+                d.setAlpha(1f);
+                d.setScaleX(1f); d.setScaleY(1f);
+                d.setBackground(Ui.pill(0x66F87171, 0xFFF87171));   // 整槽红闪
+                if (i >= toFill) {   // 这格要塌掉
+                    d.animate().scaleX(0.15f).scaleY(0.15f).alpha(0f)
+                            .setStartDelay((long) (i * 20))
+                            .setDuration(220).start();
+                }
+            }
+            long total = (long) ((fromFill - 1) * 20) + 220 + 30;   // ≈330ms 上限内
+            main.postDelayed(() -> applyComboDots(toFill, false), total);
+        } catch (Throwable t) {
+            applyComboDots(toFill, false);
+        }
+    }
+
+    /** R1-3 满 5 心流一次性联动：整槽同闪一次 + 青色圆环 + 心流横幅 + 上行琶音（复用 EPIC，不新增枚举/音频）。 */
+    private void triggerFlow() {
+        try {
+            showFlowBanner("心 流", Ui.CYAN);
+            ringBurst(Ui.TEAL);                 // 青色圆环（#2DD4BF，与横幅一致）
+            Sfx.play(getContext(), Sfx.EPIC);   // 明亮上行琶音
+            // 整槽一次性脉冲闪光（不再在循环内对每格重复闪光）
+            for (TextView d : comboDots) {
+                d.animate().cancel();
+                d.setScaleX(1.5f); d.setScaleY(1.5f);
+                d.animate().scaleX(1f).scaleY(1f).setDuration(320).start();
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    /** R1-5/6 连击副文案档位：5/8 心流档 + 10/20/30 里程碑档，心流期（≥5）恒有状态文案不留白。 */
+    private String comboSubText(int combo) {
+        if (combo >= 30) return "👑 ×" + combo + " · 登峰造极！";
+        if (combo >= 20) return "⚡ ×" + combo + " · 势不可挡！";
+        if (combo >= 10) return "🔥 ×" + combo + " · 势如破竹！";
+        if (combo >= 8) return "🔥 输出高涨！";
+        if (combo >= 5) return "💫 心流加成中";
+        if (combo > 0) return "⚡ 再答 " + (5 - combo) + " 题进入心流";
+        return "";
     }
 
     private void onKill() {
@@ -1263,6 +1351,19 @@ public class BattleView extends FrameLayout {
         bonusDamageMult = 1.0;   // 上一轮伤害增益作用于刚击杀的敌人，到此结算重置
         Ui.vibrate(getContext(), new long[]{0, 50, 40, 70, 40, 90});   // 击杀胜利反馈
         Sfx.play(getContext(), Sfx.KILL);                              // V11.8 击杀琶音
+        // R1-7：敌人消散演出（缩放+alpha 渐隐 ~300ms）
+        dissolveEnemy();
+        // R1-7：击杀粒子比暴击更盛——金+青双层粒子（暴击仅单层 14 个，此处 22+14）
+        try {
+            int[] ec = new int[2];
+            enemyEmoji.getLocationInWindow(ec);
+            int[] bc = new int[2];
+            getLocationInWindow(bc);
+            float kx = ec[0] - bc[0] + enemyEmoji.getWidth() / 2f;
+            float ky = ec[1] - bc[1] + enemyEmoji.getHeight() / 2f;
+            burstParticles(kx, ky, 22, Ui.GOLD, 72);
+            burstParticles(kx, ky, 14, Ui.TEAL, 55);
+        } catch (Throwable ignore) {}
         // V7.0 战斗胜利词魂：普通 15 / 精英 35 / Boss 60（冠军 ×1.5）
         boolean boss = enemy != null && enemy.optBoolean("boss", false);
         boolean elite = enemy != null && enemy.optBoolean("elite", false);
@@ -1285,8 +1386,18 @@ public class BattleView extends FrameLayout {
             return;
         }
         // 层间节点链：翻卡（精英/冠军）→ 复习之泉 → 词境商店 → 下一层
-        if (shouldDrawReward()) main.postDelayed(this::openRewardDraw, 380);
-        else main.postDelayed(this::openSpring, 380);
+        // R1-7：浮层延迟 380→550ms，让敌人消散演出可见后再盖浮层
+        if (shouldDrawReward()) main.postDelayed(this::openRewardDraw, 550);
+        else main.postDelayed(this::openSpring, 550);
+    }
+
+    /** R1-7 击杀消散：敌人面部缩放+alpha 渐隐（~300ms）。spawnEnemy 在下一怪入场时复位 scale/alpha。 */
+    private void dissolveEnemy() {
+        try {
+            if (enemyEmoji == null) return;
+            enemyEmoji.animate().cancel();
+            enemyEmoji.animate().scaleX(0.1f).scaleY(0.1f).alpha(0f).setDuration(300).start();
+        } catch (Throwable ignore) {}
     }
 
     /** 是否翻牌：远征精英（第 2 层）；无尽冠军（每 5 层）。 */
@@ -1616,6 +1727,11 @@ public class BattleView extends FrameLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        // R3：统一清理本页 Handler 上悬挂回调（计时/自动提交/题链 + R1 连击塌缩复位 postDelayed +
+        // 成就 toast 自动隐藏等），与 exitToHome 的 removeCallbacksAndMessages 并存幂等、不冲突
+        try { main.removeCallbacksAndMessages(null); } catch (Throwable ignore) {}
+        // R3：倒计时填充动画一并取消，防离开战斗后 fillAnim 仍回调 applyFillWidth
+        try { if (fillAnim != null) { fillAnim.cancel(); fillAnim = null; } } catch (Throwable ignore) {}
         if (getBackground() instanceof AmbientBackground) ((AmbientBackground) getBackground()).stop();
         if (idleAnim != null) idleAnim.cancel();
         try { if (tts != null) { tts.stop(); tts.shutdown(); tts = null; ttsReady = false; } } catch (Throwable ignore) {}
@@ -1629,6 +1745,22 @@ public class BattleView extends FrameLayout {
     private Runnable timerTick;
     private Runnable autoSubmit;   // 计时到点的空答案提交（纳入 stopTimer 统一移除，防悬挂）
     private boolean timerOn = false;
+    // R2-1：计时渲染去冗余——仅在文本/颜色实际变化时 setText/setColor，避免每 100ms 无谓 relayout
+    private String lastTimerText = "";
+    private int lastTimerColor = 0;
+    private int lastFillTargetPx = -1;   // 上一次已请求的填充像素宽，未变化则跳过动画重建
+
+    /** R2-1：timerTxt 仅在文本或颜色真正变化时才写 TextView（避免每 100ms 触发 relayout）。 */
+    private void setTimerText(String s, int color) {
+        if (!s.equals(lastTimerText)) {
+            lastTimerText = s;
+            timerTxt.setText(s);
+        }
+        if (color != lastTimerColor) {
+            lastTimerColor = color;
+            timerTxt.setTextColor(color);
+        }
+    }
 
     private void startTimer() {
         if (quiz == null) return;
@@ -1640,8 +1772,10 @@ public class BattleView extends FrameLayout {
         if (bonusTime > 0) bonusTime = 0;
         remainSec = timeLimit;
         timerOn = true;
-        timerTxt.setText(secText(remainSec));
-        timerTxt.setTextColor(Ui.MUT);
+        lastTimerText = "";          // R2-1：切题后强制首帧写入
+        lastTimerColor = 0;
+        lastFillTargetPx = -1;       // R2-1：新题重置填充目标，确保回满
+        setTimerText(secText(remainSec), Ui.MUT);
         setTimerFill(1f);
         timerTick = new Runnable() {
             @Override
@@ -1650,8 +1784,7 @@ public class BattleView extends FrameLayout {
                 remainSec -= 0.1;
                 if (remainSec <= 0) {
                     remainSec = 0;
-                    timerTxt.setText("0.0 秒");
-                    timerTxt.setTextColor(Ui.RED);
+                    setTimerText("0.0 秒", Ui.RED);
                     setTimerFill(0f);
                     // 计时结束自动提交（空答案=答错）；与玩家手动提交互斥：
                     // submit() 首句 answering 守卫 + stopTimer() 会移除本回调，防双提交/连跳两题
@@ -1659,10 +1792,10 @@ public class BattleView extends FrameLayout {
                     main.postDelayed(autoSubmit, 60);
                     return;
                 }
-                timerTxt.setText(secText(remainSec));
-                setTimerFill((float) Math.max(0, remainSec / timeLimit));
-                if (remainSec <= 2.5) timerTxt.setTextColor(Ui.ORANGE);
-                else timerTxt.setTextColor(Ui.MUT);
+                float pct = (float) Math.max(0, remainSec / timeLimit);
+                int color = remainSec <= 2.5 ? Ui.ORANGE : Ui.MUT;
+                setTimerText(secText(remainSec), color);   // R2-1：仅变化时写
+                setTimerFill(pct);
                 main.postDelayed(this, 100);
             }
         };
@@ -1679,17 +1812,26 @@ public class BattleView extends FrameLayout {
         try {
             int trackW = Math.max(dp(2), timerTrack.getWidth());
             int target = Math.max(dp(2), (int) (trackW * Math.max(0f, Math.min(1f, pct))));
+            if (target == lastFillTargetPx) return;          // R2-1：目标像素宽未变化，跳过动画重建/分配
+            lastFillTargetPx = target;
             int from = Math.max(dp(2), timerFill.getWidth());
-            if (from == target) return;
+            if (from == target) { applyFillWidth(target); return; }
             if (fillAnim != null) fillAnim.cancel();
             fillAnim = ValueAnimator.ofInt(from, target);
             fillAnim.setDuration(90);
             fillAnim.setInterpolator(new LinearInterpolator());
-            fillAnim.addUpdateListener(a -> {
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) a.getAnimatedValue(), dp(8));
-                timerFill.setLayoutParams(lp);
-            });
+            fillAnim.addUpdateListener(a -> applyFillWidth((int) a.getAnimatedValue()));
             fillAnim.start();
+        } catch (Throwable ignore) {}
+    }
+
+    /** R2-1：复用 timerFill 现有 LayoutParams，仅改 width，避免动画每帧 new LayoutParams。 */
+    private void applyFillWidth(int w) {
+        try {
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) timerFill.getLayoutParams();
+            if (lp == null || lp.width == w) return;
+            lp.width = w;
+            timerFill.setLayoutParams(lp);
         } catch (Throwable ignore) {}
     }
 
@@ -1697,7 +1839,10 @@ public class BattleView extends FrameLayout {
         timerOn = false;
         if (timerTick != null) main.removeCallbacks(timerTick);
         if (autoSubmit != null) main.removeCallbacks(autoSubmit);
-        timerTxt.setTextColor(Ui.MUT);
+        if (lastTimerColor != Ui.MUT) {   // R2-1：同步缓存，避免下次重复写
+            lastTimerColor = Ui.MUT;
+            timerTxt.setTextColor(Ui.MUT);
+        }
     }
 
     /** 收起输入法（拼写题提交/切题/退出时调用）。 */
@@ -1838,7 +1983,9 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** V7.0 升级：全屏金色放射演出「LEVEL UP · 词灵使 Lv.X」+ 粒子。 */
+    /** V7.0 升级：全屏金色放射演出「LEVEL UP · 词灵使 Lv.X」+ 粒子。
+     *  R2-4：总展示时长由 1300+400≈1700ms 压到 600+260=860ms（≤900ms），
+     *  字卡仍清晰弹出，但不再长时间遮挡新题；新题在字卡淡出后立即可读可答。 */
     private void onLevelUp() {
         try {
             TextView lv = new TextView(getContext());
@@ -1859,14 +2006,14 @@ public class BattleView extends FrameLayout {
             lv.setAlpha(0f);
             lv.setScaleX(0.6f);
             lv.setScaleY(0.6f);
-            lv.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(380).start();
+            lv.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(320).start();
             burstParticles(getWidth() / 2f, getHeight() / 2f, 26, 0xFFFBBF24, 100);
             Ui.vibrate(getContext(), new long[]{0, 40, 30, 60, 30, 80, 40, 100});
             Sfx.play(getContext(), Sfx.LEVEL);   // V11.8 升级琶音
             main.postDelayed(() -> {
-                lv.animate().alpha(0f).setDuration(400)
+                lv.animate().alpha(0f).setDuration(260)
                         .withEndAction(() -> { try { removeView(lv); } catch (Throwable ignore) {} }).start();
-            }, 1300);
+            }, 600);
         } catch (Throwable ignore) {}
     }
 
@@ -1913,15 +2060,17 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** 心流里程碑光环：紫色圆环从中心扩散淡出（V11.3）。 */
-    private void ringBurst() {
+    /** 心流里程碑光环：圆环从中心扩散淡出（V11.3）。R1-4：颜色入参化，默认紫色（其余调用点保持原色）。 */
+    private void ringBurst() { ringBurst(Ui.PURPLE); }
+
+    private void ringBurst(int color) {
         try {
             View ring = new View(getContext());
             int size = dp(40);
             GradientDrawable g = new GradientDrawable();
             g.setShape(GradientDrawable.OVAL);
             g.setColor(0x00000000);
-            g.setStroke(dp(3), Ui.PURPLE);
+            g.setStroke(dp(3), color);
             ring.setBackground(g);
             addView(ring, new FrameLayout.LayoutParams(size, size, Gravity.CENTER));
             ring.animate().scaleX(7f).scaleY(7f).alpha(0f).setDuration(620)
