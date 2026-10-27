@@ -591,6 +591,10 @@ public class BattleView extends FrameLayout {
             enemyEmoji.setScaleX(1f); enemyEmoji.setScaleY(1f);
             enemyEmoji.setAlpha(0f);                 // 淡入起点
             enemyEmoji.setTranslationY(dp(10));     // 轻微上浮入场起点（下方 10dp）
+            // UI-iteration-14：头部文字（名字/战斗徽章/等级图标）随 emoji 入场一起淡入，不再凭空出现
+            enemyName.setAlpha(0f);
+            enemyTag.setAlpha(0f);
+            enemyLevel.setAlpha(0f);
             enemyHp.setRatio(1f);
             enemyHp.setCritical(false);   // UI-iteration-04：新敌满血不闪
             int maxHp = e.optInt("maxHp", 100);
@@ -608,6 +612,10 @@ public class BattleView extends FrameLayout {
             // R2-3：新怪入场演出（淡入+上浮 230ms），结束后启动待机浮动循环
             enemyEmoji.animate().alpha(1f).translationY(0f).setDuration(230)
                     .withEndAction(this::idleFloat).start();
+            // UI-iteration-14：头部文字 230ms 同步淡入到不透明
+            enemyName.animate().alpha(1f).setDuration(230).start();
+            enemyTag.animate().alpha(1f).setDuration(230).start();
+            enemyLevel.animate().alpha(1f).setDuration(230).start();
             warnTxt.setText("答错 / 超时将受到 " + atk + " 点伤害");
             enemyName.setTextColor(e.optBoolean("champion", false) ? Ui.GOLD : Ui.TXT);
             if (campaign) {
