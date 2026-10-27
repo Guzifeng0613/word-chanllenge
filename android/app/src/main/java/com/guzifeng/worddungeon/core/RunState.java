@@ -16,6 +16,10 @@ public class RunState {
     public Map<String, Boolean> exposed = new HashMap<>();
     /** 该词本局已错过次数（V7.0 G.wrongCount，复仇倍率用） */
     public Map<String, Integer> wrongTimes = new HashMap<>();
+    /** 本局出题次数（V12.1 单局去重用） */
+    public Map<String, Integer> drawn = new HashMap<>();
+    /** 本局已答对过的词（V12.1 冷却去重：答对词不再短期回归，除非候选池耗尽） */
+    public Map<String, Boolean> correctOnce = new HashMap<>();
 
     public RunState() {}
 
@@ -48,6 +52,20 @@ public class RunState {
             for (java.util.Iterator<String> it = wt.keys(); it.hasNext(); ) {
                 String k = it.next();
                 r.wrongTimes.put(k, wt.optInt(k));
+            }
+        }
+        JSONObject dr = o.optJSONObject("drawn");
+        if (dr != null) {
+            for (java.util.Iterator<String> it = dr.keys(); it.hasNext(); ) {
+                String k = it.next();
+                r.drawn.put(k, dr.optInt(k));
+            }
+        }
+        JSONObject co = o.optJSONObject("correct_once");
+        if (co != null) {
+            for (java.util.Iterator<String> it = co.keys(); it.hasNext(); ) {
+                String k = it.next();
+                r.correctOnce.put(k, co.optBoolean(k));
             }
         }
         return r;
@@ -87,6 +105,12 @@ public class RunState {
             JSONObject wt = new JSONObject();
             for (Map.Entry<String, Integer> e : wrongTimes.entrySet()) wt.put(e.getKey(), e.getValue());
             o.put("wrong_times", wt);
+            JSONObject dr = new JSONObject();
+            for (Map.Entry<String, Integer> e : drawn.entrySet()) dr.put(e.getKey(), e.getValue());
+            o.put("drawn", dr);
+            JSONObject co = new JSONObject();
+            for (Map.Entry<String, Boolean> e : correctOnce.entrySet()) co.put(e.getKey(), e.getValue());
+            o.put("correct_once", co);
         } catch (Exception e) {
             // 内部结构固定
         }

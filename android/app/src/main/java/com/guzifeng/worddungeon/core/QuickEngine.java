@@ -130,7 +130,7 @@ public class QuickEngine {
             pool.add(e);
         }
 
-        // 拼写候选（已具备拼写条件）
+        // 拼写候选（已具备拼写条件；V12.1 过滤本局答对冷却词）
         List<String> spellWords = new ArrayList<>();
         List<Double> spellW = new ArrayList<>();
         for (WordEntry e : pool) {
@@ -139,6 +139,13 @@ public class QuickEngine {
             if (!canSpell(progress.get(w), w)) continue;
             double wt = quickWeight(w, progress.get(w));
             if (wt > 0) { spellWords.add(w); spellW.add(wt); }
+        }
+        if (!spellWords.isEmpty()) {
+            List<String> cw = new ArrayList<>(); List<Double> cW = new ArrayList<>();
+            for (int i = 0; i < spellWords.size(); i++) {
+                if (!QuizEngine.cold(runState, spellWords.get(i))) { cw.add(spellWords.get(i)); cW.add(spellW.get(i)); }
+            }
+            if (!cw.isEmpty()) { spellWords = cw; spellW = cW; }
         }
 
         String word;
@@ -162,6 +169,12 @@ public class QuickEngine {
                     if (runState.cap(w)) { words.add(w); ws.add(1.0); }
                 }
             }
+            // V12.1：冷却滤除本局已答对词（词池未耗尽时）
+            List<String> cw = new ArrayList<>(); List<Double> cW = new ArrayList<>();
+            for (int i = 0; i < words.size(); i++) {
+                if (!QuizEngine.cold(runState, words.get(i))) { cw.add(words.get(i)); cW.add(ws.get(i)); }
+            }
+            if (!cw.isEmpty()) { words = cw; ws = cW; }
             word = weightedPick(words, ws);
             qtype = SrsEngine.typeForWord(progress.get(word));
             if ("spell".equals(qtype) && !canSpell(progress.get(word), word)) qtype = "cn2en";
@@ -172,6 +185,8 @@ public class QuickEngine {
         if (Boolean.TRUE.equals(runState.wrong.get(word))) {
             runState.seen.put(word, runState.seen.getOrDefault(word, 0) + 1);
         }
+        // V12.1：本局出题计数
+        runState.drawn.put(word, runState.drawn.getOrDefault(word, 0) + 1);
 
         WordRec rec = progress.get(word);
         // 先见后拼记录：非拼写题出现即记 exposed，下次允许拼写

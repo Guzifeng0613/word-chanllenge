@@ -168,6 +168,7 @@ public class BackendRouter {
         long nowSec = nowMs / 1000;
 
         if (!isCorrect) runState.markWrong(word);
+        else runState.correctOnce.put(word, true);   // V12.1：本局答对记录（单局冷却去重）
 
         Map<String, WordRec> progress = store.loadProgress();
         WordRec oldRec = progress.get(word);
