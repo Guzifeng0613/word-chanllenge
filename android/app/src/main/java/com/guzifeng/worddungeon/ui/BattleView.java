@@ -384,14 +384,13 @@ public class BattleView extends FrameLayout {
 
         // 词魔出现提示（自由位置 x73 y30，召唤时短暂显示）
         summonBanner = new TextView(getContext());
-        summonBanner.setTextSize(15);
+        summonBanner.setTextSize(13);
         summonBanner.setTypeface(Typeface.DEFAULT_BOLD);
         summonBanner.setGravity(Gravity.CENTER);
-        summonBanner.setPadding(dp(14), dp(7), dp(14), dp(7));
+        summonBanner.setPadding(dp(10), dp(5), dp(10), dp(5));
         summonBanner.setVisibility(GONE);
-        summonBanner.setBackground(Ui.card(12, 0xFF0F2A3A, 1, Ui.CYAN));
-        addView(summonBanner);
-        placeAt(summonBanner, 73, 30);
+        summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
+        addView(summonBanner, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER));
     }
 
     /** 自由元素按百分比定位：x/y 为相对根布局的百分比（x 为元素中心，y 为元素顶部）。 */
