@@ -363,7 +363,7 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
-        // 答题反馈条（V12.7.6：浮屏中偏上 x50 y30 连击行区，纯黑实底高对比，不透明度拉满停1秒后快速渐退）
+        // 答题反馈条（V12.7.7：浮在连击行上方 y17 处，纯黑实底高对比，不遮单词）
         feedbackBar = new FrameLayout(getContext());
         feedbackBar.setVisibility(GONE);
         feedbackBar.setBackground(Ui.card(12, 0xFF000000, 2, Ui.GOLD));
@@ -380,7 +380,7 @@ public class BattleView extends FrameLayout {
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         addView(feedbackBar);
         resultBox = resultV;
-        placeAt(feedbackBar, 50, 30);
+        placeAt(feedbackBar, 50, 17);
 
         // 词魔出现提示（自由位置 x73 y30，召唤时短暂显示）
         summonBanner = new TextView(getContext());
@@ -1276,8 +1276,8 @@ public class BattleView extends FrameLayout {
                 } else {
                     showFeed("+" + damage, Ui.GOLD);
                 }
-                // V12.6 底部反馈条：答对 ✓ 集中显示（短停留，不打断打击动效）
-                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 1000);
+                // V12.7.7 答题反馈条：答对停留 0.5s 快速切题
+                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 500);
                 // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
                 showJudgeGrade(quiz.optString("qtype"), quiz.optDouble("timeLimit", 6));
                 if (xpGain > 0) popXp(xpGain);
@@ -1346,8 +1346,8 @@ public class BattleView extends FrameLayout {
                 // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
-                    // V12.6 错误反馈集中到底部反馈条：红色大字+正确答案，停留 2.2s
-                    showAnswerResult(false, "正确答案：" + correctAnswer, 1000);
+                    // V12.7.7 答错反馈停留 1.5s
+                    showAnswerResult(false, "正确答案：" + correctAnswer, 1500);
                     // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
                     spellTilesWrong(correctAnswer);
                     try {
@@ -1375,8 +1375,8 @@ public class BattleView extends FrameLayout {
                     } else {
                         display = correctAnswer;
                     }
-                    // V12.6 错误反馈集中到底部反馈条（不再全屏中部，避免遮挡/显示不全）
-                    showAnswerResult(false, "正确答案：" + display, 1000);
+                    // V12.7.7 答错反馈停留 1.5s
+                    showAnswerResult(false, "正确答案：" + display, 1500);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
@@ -1458,10 +1458,10 @@ public class BattleView extends FrameLayout {
             if (left <= 0) {
                 onKill();
             } else {
-                main.postDelayed(this::nextQuiz, 350);
+                main.postDelayed(this::nextQuiz, 260);   // V12.7.7 答对：240ms 飞行 + 260ms ≈ 0.5s 切下一题
             }
         } catch (Throwable ignore) {
-            main.postDelayed(this::nextQuiz, 350);
+            main.postDelayed(this::nextQuiz, 260);
         }
     }
     private void hitPlayer(int atk) {
@@ -1938,8 +1938,8 @@ public class BattleView extends FrameLayout {
             }, 900);
             return;
         }
-        // 拼写错题：红抖 0.6s + 正确答案停留 ~1.0s（共 1.6s）；选项题保持 1.1s 一致停留
-        main.postDelayed(this::nextQuiz, spellReveal ? 1600 : 1100);
+        // V12.7.7 答错：反馈停留 1.5s 后统一切下一题
+        main.postDelayed(this::nextQuiz, 1500);
     }
 
     /** V7.0 返回键：战斗内浮层（翻牌/泉/商店）打开时先关浮层并推进流程，再弹「放弃本层战斗？」二次确认。 */
