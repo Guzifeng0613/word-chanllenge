@@ -21,7 +21,8 @@
     background:radial-gradient(1200px 800px at 50% -10%, #1b3257 0%, var(--bg1) 45%, var(--bg0) 100%);
     color:var(--txt); min-height:100vh; min-height:100dvh;
   }
-  #app{width:100%; max-width:520px; margin:0 auto; min-height:100vh; min-height:100dvh; padding:14px 14px 26px; position:relative;}
+  #app{width:100%; max-width:520px; margin:0 auto; min-height:100vh; min-height:100dvh;
+    padding:14px 14px calc(26px + env(safe-area-inset-bottom,0px)); position:relative;}
   /* 撑满屏幕：手机视口全宽无留白；宽屏才居中限宽 */
   @media (max-width:600px){ #app{max-width:none;} }
   button{font-family:inherit; cursor:pointer; touch-action:manipulation; -webkit-user-select:none; user-select:none;}
@@ -139,7 +140,7 @@
   .spellcells{display:flex; gap:6px; justify-content:center; margin:14px 0 3px; position:relative;}
   .spellcell{height:42px; border-radius:8px; border:2px solid var(--line); background:#13243c;
     display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800;
-    color:#fff; text-transform:lowercase; flex:1; max-width:38px;}
+    color:#fff; text-transform:lowercase; flex:1 1 0; min-width:22px; max-width:38px;}
   .spellcell.hint{border-color:var(--gold); color:var(--gold);}
   .spellcell.active{border-color:var(--cyan); animation:cellactive 1s ease-in-out infinite;}
   @keyframes cellactive{0%,100%{box-shadow:0 0 6px rgba(56,189,248,.4)}50%{box-shadow:0 0 14px rgba(56,189,248,.75)}}
@@ -150,6 +151,14 @@
   @keyframes cellok{0%{transform:scale(1.18);box-shadow:0 0 16px rgba(52,211,153,.6)}100%{transform:scale(1)}}
   @keyframes cellbad{0%,100%{transform:scale(1)}40%{transform:scale(.86) translateY(3px)}}
   .spellhidden{position:absolute; opacity:0; height:1px; width:1px; left:0; top:0;}
+  /* 短词格子放大、整体居中，保证视觉重心稳定 */
+  .spellcells[data-n="2"]{gap:10px;}
+  .spellcells[data-n="2"] .spellcell{max-width:50px; height:50px; font-size:23px;}
+  .spellcells[data-n="3"]{gap:8px;}
+  .spellcells[data-n="3"] .spellcell{max-width:46px; height:46px; font-size:22px;}
+  .spellcells[data-n="4"] .spellcell{max-width:42px; height:44px;}
+  .spellcells[data-n="5"], .spellcells[data-n="6"]{width:100%; max-width:300px; margin-left:auto; margin-right:auto;}
+  .spellcells[data-n="7"], .spellcells[data-n="8"], .spellcells[data-n="9"]{width:100%; max-width:340px; margin-left:auto; margin-right:auto; gap:5px;}
   .spelltap{text-align:center; font-size:13px; color:var(--mut); margin-top:6px;}
 
   /* V3 快速判断 judge */
@@ -280,7 +289,7 @@
 
  /* ===== 词性标签 ===== */
  .posbadge{display:inline-block; font-size:12px; font-weight:700; padding:1px 8px; border-radius:6px;
-   border:1px solid; background:rgba(255,255,255,.04); margin:0 2px;}
+   border:1px solid; background:rgba(255,255,255,.04); margin:0 2px; white-space:nowrap; flex:none;}
  .qhead .posbadge{font-size:13px;}
 
  /* ===== 复仇：再战徽章 ===== */
@@ -420,7 +429,7 @@
 
  /* 一屏放下：低视口进一步压缩战斗页垂直空间 */
  @media (max-height:740px){
-   #app{padding-top:10px; padding-bottom:14px;}
+   #app{padding-top:10px; padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));}
    .topbar{margin-bottom:8px;}
    .enemy .face{width:36px; height:36px; font-size:19px; margin-bottom:4px;}
    .enemy.boss .face{width:44px; height:44px;}
@@ -429,7 +438,7 @@
    .combo-line{margin:6px 0 0;}
    .qword{font-size:24px;}
    .judge-word{font-size:26px;}
-   .opt{min-height:42px; padding:8px 12px;}
+   .opt{min-height:44px; padding:9px 12px;}
    .opts{gap:7px; margin-top:8px;}
    .spellcell{height:38px;}
    .timer{margin-top:6px;}
@@ -586,7 +595,9 @@
 
  .info-tip{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
    border-radius:50%; font-size:10px; font-weight:800; color:var(--mut); background:#22385e;
-   border:1px solid var(--line); margin-left:4px; vertical-align:1px; line-height:1; cursor:pointer;}
+   border:1px solid var(--line); margin-left:4px; vertical-align:1px; line-height:1; cursor:pointer;
+   position:relative;}
+ .info-tip::after{content:""; position:absolute; inset:-13px;}   /* 扩大透明点击热区 */
  .info-tip:active{transform:scale(.92);}
 
  #tipbox{position:fixed; z-index:999; max-width:260px; padding:11px 13px; border-radius:10px;
@@ -764,6 +775,46 @@ body.scene-quick #ambient .amb-glow{background:
 .timer.danger > i{background:linear-gradient(90deg,var(--red),#fb7185);}
 @keyframes timerDanger{0%{transform:scaleX(1);}100%{transform:scaleX(1.02);}}
 .timetxt.danger{color:var(--red); font-weight:800; animation:timerDanger .5s ease-in-out infinite alternate;}
+
+/* ============================================================
+ * V12.1 UI 优化：顶部 Toast 系统（不遮挡内容）
+ * ============================================================ */
+#toastbar{position:fixed; top:calc(env(safe-area-inset-top,0px) + 10px); left:0; right:0;
+  z-index:140; display:flex; flex-direction:column; align-items:center; gap:6px;
+  pointer-events:none; padding:0 14px;}
+#toastbar .toast{max-width:100%; width:max-content; max-width:88%;
+  padding:9px 15px; border-radius:11px; font-size:13px; font-weight:600; line-height:1.4;
+  color:#fff; text-align:center;
+  background:linear-gradient(180deg,#2a436b,#1d3255); border:1px solid #3b5d8f;
+  box-shadow:0 10px 26px -10px rgba(0,0,0,.7);
+  animation:toastIn .28s cubic-bezier(.2,.9,.3,1);}
+#toastbar .toast.success{background:linear-gradient(180deg,#0d9488,#0f766e); border-color:#14b8a6;}
+#toastbar .toast.error{background:linear-gradient(180deg,#dc2626,#b91c1c); border-color:#ef4444;}
+#toastbar .toast.info{background:linear-gradient(180deg,#b45309,#92400e); border-color:#d97706;}
+#toastbar .toast.leaving{animation:toastOut .3s ease-in forwards;}
+@keyframes toastIn{0%{transform:translateY(-14px) scale(.94); opacity:0;}
+  100%{transform:translateY(0) scale(1); opacity:1;}}
+@keyframes toastOut{0%{opacity:1; transform:translateY(0);}
+  100%{opacity:0; transform:translateY(-10px);}}
+/* 词性标签：不被挤压、不换行 */
+.posbadge-inline{display:inline-flex; align-items:center; white-space:nowrap;
+  font-size:12px; font-weight:700; padding:1px 7px; border-radius:6px; margin-left:8px;
+  background:rgba(56,189,248,.16); color:var(--cyan); border:1px solid rgba(56,189,248,.35);
+  vertical-align:middle;}
+/* 小提示框淡入（去抖动） */
+#tipbox{animation:tipFade .16s ease-out;}
+@keyframes tipFade{0%{opacity:0;}100%{opacity:1;}}
+/* 词数骨架加载 */
+.bcount.loading{color:var(--mut); opacity:.6; animation:skelPulse 1.2s ease-in-out infinite;}
+@keyframes skelPulse{0%,100%{opacity:.35;}50%{opacity:.8;}}
+/* 独立页面（错词本/成就/统计/玩法）返回式顶部条，不显示战斗节点 */
+.subtop{display:flex; align-items:center; justify-content:space-between;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 6px 10px;}
+.subtop .subback{width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+  font-size:26px; line-height:1; color:var(--txt); border-radius:10px;
+  background:var(--card); border:1px solid var(--line);}
+.subtop .subtitle{font-size:17px; font-weight:800; color:var(--txt);}
+.subtop .subright{width:38px;}
 </style>
 </head>
 <body>
@@ -773,6 +824,7 @@ body.scene-quick #ambient .amb-glow{background:
 </div>
 <div id="app"></div>
 <div class="vignette" id="vignette"></div>
+<div id="toastbar"></div>
 <div id="tipbox"></div>
 <div class="backconfirm" id="backconfirm">
   <div class="bc-card">
@@ -1384,7 +1436,7 @@ function getBookStats(){
 }
 function bookCount(id){
   if(apiData&&apiData.bm&&apiData.bm.counts) return apiData.bm.counts[id]||0;
-  return 0;
+  return null;   // 元数据未加载：返回 null，界面显示骨架而非 0
 }
 function totalWordCount(){
   if(apiData&&apiData.bm&&apiData.bm.total) return apiData.bm.total;
@@ -2086,7 +2138,7 @@ function nextQuestion(){
   }
   if(!pick) pick=pickWordAndType(preferType);
   if(!pick){   // 本地词库为空（词库在后端）：提示并返回主页，不进空白战斗
-    apiToast('当前词书无可用单词 · 请连接后端或更换词书');
+    apiToast('当前词书无可用单词 · 请连接后端或更换词书','error');
     G.screen='home'; render(); return;
   }
   // 若该词本局已答错，本次是它的重现，计数+1（达到上限后下次不再抽）
@@ -2111,7 +2163,7 @@ function apiDrawAndBuild(payload){
     render();
     startTimer();
   }).catch(()=>{
-    API.on=false; apiToast('后端不可达 · 已切换离线模式');
+    API.on=false; apiToast('后端不可达 · 已切换离线模式','error');
     G.screen='home'; render();
   });
 }
@@ -2252,7 +2304,7 @@ function resolve(choice,isTimeout,forceCorrect,apiRes){
       b.locked=false;                // 解锁后重入结算（表现层）
       resolve(choice,isTimeout,res.correct,res);
     }).catch(()=>{
-      API.on=false; b.locked=false; apiToast('网络异常 · 已切换离线模式'); resolve(choice,isTimeout,forceCorrect);
+      API.on=false; b.locked=false; apiToast('网络异常 · 已切换离线模式','error'); resolve(choice,isTimeout,forceCorrect);
     });
     return;
   }
@@ -2949,6 +3001,13 @@ function topbar(){
     <span class="layer-tag">${isEndless()?'无尽 · ':''}第 ${G.layer} 层 · 词境</span>
     <span class="dots">${dots}</span></div>`;
 }
+/* 独立页面返回式顶部条：返回箭头 + 标题，不显示战斗节点进度 */
+function subTopbar(title){
+  return `<div class="subtop">
+    <span class="subback" data-act="homeback">‹</span>
+    <span class="subtitle">${title}</span>
+    <span class="subright"></span></div>`;
+}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 
 function viewHome(){
@@ -3063,7 +3122,7 @@ function viewSettings(){
    <div class="subhead">
      <button class="back" data-act="homeback">‹</button>
      <span class="st">设置</span>
-     <span class="smut">V8.0 · Java 后端版</span>
+     <span class="smut">V12.1</span>
    </div>
 
    <div class="card">
@@ -3071,8 +3130,9 @@ function viewSettings(){
      <div class="book-grid">
        ${BOOKS.map(b=>{
          const c=bookCount(b.id);
+         const cnt=c===null?'<span class="bcount loading">—</span>':c+' 词';
          return `<button class="book-opt ${SETTINGS.book===b.id?'on':''}" data-book="${b.id}">
-           <span class="bcheck">✓</span><span class="bname">${b.name}</span><span class="bcount">${c} 词</span></button>`;
+           <span class="bcheck">✓</span><span class="bname">${b.name}</span><span class="bcount">${cnt}</span></button>`;
        }).join('')}
      </div>
      <div class="sec-h" style="margin-top:12px;">难度选择<span class="info-tip" data-tip="<b>自适应</b>：按你的能力 θ 动态调整题目难度，把正确率稳定在 85% 左右；选具体难度则锁定该档抽词。">?</span></div>
@@ -3081,7 +3141,7 @@ function viewSettings(){
      </div>
      <div class="range-line">
        <span>当前范围：<b>${curBook.name}${isAdaptive()?' · 自适应':curDiff.name!=='全部'?' · '+curDiff.name:''}</b></span>
-       <span class="rcount">${bookCount(SETTINGS.book)} 词</span>
+       <span class="rcount">${(c=>c===null?'—':c+' 词')(bookCount(SETTINGS.book))}</span>
      </div>
      <div class="set-row" style="border-top:1px solid rgba(51,80,122,.45); margin-top:6px;">
        <span>掌握进度（《${curBook.name}》）</span><span class="v">${bookMastered} / ${bookTotal}</span>
@@ -3172,7 +3232,7 @@ function viewSettings(){
      <div class="about-line">词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）<br>
        学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）<br>
        模式：远征 3 层闯关 · 无尽下潜挑战 · 错词 2 次封顶<br>
-       版本：V8.0 · 原生 Java 后端版（词库由 App 内本地服务提供，完全离线）</div>
+       版本：V12.1（词库由 App 内本地服务提供，完全离线；联网时自动读美式发音）</div>
    </div>
 
    <button class="ghostbtn" data-act="reset" style="margin-top:12px;">清空所有学习进度</button>`;
@@ -3183,8 +3243,8 @@ function viewAchievements(){
   const m=P.meta;
   const achCount=Object.keys(m.ach).length;
   return `
-   ${topbar()}
-   <div class="card"><div class="panel-title">成就墙（${achCount}/${ACHIEVEMENTS.length}）</div>
+   ${subTopbar(`成就墙（${achCount}/${ACHIEVEMENTS.length}）`)}
+   <div class="card" style="margin-top:4px;">
      <div class="center mut">完成挑战解锁成就，记录你的成长</div></div>
    <div class="card" style="margin-top:12px;">
      <div class="ach-grid">
@@ -3210,8 +3270,8 @@ function viewStats(){
   const bookPct=bookTotal>0?Math.round(bookMastered/bookTotal*1000)/10:0;
   const bookSeen=_bs.seen;
   return `
-   ${topbar()}
-   <div class="card"><div class="panel-title">学习统计</div>
+   ${subTopbar('学习统计')}
+   <div class="card" style="margin-top:4px;">
      <div class="center mut">《${curBook.name}》口径 · 数据来自本地进度</div></div>
    <div class="card" style="margin-top:12px;">
      <div class="sec-h">今日目标</div>
@@ -3237,8 +3297,8 @@ function viewStats(){
 /* 怎么玩（二级页） */
 function viewHowto(){
   return `
-   ${topbar()}
-   <div class="card"><div class="panel-title">怎么玩</div></div>
+   ${subTopbar('怎么玩')}
+   <div class="card" style="margin-top:4px;"></div>
    <div class="card" style="margin-top:12px;">
      <div class="howto">
        · 答对单词攻击敌人，<b>答得越快伤害越高</b>，连击还会再加成。<br>
@@ -3292,9 +3352,8 @@ function viewWrongBook(){
   const gColor={3:'var(--red)',2:'var(--orange)',1:'var(--gold)'};
   const groups=[3,2,1].map(g=>list.filter(x=>x.g===g));
   return `
-   ${topbar()}
+   ${subTopbar('错词本')}
    <div class="card">
-     <div class="panel-title">错词本</div>
      <div class="center mut">按错误次数分级，顽固词反复出现，答对降级直至掌握</div>
    </div>
    ${[3,2,1].map(g=>{
@@ -3319,7 +3378,7 @@ function spellCells(q){
   const word=q.word;
   const cells=word.split('').map((ch,i)=>
     `<div class="spellcell ${i===0?'active':''}" data-i="${i}"></div>`).join('');
-  return `<div class="spellcells" id="spellcells">${cells}</div>
+  return `<div class="spellcells" id="spellcells" data-n="${word.length}">${cells}</div>
     <input id="spellinput" class="spellhidden" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="latin" enterkeyhint="done">
     <div class="spelltap" id="spelltap">首字母 ${word[0].toUpperCase()}，共 ${word.length} 个字母，点击此处拼写</div>`;
 }
@@ -3819,7 +3878,7 @@ function afterRender(){
       if(v){ localStorage.setItem('wd_api_base',v); }
       else { localStorage.removeItem('wd_api_base'); localStorage.removeItem('wd_api_token'); }
       API.base=v; API.token=localStorage.getItem('wd_api_token');
-      API.init().then(on=>{ if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); } else { apiToast('连接失败 · 保持离线'); render(); } });
+      API.init().then(on=>{ if(on){ apiToast('后端已连接 · 进度将同步','success'); loadApiData().then(()=>render()); } else { apiToast('连接失败 · 保持离线','error'); render(); } });
       return;
     }
     if(a==='reset'){ if(confirm('确定清空所有学习进度？')){ Save.reset(); P={words:{}}; newRun(); render(); } }
@@ -3839,17 +3898,35 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ⓘ 弹窗：显示/关闭（只绑定一次，不随 render 累积） */
-function apiToast(msg){
-  const t=document.getElementById('tipbox');
-  if(!t) return;
-  t.innerHTML='<span style="color:var(--gold)">'+msg+'</span>';
-  t.style.display='block';
-  t.style.left=Math.max(8,(window.innerWidth-220)/2)+'px';
-  t.style.top='38%';
-  t.style.background='linear-gradient(180deg,#b45309,#92400e)';
-  clearTimeout(apiToast._t);
-  apiToast._t=setTimeout(()=>{ t.style.display='none'; t.style.background=''; },2400);
-}
+/* ============================================================
+ * V12.1 顶部 Toast：排队/合并，不遮挡内容
+ * ============================================================ */
+const Toast={
+  queue:[], active:false,
+  show(msg,type,hold){
+    type=type||'info'; hold=hold||2200;
+    // 合并：与队尾或当前相同内容则不重复
+    const same=this.queue.find(q=>q.msg===msg);
+    if(same) return;
+    this.queue.push({msg,type,hold});
+    if(!this.active) this._next();
+  },
+  _next(){
+    const bar=document.getElementById('toastbar');
+    if(!this.queue.length){ this.active=false; return; }
+    this.active=true;
+    const {msg,type,hold}=this.queue.shift();
+    const el=document.createElement('div');
+    el.className='toast '+type; el.textContent=msg;
+    bar.appendChild(el);
+    const done=()=>{
+      el.classList.add('leaving');
+      setTimeout(()=>{ el.remove(); this._next(); },300);
+    };
+    setTimeout(done,hold);
+  }
+};
+function apiToast(msg,type){ Toast.show(msg,type||'info'); }
 
 function showTip(el){
   const tipbox=document.getElementById('tipbox');
@@ -3906,10 +3983,13 @@ render();
 initAndroidBack();
 function bootWithRetry(fast){
   API.init().then(on=>{
-    if(on){ apiToast('后端已连接 · 进度将同步'); loadApiData().then(()=>render()); }
+    if(on){ apiToast('后端已连接 · 进度将同步','success'); loadApiData().then(()=>render()); }
     else{
-      const why=API.jsiFail ? (' · '+API.jsiFail) : (API.capFail ? (' · '+API.capFail) : (IS_APP ? ' · HTTP 探测失败' : ' · 未配置后端'));
-      apiToast('本地后端未启动 · 词书不可用（'+(fast?'3':'15')+' 秒后自动重试）'+why);
+      if(fast){
+        // 仅首次失败显示完整提示；后续自动重试静默，不反复遮挡
+        const why=API.jsiFail ? (' · '+API.jsiFail) : (API.capFail ? (' · '+API.capFail) : (IS_APP ? ' · HTTP 探测失败' : ' · 未配置后端'));
+        apiToast('本地后端未启动 · 词书暂不可用，将在后台自动重试'+why,'error');
+      }
       render();
       setTimeout(()=>bootWithRetry(false), fast?3000:15000);
     }
