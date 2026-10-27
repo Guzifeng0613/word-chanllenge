@@ -363,10 +363,10 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
-        // 答题反馈条（V12.7.5：浮屏中偏上 x50 y30，实心深底高对比，先高不透明度停留后快速淡出）
+        // 答题反馈条（V12.7.6：浮屏中偏上 x50 y30 连击行区，纯黑实底高对比，不透明度拉满停1秒后快速渐退）
         feedbackBar = new FrameLayout(getContext());
         feedbackBar.setVisibility(GONE);
-        feedbackBar.setBackground(Ui.card(12, 0xFF0D1B30, 2, Ui.GOLD));
+        feedbackBar.setBackground(Ui.card(12, 0xFF000000, 2, Ui.GOLD));
         LinearLayout resultV = new LinearLayout(getContext());
         resultV.setOrientation(LinearLayout.VERTICAL);
         resultV.setGravity(Gravity.CENTER);
@@ -437,7 +437,7 @@ public class BattleView extends FrameLayout {
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
             resultMsg.setTextColor(ok ? Ui.GREEN : Ui.RED);
-            feedbackBar.setBackground(Ui.card(12, 0xFF0D1B30, 2, ok ? Ui.GREEN : Ui.RED));
+            feedbackBar.setBackground(Ui.card(12, 0xFF000000, 2, ok ? Ui.GREEN : Ui.RED));
             feedbackBar.setVisibility(VISIBLE);
             feedbackBar.setAlpha(1f);
             feedbackBar.setScaleX(0.85f);
