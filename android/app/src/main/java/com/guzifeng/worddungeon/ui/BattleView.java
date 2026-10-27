@@ -363,7 +363,7 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
-        // 答题反馈条（自由位置 x50 y39，临时显示）
+        // 答题反馈条（V12.7.4：浮在屏幕正中，遮住中间连接区；高不透明度停留后快速淡出）
         feedbackBar = new FrameLayout(getContext());
         feedbackBar.setVisibility(GONE);
         feedbackBar.setBackground(Ui.card(12, Ui.CARD2, 1, Ui.GOLD));
@@ -378,9 +378,8 @@ public class BattleView extends FrameLayout {
         resultMsg.setGravity(Gravity.CENTER);
         resultV.addView(resultMsg);
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-        addView(feedbackBar);
+        addView(feedbackBar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         resultBox = resultV;
-        placeAt(feedbackBar, 50, 39);
 
         // 词魔出现提示（自由位置 x73 y30，召唤时短暂显示）
         summonBanner = new TextView(getContext());
@@ -429,7 +428,7 @@ public class BattleView extends FrameLayout {
         return v;
     }
 
-    /** 答题反馈条：答对/答错集中显示在屏幕中部（x50 y39），hold 毫秒后自动隐藏。 */
+    /** 答题反馈条：浮在屏幕正中，先高不透明度停留约 1 秒后快速淡出。 */
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
@@ -1277,7 +1276,7 @@ public class BattleView extends FrameLayout {
                     showFeed("+" + damage, Ui.GOLD);
                 }
                 // V12.6 底部反馈条：答对 ✓ 集中显示（短停留，不打断打击动效）
-                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 900);
+                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 1000);
                 // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
                 showJudgeGrade(quiz.optString("qtype"), quiz.optDouble("timeLimit", 6));
                 if (xpGain > 0) popXp(xpGain);
@@ -1347,7 +1346,7 @@ public class BattleView extends FrameLayout {
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
                     // V12.6 错误反馈集中到底部反馈条：红色大字+正确答案，停留 2.2s
-                    showAnswerResult(false, "正确答案：" + correctAnswer, 2200);
+                    showAnswerResult(false, "正确答案：" + correctAnswer, 1000);
                     // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
                     spellTilesWrong(correctAnswer);
                     try {
@@ -1376,7 +1375,7 @@ public class BattleView extends FrameLayout {
                         display = correctAnswer;
                     }
                     // V12.6 错误反馈集中到底部反馈条（不再全屏中部，避免遮挡/显示不全）
-                    showAnswerResult(false, "正确答案：" + display, 2200);
+                    showAnswerResult(false, "正确答案：" + display, 1000);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
