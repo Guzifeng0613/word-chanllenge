@@ -56,7 +56,7 @@ public final class GameConfig {
     public static final double TARGET_RATE = 0.85;
 
     // 每日新词上限
-    public static final int NEW_CAP = 20;
+    public static final int NEW_CAP = 150;
 
     // 无尽
     public static final double ENDLESS_HP_STEP = 0.15;
