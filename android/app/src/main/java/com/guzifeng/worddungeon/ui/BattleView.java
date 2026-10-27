@@ -101,6 +101,11 @@ public class BattleView extends FrameLayout {
     private LinearLayout topRight;
     private HpBar enemyHp, playerHp;
     private TextView posTag, revTag, promptTxt, ladderTxt, qBody, timerTxt;
+    private TextView enemyLevel;              // V12.6 敌人等级图标行（替代名字）
+    private FrameLayout feedbackBar;          // V12.6 底部反馈条（连击⇄对错）
+    private LinearLayout comboBox, resultBox; // V12.6 连击态 / 对错态容器
+    private TextView resultBig, resultMsg;    // V12.6 对错反馈大字与文案
+    private Runnable restoreComboRunnable;    // V12.6 反馈结束后恢复连击态
     private FrameLayout answerArea;
     private LinearLayout timerTrack;
     private View timerFill;
@@ -182,9 +187,12 @@ public class BattleView extends FrameLayout {
         faceWrap.addView(enemyGlow);
         faceWrap.addView(enemyEmoji, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         ebox.addView(faceWrap);
-        enemyName = Ui.text(getContext(), "词魔", 15, Ui.TXT, true);
+        // V12.6 敌人等级图标行（替代名字：👑首领 / ⚡精英 / 💠普通）
+        enemyLevel = Ui.text(getContext(), "💠", 18, Ui.CYAN, false);
+        enemyLevel.setGravity(Gravity.CENTER);
+        ebox.addView(enemyLevel);
+        enemyName = Ui.text(getContext(), "", 0, Ui.TXT, true);   // 保留引用避免下游 NPE，不再显示
         enemyName.setGravity(Gravity.CENTER);
-        ebox.addView(enemyName);
         enemyTag = Ui.text(getContext(), "普通战", 11, Ui.CYAN, true);
         enemyTag.setGravity(Gravity.CENTER);
         ebox.addView(enemyTag);
@@ -197,51 +205,11 @@ public class BattleView extends FrameLayout {
         hpNumTxt = Ui.text(getContext(), "100 / 100", 11, Ui.TXT, true);
         hpNumTxt.setGravity(Gravity.CENTER);
         ebox.addView(hpNumTxt);
-        // V7.0 本场微目标卡（敌人卡下方，实时进度）
-        goalBox = new LinearLayout(getContext());
-        goalBox.setOrientation(LinearLayout.HORIZONTAL);
-        goalBox.setGravity(Gravity.CENTER_VERTICAL);
-        goalBox.setPadding(dp(10), dp(8), dp(10), dp(8));
-        goalBox.setBackground(Ui.card(10, Ui.BG_PILL, 1, Ui.LINE));
-        TextView star = Ui.text(getContext(), "✨", 12, Ui.GOLD, false);
-        goalBox.addView(star);
-        goalBox.addView(Ui.spacer(getContext(), 6));
-        goalTxt = Ui.text(getContext(), "本场无错击败敌人", 11.5f, Ui.TXT, true);
-        goalBox.addView(goalTxt, new LinearLayout.LayoutParams(0, -2, 1f));
-        goalState = Ui.text(getContext(), "进行中", 11, Ui.GOLD, true);
-        goalBox.addView(goalState);
-        ebox.addView(goalBox);
+        // V12.6 微目标卡不再显示（避免杂乱；目标进度并入连击反馈条）
+        goalBox = null;
         enemyCard = ebox;
         col.addView(ebox);
-        col.addView(spacer(6));
-
-        // combo-line（V7.0 金色连击大字）
-        LinearLayout comboRow = new LinearLayout(getContext());
-        comboRow.setOrientation(LinearLayout.HORIZONTAL);
-        comboRow.setGravity(Gravity.CENTER);
-        comboLab = Ui.text(getContext(), "连击", 12, Ui.MUT, true);
-        comboRow.addView(comboLab);
-        comboNum = Ui.text(getContext(), "0", 26, Ui.GOLD, true);
-        comboNum.setPadding(dp(8), 0, dp(8), 0);
-        comboRow.addView(comboNum);
-        comboSub = Ui.text(getContext(), "", 12, Ui.GOLD, false);
-        comboRow.addView(comboSub);
-        col.addView(comboRow);
-        // V11.8 连击心流槽：5 格 dots，答对点亮、满 5 触发心流闪光（前瞻钩子）
-        LinearLayout dotRow = new LinearLayout(getContext());
-        dotRow.setOrientation(LinearLayout.HORIZONTAL);
-        dotRow.setGravity(Gravity.CENTER);
-        for (int i = 0; i < 5; i++) {
-            TextView d = Ui.text(getContext(), "", 6, Ui.TEAL, false);
-            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(7), dp(7));
-            d.setBackground(Ui.pill(0xFF0E2238, 0xFF33507A));
-            d.setAlpha(0.55f);
-            if (i > 0) dl.leftMargin = dp(5);
-            dotRow.addView(d, dl);
-            comboDots.add(d);
-        }
-        col.addView(dotRow);
-        col.addView(spacer(4));
+        col.addView(flexSpacer());   // V12.6 弹性空隙：答题区垂直居中
 
         // 题目卡（V7.0 qcard：qhead 大字 + 词性徽章 + 复仇徽章 + 提示 + 阶梯 + 计时）
         LinearLayout qbox = new LinearLayout(getContext());
@@ -286,8 +254,57 @@ public class BattleView extends FrameLayout {
         // 答题区（V11.5 高度上调以容纳拼写字母格 + 确认按钮）
         answerArea = new FrameLayout(getContext());
         answerArea.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
-        col.addView(answerArea, new LinearLayout.LayoutParams(-1, dp(166)));
-        col.addView(spacer(8));
+        col.addView(answerArea, new LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT));
+        col.addView(flexSpacer());   // V12.6 答题区下方弹性空隙，整体居中
+
+        // V12.6 底部反馈条：常驻连击态（comboBox）⇄ 对错反馈态（resultBox）
+        feedbackBar = new FrameLayout(getContext());
+        feedbackBar.setBackground(Ui.card(12, Ui.CARD2, 1, Ui.LINE));
+        LinearLayout comboBoxV = new LinearLayout(getContext());
+        comboBoxV.setOrientation(LinearLayout.VERTICAL);
+        comboBoxV.setGravity(Gravity.CENTER);
+        comboBoxV.setPadding(dp(10), dp(4), dp(10), dp(4));
+        LinearLayout comboRow = new LinearLayout(getContext());
+        comboRow.setOrientation(LinearLayout.HORIZONTAL);
+        comboRow.setGravity(Gravity.CENTER);
+        comboLab = Ui.text(getContext(), "连击", 12, Ui.MUT, true);
+        comboRow.addView(comboLab);
+        comboNum = Ui.text(getContext(), "0", 26, Ui.GOLD, true);
+        comboNum.setPadding(dp(8), 0, dp(8), 0);
+        comboRow.addView(comboNum);
+        comboSub = Ui.text(getContext(), "", 12, Ui.GOLD, false);
+        comboRow.addView(comboSub);
+        comboBoxV.addView(comboRow);
+        LinearLayout dotRow = new LinearLayout(getContext());
+        dotRow.setOrientation(LinearLayout.HORIZONTAL);
+        dotRow.setGravity(Gravity.CENTER);
+        for (int i = 0; i < 5; i++) {
+            TextView d = Ui.text(getContext(), "", 6, Ui.TEAL, false);
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(7), dp(7));
+            d.setBackground(Ui.pill(0xFF0E2238, 0xFF33507A));
+            d.setAlpha(0.55f);
+            if (i > 0) dl.leftMargin = dp(5);
+            dotRow.addView(d, dl);
+            comboDots.add(d);
+        }
+        comboBoxV.addView(dotRow);
+        feedbackBar.addView(comboBoxV, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
+        comboBox = comboBoxV;
+        LinearLayout resultV = new LinearLayout(getContext());
+        resultV.setOrientation(LinearLayout.VERTICAL);
+        resultV.setGravity(Gravity.CENTER);
+        resultV.setPadding(dp(10), dp(6), dp(10), dp(6));
+        resultBig = Ui.text(getContext(), "✓", 28, Ui.GREEN, true);
+        resultBig.setGravity(Gravity.CENTER);
+        resultV.addView(resultBig);
+        resultMsg = Ui.text(getContext(), "", 13, Ui.GREEN, true);
+        resultMsg.setGravity(Gravity.CENTER);
+        resultV.addView(resultMsg);
+        resultV.setVisibility(GONE);
+        feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
+        resultBox = resultV;
+        col.addView(feedbackBar);
+        col.addView(spacer(6));
 
         // 玩家 HUD（V7.0 playerhud：生命标签 + 绿血条 + 词魂计数）
         LinearLayout pbox = new LinearLayout(getContext());
@@ -359,6 +376,34 @@ public class BattleView extends FrameLayout {
             if (hpLab != null) hpLab.setText("生命 " + Math.max(0, hp) + "/100");
             if (playerHp != null) playerHp.setRatio(Math.max(0f, hp) / 100f);
             if (soulNum != null) soulNum.setText("💠 词魂 " + act.souls);
+        } catch (Throwable ignore) {}
+    }
+
+    /** V12.6 弹性空隙：占满剩余空间，用于答题区垂直居中。 */
+    private View flexSpacer() {
+        View v = new View(getContext());
+        v.setLayoutParams(new LinearLayout.LayoutParams(1, 1, 1f));
+        return v;
+    }
+
+    /** V12.6 底部反馈条·对错态：答对/答错集中显示，hold 毫秒后恢复连击态。 */
+    private void showAnswerResult(boolean ok, String text, int holdMs) {
+        try {
+            if (feedbackBar == null || comboBox == null || resultBox == null) return;
+            resultBig.setText(ok ? "✓" : "✗");
+            resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
+            resultMsg.setText(text);
+            resultMsg.setTextColor(ok ? Ui.GREEN : Ui.RED);
+            comboBox.setVisibility(GONE);
+            resultBox.setVisibility(VISIBLE);
+            main.removeCallbacks(restoreComboRunnable);
+            restoreComboRunnable = () -> {
+                try {
+                    resultBox.setVisibility(GONE);
+                    comboBox.setVisibility(VISIBLE);
+                } catch (Throwable ignore) {}
+            };
+            main.postDelayed(restoreComboRunnable, holdMs);
         } catch (Throwable ignore) {}
     }
 
@@ -471,7 +516,11 @@ public class BattleView extends FrameLayout {
             boolean elite = e.optBoolean("elite", false);
             enemyTag.setText(boss ? "Boss 战" : elite ? "精英战" : "普通战");
             enemyTag.setTextColor(boss ? Ui.RED : elite ? Ui.ORANGE : Ui.CYAN);
-            applyEnemyGlow(boss, elite, e.optBoolean("champion", false));
+            // V12.6 等级图标：👑首领 / ⚡精英 / 💠普通（champion 金色）
+            boolean champion = e.optBoolean("champion", false);
+            enemyLevel.setText(boss ? "👑" : elite ? "⚡" : "💠");
+            enemyLevel.setTextColor(boss ? Ui.RED : elite ? Ui.ORANGE : champion ? Ui.GOLD : Ui.CYAN);
+            applyEnemyGlow(boss, elite, champion);
             // R2-3：新怪入场演出（淡入+上浮 230ms），结束后启动待机浮动循环
             enemyEmoji.animate().alpha(1f).translationY(0f).setDuration(230)
                     .withEndAction(this::idleFloat).start();
@@ -505,10 +554,11 @@ public class BattleView extends FrameLayout {
     private void buildTopRight() {
         topRight.removeAllViews();
         if ("quick".equals(mode)) {
-            TextView out = Ui.text(getContext(), "‹ 退出快刷", 12.5f, Ui.CYAN, true);
+            TextView out = Ui.text(getContext(), "‹ 退出快刷", 14, Ui.CYAN, true);
+            Ui.pressable(out);
             out.setOnClickListener(v -> onBack());
             topRight.addView(out);
-            TextView done = Ui.text(getContext(), "已刷 " + quickDone + " 词", 12, Ui.MUT, false);
+            TextView done = Ui.text(getContext(), "已刷 " + quickDone + " 词", 14, Ui.MUT, false);
             topRight.addView(done);
             return;
         }
@@ -765,6 +815,7 @@ public class BattleView extends FrameLayout {
                     // V7.0：点格子/点提示自动聚焦拼写输入框（隐藏 input 等效处理）
                     final TextView ft = t;
                     t.setClickable(true);
+                    Ui.pressable(t);   // V12.6 格子点击按压反馈
                     t.setOnClickListener(v -> focusSpell());
                     LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(ts, ts);
                     t.setLayoutParams(cl);
@@ -1154,6 +1205,8 @@ public class BattleView extends FrameLayout {
                 } else {
                     showFeed("+" + damage, Ui.GOLD);
                 }
+                // V12.6 底部反馈条：答对 ✓ 集中显示（短停留，不打断打击动效）
+                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 900);
                 // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
                 showJudgeGrade(quiz.optString("qtype"), quiz.optDouble("timeLimit", 6));
                 if (xpGain > 0) popXp(xpGain);
@@ -1222,7 +1275,8 @@ public class BattleView extends FrameLayout {
                 // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
-                    showFeed("正确答案：" + correctAnswer, Ui.RED);
+                    // V12.6 错误反馈集中到底部反馈条：红色大字+正确答案，停留 2.2s
+                    showAnswerResult(false, "正确答案：" + correctAnswer, 2200);
                     // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
                     spellTilesWrong(correctAnswer);
                     try {
@@ -1250,7 +1304,8 @@ public class BattleView extends FrameLayout {
                     } else {
                         display = correctAnswer;
                     }
-                    showFeed("✗ 正确答案：" + display, Ui.RED);
+                    // V12.6 错误反馈集中到底部反馈条（不再全屏中部，避免遮挡/显示不全）
+                    showAnswerResult(false, "正确答案：" + display, 2200);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
