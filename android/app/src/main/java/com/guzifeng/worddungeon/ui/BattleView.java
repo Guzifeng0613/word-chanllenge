@@ -261,7 +261,7 @@ public class BattleView extends FrameLayout {
         LinearLayout qbox = new LinearLayout(getContext());
         qbox.setOrientation(LinearLayout.VERTICAL);
         qbox.setPadding(dp(14), dp(10), dp(14), dp(10));
-        qbox.setBackground(Ui.card(14, Ui.BG1, 1, Ui.LINE));
+        qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));   // UI-iteration-10：题干盒提亮 CARD2，与选项区同级
         LinearLayout headRow = new LinearLayout(getContext());
         headRow.setOrientation(LinearLayout.HORIZONTAL);
         headRow.setGravity(Gravity.CENTER_VERTICAL);
