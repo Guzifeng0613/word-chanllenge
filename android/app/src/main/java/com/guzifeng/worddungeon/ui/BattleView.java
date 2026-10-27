@@ -363,10 +363,10 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
-        // 答题反馈条（V12.7.4：浮在屏幕正中，遮住中间连接区；高不透明度停留后快速淡出）
+        // 答题反馈条（V12.7.5：浮屏中偏上 x50 y30，实心深底高对比，先高不透明度停留后快速淡出）
         feedbackBar = new FrameLayout(getContext());
         feedbackBar.setVisibility(GONE);
-        feedbackBar.setBackground(Ui.card(12, Ui.CARD2, 1, Ui.GOLD));
+        feedbackBar.setBackground(Ui.card(12, 0xFF0D1B30, 2, Ui.GOLD));
         LinearLayout resultV = new LinearLayout(getContext());
         resultV.setOrientation(LinearLayout.VERTICAL);
         resultV.setGravity(Gravity.CENTER);
@@ -374,12 +374,13 @@ public class BattleView extends FrameLayout {
         resultBig = Ui.text(getContext(), "✓", 24, Ui.GREEN, true);
         resultBig.setGravity(Gravity.CENTER);
         resultV.addView(resultBig);
-        resultMsg = Ui.text(getContext(), "", 13, Ui.GREEN, true);
+        resultMsg = Ui.text(getContext(), "", 13.5f, Ui.GREEN, true);
         resultMsg.setGravity(Gravity.CENTER);
         resultV.addView(resultMsg);
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-        addView(feedbackBar, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        addView(feedbackBar);
         resultBox = resultV;
+        placeAt(feedbackBar, 50, 30);
 
         // 词魔出现提示（自由位置 x73 y30，召唤时短暂显示）
         summonBanner = new TextView(getContext());
@@ -436,7 +437,7 @@ public class BattleView extends FrameLayout {
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
             resultMsg.setTextColor(ok ? Ui.GREEN : Ui.RED);
-            feedbackBar.setBackground(Ui.card(12, Ui.CARD2, 1, ok ? Ui.GREEN : Ui.RED));
+            feedbackBar.setBackground(Ui.card(12, 0xFF0D1B30, 2, ok ? Ui.GREEN : Ui.RED));
             feedbackBar.setVisibility(VISIBLE);
             feedbackBar.setAlpha(1f);
             feedbackBar.setScaleX(0.85f);
