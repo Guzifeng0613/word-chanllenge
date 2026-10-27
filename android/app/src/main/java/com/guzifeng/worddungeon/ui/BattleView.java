@@ -1499,6 +1499,12 @@ public class BattleView extends FrameLayout {
             // UI-iteration-04：敌人残血（>0 且 ≤30%）血条持续闪烁，已死不闪
             enemyHp.setCritical(left > 0 && (float) left / enemy.optInt("maxHp", 100) <= 0.30f);
             hpNumTxt.setText(left + " / " + enemy.optInt("maxHp", 100));
+            // UI-iteration-11：血量数字受击弹跳（与血条平滑/白闪同步，数字不再冷冰冰硬切）
+            hpNumTxt.animate().cancel();
+            hpNumTxt.setScaleX(1f); hpNumTxt.setScaleY(1f);
+            hpNumTxt.animate().scaleX(1.15f).scaleY(1.15f).setDuration(90)
+                    .withEndAction(() -> hpNumTxt.animate().scaleX(1f).scaleY(1f).setDuration(120).start())
+                    .start();
             enemyEmoji.animate().scaleX(1.35f).scaleY(1.35f).setDuration(70)
                     .withEndAction(() -> enemyEmoji.animate().scaleX(1f).scaleY(1f).setDuration(210).start()).start();
             shake(enemyEmoji, 260);
