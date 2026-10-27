@@ -34,26 +34,33 @@ public class EnemyModel {
     public final List<Tpl> normal = new ArrayList<>();
     public final List<Tpl> elite = new ArrayList<>();
     public final List<Tpl> boss = new ArrayList<>();
+    /** 远征第 5 层最终 Boss（独立于无尽循环的 boss1/2/3）。 */
+    public Tpl overlord;
     private final Random rnd;
 
     public EnemyModel() {
         rnd = WordBank.get().rnd;
-        normal.add(new Tpl("wordfiend", "词魔", new int[]{35,45,55}, new int[]{8,10,12},
+        // V12.0：普通/精英 hp/atk 由 3 元素扩为 5 元素（按下标 layer-1，逐层递增）
+        normal.add(new Tpl("wordfiend", "词魔", new int[]{32,44,70,76,90}, new int[]{7,9,11,13,15},
                 null, false, 0, null, 0, null));
-        normal.add(new Tpl("confuser", "易混词妖", new int[]{40,50,60}, new int[]{9,11,13},
+        normal.add(new Tpl("confuser", "易混词妖", new int[]{36,48,74,80,94}, new int[]{8,10,12,14,16},
                 "en2cn", true, 0, null, 0, null));
-        normal.add(new Tpl("speller", "拼写守卫", new int[]{45,55,65}, new int[]{10,12,14},
+        normal.add(new Tpl("speller", "拼写守卫", new int[]{40,52,78,84,98}, new int[]{9,11,13,15,17},
                 "spell", false, 0, null, 0, null));
-        elite.add(new Tpl("ghost", "健忘幽灵", new int[]{100,130,160}, new int[]{12,14,16},
+        elite.add(new Tpl("ghost", "健忘幽灵", new int[]{90,108,130,158,180}, new int[]{11,13,15,17,19},
                 null, false, -2, null, 0, null));
-        elite.add(new Tpl("polysem", "多义词魔", new int[]{110,140,170}, new int[]{13,15,17},
+        elite.add(new Tpl("polysem", "多义词魔", new int[]{100,118,140,168,190}, new int[]{12,14,16,18,20},
                 null, true, 0, null, 0, null));
+        // 无尽循环保留原 boss1/2/3（campaign 不再下标取它们）
         boss.add(new Tpl("boss1", "词魇·混沌", new int[]{180}, new int[]{14},
                 null, false, 0, "fog", 4, "每答 4 题释放“词雾”，下一题限时减半"));
         boss.add(new Tpl("boss2", "词魇·迷雾", new int[]{240}, new int[]{16},
                 null, false, 0, "blur", 3, "每答 3 题，下一题选项高速闪动后定格"));
         boss.add(new Tpl("boss3", "词魇·深渊", new int[]{300}, new int[]{18},
                 null, false, 0, "rage", 0, "HP 低于 50% 狂暴：限时 −2 秒、攻击 +4"));
+        // 远征第 5 层最终 Boss：高血量 + 拼写为主 + 高攻击（mech 仅描述，前端未接线）
+        overlord = new Tpl("overlord", "词魇·深渊领主", new int[]{320}, new int[]{18},
+                "spell", false, 2, "rage", 0, "HP 低于 50% 狂暴");
     }
 
     private static JSONObject tplJson(Tpl t) {
@@ -127,10 +134,13 @@ public class EnemyModel {
             return envelope(t, champion ? "冠军·" + t.name : t.name, hp, atk,
                     false, "elite".equals(kind), champion, false);
         }
-        // campaign
-        int li = layer - 1;
+        // campaign：层下标 clamp 到合法范围（0..LAYER_COUNT-1）
+        int lc = Math.max(1, Math.min(layer, GameConfig.LAYER_COUNT));
+        int li = lc - 1;
         if ("boss".equals(kind)) {
-            Tpl t = boss.get(li);
+            // 第 5 层固定 overlord；理论上更早层不会传 boss，仍 clamp 兜底防越界
+            Tpl t = lc >= GameConfig.LAYER_COUNT ? overlord
+                    : boss.get(Math.min(li, boss.size() - 1));
             return envelope(t, t.name, t.hp[0], t.atk[0], true, false, false, false);
         }
         List<Tpl> pool = "elite".equals(kind) ? elite : normal;
