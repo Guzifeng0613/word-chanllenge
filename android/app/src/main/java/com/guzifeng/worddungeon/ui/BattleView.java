@@ -89,6 +89,7 @@ public class BattleView extends FrameLayout {
     private boolean flowOn = false;        // 当前是否在心流状态
     private TextView goalLab;              // 本场微目标文案
     private String goalKind = "";           // none / combo4 / correct5 / flawless
+    private boolean lastGoalDone = false;   // UI-iteration-07：记录目标达成跳变帧，只跳一次
     private int quickDone = 0;             // 快刷已刷词数
     private int quickKills = 0;            // 快刷连续击杀数（持续模式）
     private final java.util.Map<String, String[]> layerWrong = new java.util.LinkedHashMap<>(); // 本层错词 word→[pos,mean]
@@ -682,6 +683,7 @@ public class BattleView extends FrameLayout {
         else goalTxt.setText("本场无错击败敌人");
         goalState.setText("进行中");
         goalState.setTextColor(Ui.GOLD);
+        lastGoalDone = false;   // UI-iteration-07：新敌目标重新计算，复位达成跳变帧
         goalBox.setVisibility(VISIBLE);
     }
 
@@ -694,6 +696,15 @@ public class BattleView extends FrameLayout {
         else if ("flawless".equals(goalKind)) done = wrongInRun == 0 && enemy.optInt("hp", 1) <= 0;
         goalState.setText(done ? "已达成" : "进行中");
         goalState.setTextColor(done ? Ui.GREEN : Ui.GOLD);
+        // UI-iteration-07：目标刚达成那一帧，徽章弹跳一次（仅 false→true 跳变）
+        if (done && !lastGoalDone) {
+            goalState.animate().cancel();
+            goalState.setScaleX(1f); goalState.setScaleY(1f);
+            goalState.animate().scaleX(1.18f).scaleY(1.18f).setDuration(110)
+                    .withEndAction(() -> goalState.animate().scaleX(1f).scaleY(1f).setDuration(130).start())
+                    .start();
+        }
+        lastGoalDone = done;
     }
 
     private JSONObject bodyWithQuickLevel(JSONObject body) throws Exception {
