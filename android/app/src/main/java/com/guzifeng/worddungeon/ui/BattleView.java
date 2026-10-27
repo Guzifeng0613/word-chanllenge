@@ -291,7 +291,7 @@ public class BattleView extends FrameLayout {
         timerFill.setBackground(Ui.gradient(999, Ui.GOLD, Ui.ORANGE, 0));
         timerTrack.addView(timerFill, new LinearLayout.LayoutParams(-1, dp(8)));
         qbox.addView(timerTrack, new LinearLayout.LayoutParams(-1, dp(8)));
-        timerTxt = Ui.text(getContext(), "", 11, Ui.MUT, false);
+        timerTxt = Ui.text(getContext(), "", 13, Ui.GOLD, true);   // UI-iteration-08：秒数提级 13sp 金加粗
         timerTxt.setGravity(Gravity.CENTER);
         qbox.addView(timerTxt);
         col.addView(qbox);
@@ -2129,7 +2129,7 @@ public class BattleView extends FrameLayout {
         stopDangerPulse();
         dangerStarted = false;   // UI-iteration-02：新题退出危机，还原松弛金橙
         if (timerFill != null) timerFill.setBackground(Ui.gradient(999, Ui.GOLD, Ui.ORANGE, 0));
-        setTimerText(secText(remainSec), Ui.MUT);
+        setTimerText(secText(remainSec), Ui.GOLD);   // UI-iteration-08：常态金（危机红由下方 danger 分支覆盖）
         setTimerFill(1f);
         timerTick = new Runnable() {
             @Override
@@ -2158,7 +2158,7 @@ public class BattleView extends FrameLayout {
                     int cs = (int) Math.ceil(remainSec);
                     if (cs != lastTickSec) { lastTickSec = cs; Sfx.play(getContext(), Sfx.TICK); }
                 }
-                int color = danger ? Ui.RED : Ui.MUT;
+                int color = danger ? Ui.RED : Ui.GOLD;   // UI-iteration-08：常态金，仅危机转红（i02）
                 setTimerText(secText(remainSec), color);   // R2-1：仅变化时写
                 setTimerFill(pct);
                 main.postDelayed(this, 100);
