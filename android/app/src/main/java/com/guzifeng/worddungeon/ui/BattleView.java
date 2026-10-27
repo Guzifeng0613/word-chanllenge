@@ -1003,7 +1003,13 @@ public class BattleView extends FrameLayout {
                     b.setGravity(Gravity.CENTER_VERTICAL);
                     b.setPadding(dp(8), dp(9), dp(8), dp(9));
                     // V11.5 字母徽章：A/B/C/D 方徽章 + 圆角卡片，信息层次更强
-                    b.setBackground(Ui.card(12, Ui.BG0, 1, Ui.LINE));
+                    // UI-iteration-01: 每选项独立持有 normal/pressed 两个 Drawable（不共用实例）
+                    final GradientDrawable normalBg = Ui.card(12, Ui.BG0, 1, Ui.LINE);
+                    final GradientDrawable pressedBg = new GradientDrawable();
+                    pressedBg.setColor(Ui.BG1);
+                    pressedBg.setCornerRadius(dp(12));
+                    pressedBg.setStroke(dp(1.5f), Ui.CYAN);
+                    b.setBackground(normalBg);
                     TextView key = Ui.text(getContext(), String.valueOf(keys[Math.min(j, 3)]), 13, Ui.CYAN, true);
                     key.setGravity(Gravity.CENTER);
                     key.setBackground(Ui.card(8, Ui.CARD2, 0, 0));
@@ -1014,7 +1020,26 @@ public class BattleView extends FrameLayout {
                     v.setPadding(dp(8), 0, dp(2), 0);
                     v.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
                     b.addView(v);
-                    Ui.pressable(b);
+                    // UI-iteration-01: 按压反馈强化——按下瞬间提亮(BG1)+1.5dp青边+缩到0.95；UP回弹还原
+                    b.setClickable(true);
+                    b.setOnTouchListener((view, e) -> {
+                        switch (e.getActionMasked()) {
+                            case android.view.MotionEvent.ACTION_DOWN:
+                                view.animate().scaleX(0.95f).scaleY(0.95f).setDuration(80).start();
+                                b.setBackground(pressedBg);
+                                break;
+                            case android.view.MotionEvent.ACTION_UP:
+                                b.setBackground(normalBg);
+                                view.animate().scaleX(1f).scaleY(1f).setDuration(180)
+                                        .setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+                                break;
+                            case android.view.MotionEvent.ACTION_CANCEL:
+                                b.setBackground(normalBg);
+                                view.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+                                break;
+                        }
+                        return false; // 不消费事件，保证 OnClickListener 照常触发
+                    });
                     b.setOnClickListener(vi -> { recordTap(b); submitOption(opt); });
                     row.addView(b, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (j < Math.min(i + 2, options.length()) - 1) row.addView(spacer(8));
