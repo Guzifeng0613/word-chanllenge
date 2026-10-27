@@ -13,6 +13,7 @@ public class HpBar extends View {
     private float ratio = 1f;
     private int fg = Ui.RED;
     private final int bg;
+    private boolean dynamicColor = false;   // UI-iteration-03：玩家血条随比例绿→金→红
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();          // R2-5：复用 RectF，避免每帧 onDraw 分配
     // R2-5：受击亮闪（白叠加）衰减量，独立于 ratio 动画
@@ -46,6 +47,9 @@ public class HpBar extends View {
         invalidate();
     }
 
+    /** UI-iteration-03：开启后 onDraw 按当前 ratio 临时决定前景色（不改 this.fg，避免与 setColor/flashHit 冲突）。 */
+    public void setDynamicColor(boolean d) { dynamicColor = d; invalidate(); }
+
     /** R2-5：受击瞬间白闪（高亮叠加，≤200ms 内衰减恢复）。怪物/玩家受击链路接入；与 setRatio 互不干扰。 */
     public void flashHit() {
         try {
@@ -71,7 +75,14 @@ public class HpBar extends View {
         canvas.drawRoundRect(rect, h / 2, h / 2, p);
         float fw = w * ratio;
         if (fw > h) {
-            p.setColor(fg);
+            // UI-iteration-03：玩家血条随血量比例变色（>0.55绿 / 0.30~0.55金 / ≤0.30红）
+            int drawColor = fg;
+            if (dynamicColor) {
+                if (ratio <= 0.30f)      drawColor = Ui.RED;
+                else if (ratio <= 0.55f) drawColor = Ui.GOLD;
+                else                     drawColor = Ui.GREEN;
+            }
+            p.setColor(drawColor);
             rect.set(0, 0, fw, h);
             canvas.drawRoundRect(rect, h / 2, h / 2, p);
             // R2-5：受击白闪——在 fg 上叠一层随衰减的白色高亮，180ms 内自动消退

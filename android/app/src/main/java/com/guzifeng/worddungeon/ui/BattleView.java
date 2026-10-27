@@ -312,6 +312,7 @@ public class BattleView extends FrameLayout {
         hpLab = Ui.text(getContext(), "生命 100/100", 13, Ui.TXT, true);
         hpLab.setTypeface(Typeface.DEFAULT_BOLD);
         playerHp = new HpBar(getContext(), Ui.GREEN, Ui.CARD);
+        playerHp.setDynamicColor(true);   // UI-iteration-03：玩家血条随血量绿→金→红（敌血条不开，保持红/击杀转金）
         soulNum = Ui.text(getContext(), "💠 词魂 0", 14, Ui.GOLD, true);
         soulNum.setTypeface(Typeface.DEFAULT_BOLD);
         soulNum.setPadding(dp(8), dp(4), dp(8), dp(4));
