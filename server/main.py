@@ -401,3 +401,20 @@ def stats_daily(user=Depends(current_user)):
     return {"questions": total, "correct": correct,
             "accuracy": round(correct / total, 3) if total else 0,
             "daily_goal": 40}
+
+
+@app.get("/stats/book")
+def stats_book(book: str = "gaokao", user=Depends(current_user)):
+    """词书掌握统计：总词数 / 已学 / 已毕业（mastered）。"""
+    if book not in core.BOOKS:
+        raise HTTPException(400, "未知词书，可用：" + ",".join(core.BOOKS))
+    book_words = set(o["w"] for o in core.words_by_book(book))
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT word, graduated FROM progress WHERE user_id=?",
+            (user["id"],)).fetchall()
+    seen = sum(1 for r in rows if r["word"] in book_words)
+    mastered = sum(1 for r in rows
+                   if r["word"] in book_words and r["graduated"])
+    return {"book": book, "total": len(book_words),
+            "seen": seen, "mastered": mastered}
