@@ -363,7 +363,7 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
-        // 答题反馈条（V12.7.7：浮在连击行上方 y17 处，纯黑实底高对比，不遮单词）
+        // 答题反馈条（V12.7.9：浮在词魔区域 y26 处，纯黑实底高对比）
         feedbackBar = new FrameLayout(getContext());
         feedbackBar.setVisibility(GONE);
         feedbackBar.setBackground(Ui.card(12, 0xFF000000, 2, Ui.GOLD));
@@ -380,9 +380,9 @@ public class BattleView extends FrameLayout {
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         addView(feedbackBar);
         resultBox = resultV;
-        placeAt(feedbackBar, 50, 17);
+        placeAt(feedbackBar, 50, 26);
 
-        // 词魔出现提示（自由位置 x73 y30，召唤时短暂显示）
+        // 词魔出现提示（V12.7.9：浮在词魔区域 y20 处，半透明小尺寸）
         summonBanner = new TextView(getContext());
         summonBanner.setTextSize(13);
         summonBanner.setTypeface(Typeface.DEFAULT_BOLD);
@@ -390,7 +390,8 @@ public class BattleView extends FrameLayout {
         summonBanner.setPadding(dp(10), dp(5), dp(10), dp(5));
         summonBanner.setVisibility(GONE);
         summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
-        addView(summonBanner, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        addView(summonBanner);
+        placeAt(summonBanner, 50, 20);
     }
 
     /** 自由元素按百分比定位：x/y 为相对根布局的百分比（x 为元素中心，y 为元素顶部）。 */
@@ -433,7 +434,7 @@ public class BattleView extends FrameLayout {
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
-            placeAt(feedbackBar, 50, 17);   // V12.7.8 每次显示强制定位（连击行处），避免构建时序导致位置丢失
+            placeAt(feedbackBar, 50, 26);   // V12.7.9 每次显示强制定位（词魔区域）
             resultBig.setText(ok ? "✓" : "✗");
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
