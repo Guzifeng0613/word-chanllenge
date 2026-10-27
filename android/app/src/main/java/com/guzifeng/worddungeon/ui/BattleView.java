@@ -708,7 +708,13 @@ public class BattleView extends FrameLayout {
         if ("streak4".equals(goalKind)) done = maxCombo >= 4;
         else if ("hit5".equals(goalKind)) done = correctInRun >= 5;
         else if ("flawless".equals(goalKind)) done = wrongInRun == 0 && enemy.optInt("hp", 1) <= 0;
-        goalState.setText(done ? "已达成" : "进行中");
+        // UI-iteration-13：可累积目标（streak4/hit5）过程中徽章带实时进度计数，flawless 保持二态
+        String prog = "";
+        if (!done) {
+            if ("streak4".equals(goalKind)) prog = " " + Math.min(maxCombo, 4) + "/4";
+            else if ("hit5".equals(goalKind)) prog = " " + Math.min(correctInRun, 5) + "/5";
+        }
+        goalState.setText(done ? "已达成" : "进行中" + prog);
         goalState.setTextColor(done ? Ui.GREEN : Ui.GOLD);
         // UI-iteration-07：目标刚达成那一帧，徽章弹跳一次（仅 false→true 跳变）
         if (done && !lastGoalDone) {
