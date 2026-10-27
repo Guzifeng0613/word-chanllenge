@@ -109,6 +109,8 @@ public class BattleView extends FrameLayout {
     private LinearLayout goalBox;
     private TextView goalTxt, goalState;
     private TextView soulNum, hpLab;
+    // V11.8 投射打击：记录本次点击来源坐标（选项/判断/拼写框），发射攻击弹飞向敌人
+    private float tapX = -1, tapY = -1;
     private View lowHpVignette;
     private TextView flowBanner;
     // V11.5 答题反馈：选项引用（对错高亮）+ 拼写字母格
@@ -117,6 +119,8 @@ public class BattleView extends FrameLayout {
     private LinearLayout tileRow;                 // 拼写字母格容器
     private final List<TextView> tileViews = new ArrayList<>();
     private int tileLen = 0;
+    // V11.8 连击心流槽：5 格青色 dots，答对点亮、满 5 触发心流时闪光（open loop 前瞻钩子）
+    private final List<TextView> comboDots = new ArrayList<>();
 
     private static final Map<String, String> EMOJI = new HashMap<>();
     static {
@@ -211,7 +215,21 @@ public class BattleView extends FrameLayout {
         comboSub = Ui.text(getContext(), "", 12, Ui.GOLD, false);
         comboRow.addView(comboSub);
         col.addView(comboRow);
-        col.addView(spacer(6));
+        // V11.8 连击心流槽：5 格 dots，答对点亮、满 5 触发心流闪光（前瞻钩子）
+        LinearLayout dotRow = new LinearLayout(getContext());
+        dotRow.setOrientation(LinearLayout.HORIZONTAL);
+        dotRow.setGravity(Gravity.CENTER);
+        for (int i = 0; i < 5; i++) {
+            TextView d = Ui.text(getContext(), "", 6, Ui.TEAL, false);
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(7), dp(7));
+            d.setBackground(Ui.pill(0xFF0E2238, 0xFF33507A));
+            d.setAlpha(0.55f);
+            if (i > 0) dl.leftMargin = dp(5);
+            dotRow.addView(d, dl);
+            comboDots.add(d);
+        }
+        col.addView(dotRow);
+        col.addView(spacer(4));
 
         // 题目卡（V7.0 qcard：qhead 大字 + 词性徽章 + 复仇徽章 + 提示 + 阶梯 + 计时）
         LinearLayout qbox = new LinearLayout(getContext());
@@ -262,14 +280,18 @@ public class BattleView extends FrameLayout {
         pbox.setPadding(dp(10), dp(8), dp(10), dp(8));
         pbox.setBackground(Ui.card(12, Ui.CARD2, 0, 0));
         playerEmoji = Ui.text(getContext(), "🧙", 26, Ui.TXT, false);
-        hpLab = Ui.text(getContext(), "生命", 12, Ui.MUT, true);
+        hpLab = Ui.text(getContext(), "生命 100/100", 13, Ui.TXT, true);
+        hpLab.setTypeface(Typeface.DEFAULT_BOLD);
         playerHp = new HpBar(getContext(), Ui.GREEN, Ui.CARD);
-        soulNum = Ui.text(getContext(), "词魂 0", 12.5f, Ui.GOLD, true);
+        soulNum = Ui.text(getContext(), "💠 词魂 0", 14, Ui.GOLD, true);
+        soulNum.setTypeface(Typeface.DEFAULT_BOLD);
+        soulNum.setPadding(dp(8), dp(4), dp(8), dp(4));
+        soulNum.setBackground(Ui.card(999, 0x33FCD34D, 1, 0x66FCD34D));
         pbox.addView(playerEmoji);
         pbox.addView(Ui.spacer(getContext(), 6));
         pbox.addView(hpLab);
         pbox.addView(Ui.spacer(getContext(), 8));
-        pbox.addView(playerHp, new LinearLayout.LayoutParams(0, dp(8), 1f));
+        pbox.addView(playerHp, new LinearLayout.LayoutParams(0, dp(10), 1f));
         pbox.addView(Ui.spacer(getContext(), 8));
         pbox.addView(soulNum);
         col.addView(pbox);
@@ -314,6 +336,15 @@ public class BattleView extends FrameLayout {
 
     // ── 战斗流程 ─────────────────────────────
 
+    /** V11.8 玩家 HUD 统一刷新：血条百分比 + 词魂余额。 */
+    private void updateHud() {
+        try {
+            if (hpLab != null) hpLab.setText("生命 " + Math.max(0, hp) + "/100");
+            if (playerHp != null) playerHp.setRatio(Math.max(0f, hp) / 100f);
+            if (soulNum != null) soulNum.setText("💠 词魂 " + act.souls);
+        } catch (Throwable ignore) {}
+    }
+
     public void startRun() {
         // 新一局前清掉上一局悬挂的全部回调（计时/自动提交/题链/飘字），防旧回调串题
         main.removeCallbacksAndMessages(null);
@@ -344,8 +375,9 @@ public class BattleView extends FrameLayout {
         critChance = 0.0; critMult = 2.0; comboHalved = false;
         shield = 0; soulMagnet = false; lifestealPct = 0.0;
         immortal = false; immortalUsed = false;
-        // R2-B：词魂不再每局清零，以权威余额（answer/shop 响应）为准
-        soulNum.setText("词魂 " + act.souls);
+        // 词魂局内制（V11.8）：闯关/无尽各自一局，开局清零、局内获得局内使用，不跨局
+        act.souls = 0;
+        updateHud();
         lowHpVignette.setVisibility(GONE);
         flowBanner.setVisibility(GONE);
         initTts();
@@ -615,8 +647,8 @@ public class BattleView extends FrameLayout {
                 TextView no = Ui.button(getContext(), "✗ 错", Ui.RED, Ui.BG0, false);
                 Ui.pressable(yes);
                 Ui.pressable(no);
-                yes.setOnClickListener(v -> submitJudge("yes"));
-                no.setOnClickListener(v -> submitJudge("no"));
+                yes.setOnClickListener(v -> { recordTap(yes); submitJudge("yes"); });
+                no.setOnClickListener(v -> { recordTap(no); submitJudge("no"); });
                 row.addView(yes, new LinearLayout.LayoutParams(0, -2, 1f));
                 row.addView(spacer(8));
                 row.addView(no, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -759,7 +791,7 @@ public class BattleView extends FrameLayout {
                     v.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
                     b.addView(v);
                     Ui.pressable(b);
-                    b.setOnClickListener(vi -> submitOption(opt));
+                    b.setOnClickListener(vi -> { recordTap(b); submitOption(opt); });
                     row.addView(b, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (j < Math.min(i + 2, options.length()) - 1) row.addView(spacer(8));
                     optionViews.add(b);
@@ -888,8 +920,23 @@ public class BattleView extends FrameLayout {
     private void submitSpell() {
         // 读取拼写后走统一 submit() 判定；答对清空输入框，答错保留玩家拼写做红抖/换答案展示
         if (spellInput == null) { submit(""); return; }
+        if (spellInput != null) recordTap(spellInput);
         String t = spellInput.getText().toString().trim();
         submit(t);
+    }
+
+    /** 记录本次作答点击位置（投射打击起点）。坐标换算为相对本 View 根容器的位置。 */
+    private void recordTap(View v) {
+        try {
+            int[] vc = new int[2];
+            v.getLocationInWindow(vc);
+            int[] bc = new int[2];
+            getLocationInWindow(bc);
+            tapX = vc[0] - bc[0] + v.getWidth() / 2f;
+            tapY = vc[1] - bc[1] + v.getHeight() / 2f;
+        } catch (Throwable ignore) {
+            tapX = -1; tapY = -1;
+        }
     }
 
     private void submit(String answer) {
@@ -907,6 +954,7 @@ public class BattleView extends FrameLayout {
             body.put("time_limit", quiz.optDouble("timeLimit", 6));
             body.put("remain", remainSec);
             body.put("combo", combo);
+            body.put("souls", act.souls);   // V11.8 局内词魂余额随答题上报（击杀增量在后端累加返回）
             body.put("crit", crit);
             body.put("crit_mult", critMultSend);
             body.put("card_mult", bonusDamageMult);   // V11.3 战利品伤害增益
@@ -943,7 +991,7 @@ public class BattleView extends FrameLayout {
             // R2-B：以权威 souls 余额刷新展示（后端 answer 响应携带）
             if (res.has("souls")) {
                 act.souls = res.optInt("souls", act.souls);
-                soulNum.setText("词魂 " + act.souls);
+                updateHud();
             }
 
             if (ok) {
@@ -954,13 +1002,18 @@ public class BattleView extends FrameLayout {
                 maxCombo = Math.max(maxCombo, combo);
                 wrongStreak = 0;
                 comboNum.setText(String.valueOf(combo));
-                comboSub.setText(combo >= 8 ? "输出高涨！" : combo >= 5 ? "心流加成中" : "");
+                // V11.8 连击前瞻钩子：心流倒计时 + 里程碑 dots
+                if (combo >= 8) comboSub.setText("🔥 输出高涨！");
+                else if (combo >= 5) comboSub.setText("💫 心流加成中");
+                else if (combo > 0) comboSub.setText("⚡ 再答 " + (5 - combo) + " 题进入心流");
+                else comboSub.setText("");
                 comboNum.setTextColor(combo >= 5 ? Ui.CYAN : Ui.GOLD);
+                updateComboDots(combo);
                 // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅，每答对 +1 词魂
                 if (combo >= 5) {
                     if (!flowOn) { flowOn = true; showFlowBanner("心 流", Ui.CYAN); ringBurst(); }
                     act.souls += 1;
-                    soulNum.setText("词魂 " + act.souls);
+                    updateHud();
                 }
                 // 新学词收集（结算页 chip）
                 if ("NEW".equals(res.optString("state", "")) && !act.runNewWords.contains(quiz.optString("word"))) {
@@ -1005,7 +1058,7 @@ public class BattleView extends FrameLayout {
                     int heal = (int) Math.round(damage * lifestealPct);
                     if (heal > 0) {
                         hp = Math.min(100, hp + heal);
-                        playerHp.setRatio(hp / 100f);
+                        updateHud();
                         showFeed("🩸 汲词：生命 +" + heal, Ui.GREEN);
                     }
                 }
@@ -1016,7 +1069,9 @@ public class BattleView extends FrameLayout {
                 combo = comboHalved ? combo / 2 : 0;
                 comboNum.setText(String.valueOf(combo));
                 comboNum.setTextColor(Ui.GOLD);
-                comboSub.setText("");
+                // V11.8 答错：槽复位 + 重新预告（减半后仍显示距心流差几题）
+                updateComboDots(combo);
+                comboSub.setText(combo > 0 ? ("⚡ 再答 " + (5 - combo) + " 题进入心流") : "");
                 wrongInRun++;
                 flowOn = false;
                 wrongStreak++;
@@ -1078,14 +1133,51 @@ public class BattleView extends FrameLayout {
 
     // ── 敌人/玩家受击 ─────────────────────────
 
+    /** V11.8 打击动效升级：从点击处发射攻击弹（✦/⚔）飞向敌人卡片，命中后触发全部命中特效。
+     *  若未记录到点击坐标（如自动提交/倒计时提交），则从屏幕中下部直接发射。 */
     private void hitEnemy(int damage, boolean crit, boolean revenge) {
         try {
             int left = Math.max(0, enemy.optInt("hp", 0) - damage);
             enemy.put("hp", left);
+            boolean big = crit || revenge;
+            flyProjectile(damage, big, crit, revenge, left);
+        } catch (Throwable ignore) {
+            main.postDelayed(this::nextQuiz, 350);
+        }
+    }
+
+    /** 投射弹道：攻击弹从点击点加速飞向敌人中心，240ms 到达后执行命中特效。 */
+    private void flyProjectile(int damage, boolean big, boolean crit, boolean revenge, int left) {
+        try {
+            int[] ec = new int[2];
+            enemyEmoji.getLocationInWindow(ec);
+            int[] bc = new int[2];
+            getLocationInWindow(bc);
+            float ex = ec[0] - bc[0] + enemyEmoji.getWidth() / 2f;
+            float ey = ec[1] - bc[1] + enemyEmoji.getHeight() / 2f;
+            // V11.8 修复：移除 V11.7 遗留的未声明 tapX/tapY 死代码（无字段无赋值无监听），
+            // 投射物固定以敌人中心为起点，功能不变。
+            final float sx = getWidth() / 2f, sy = getHeight() * 0.72f;
+            TextView proj = Ui.text(getContext(), big ? "⚔" : "✦", 26, big ? Ui.GOLD : 0xFFFCD34D, true);
+            proj.setX(sx - dp(13));
+            proj.setY(sy - dp(13));
+            addView(proj, new FrameLayout.LayoutParams(dp(26), dp(26)));
+            proj.animate().x(ex - dp(13)).y(ey - dp(13)).setDuration(240)
+                    .setInterpolator(new android.view.animation.AccelerateInterpolator())
+                    .withEndAction(() -> {
+                        try { removeView(proj); } catch (Throwable ignore) {}
+                        impactEnemy(damage, big, crit, revenge, left);
+                    }).start();
+        } catch (Throwable t) {
+            impactEnemy(damage, big, crit, revenge, left);
+        }
+    }
+
+    /** 命中特效：顿帧回弹 + 整卡震动 + 伤害飘字 + 金色粒子 + 震动音效 + 击杀/下一题。 */
+    private void impactEnemy(int damage, boolean big, boolean crit, boolean revenge, int left) {
+        try {
             enemyHp.setRatio((float) left / enemy.optInt("maxHp", 100));
             hpNumTxt.setText(left + " / " + enemy.optInt("maxHp", 100));
-            // 攻击动效：命中顿帧（敌人瞬间放大→回弹）+ 整卡震动 + 伤害飘字 + 金色粒子
-            boolean big = crit || revenge;
             enemyEmoji.animate().scaleX(1.35f).scaleY(1.35f).setDuration(70)
                     .withEndAction(() -> enemyEmoji.animate().scaleX(1f).scaleY(1f).setDuration(210).start()).start();
             shake(enemyEmoji, 260);
@@ -1102,6 +1194,7 @@ public class BattleView extends FrameLayout {
             burstParticles(cx, cy, big ? 14 : 8, big ? (revenge ? 0xFFC084FC : 0xFFFBBF24) : 0xFFFCD34D, big ? 52 : 36);
             if (big) Ui.vibrate(getContext(), new long[]{0, 45, 35, 60});   // 暴击/复仇：双段冲击
             else Ui.vibrate(getContext(), 22);                              // 答对：清脆一击
+            Sfx.play(getContext(), big ? Sfx.CRIT : Sfx.HIT);
             enemyHp.setColor(left <= 0 ? Ui.GOLD : Ui.RED);
             refreshGoal();
             if (left <= 0) {
@@ -1113,7 +1206,6 @@ public class BattleView extends FrameLayout {
             main.postDelayed(this::nextQuiz, 350);
         }
     }
-
     private void hitPlayer(int atk) {
         // R2-A：错词护盾 shield——按点抵挡伤害（优先扣盾）
         if (shield > 0) {
@@ -1129,7 +1221,7 @@ public class BattleView extends FrameLayout {
             hp = 1;
             showFeed("✨ 不朽：致命伤害被抵挡，以 1 HP 存活！", Ui.GOLD);
         }
-        playerHp.setRatio((float) hp / 100f);
+        updateHud();
         flashRed(playerEmoji);
         // V7.0 低血量红 vignette：hp≤30 显现，否则收起
         lowHpVignette.setVisibility(hp <= 30 ? VISIBLE : GONE);
@@ -1146,12 +1238,31 @@ public class BattleView extends FrameLayout {
                 pc[1] - bc[1] + (playerEmoji == null ? 0 : playerEmoji.getHeight() / 2f),
                 6, 0xFFF87171, 30);
         Ui.vibrate(getContext(), new long[]{0, 70, 50, 90});   // 答错：沉重两段挫败震
+        Sfx.play(getContext(), Sfx.HURT);
+    }
+
+    /** V11.8 连击心流槽刷新：答对点亮、满 5 触发心流时闪光一次。 */
+    private void updateComboDots(int combo) {
+        try {
+            int fill = Math.max(0, Math.min(5, combo));
+            for (int i = 0; i < comboDots.size(); i++) {
+                TextView d = comboDots.get(i);
+                boolean on = i < fill;
+                d.setBackground(Ui.pill(on ? 0xFF2DD4BF : 0xFF0E2238, on ? 0xFF2DD4BF : 0xFF33507A));
+                d.setAlpha(on ? 1f : 0.55f);
+                if (on && combo == 5) {   // 刚满 5 触发心流：闪光一下
+                    d.setScaleX(1.5f); d.setScaleY(1.5f);
+                    d.animate().scaleX(1f).scaleY(1f).setDuration(320).start();
+                }
+            }
+        } catch (Throwable ignore) {}
     }
 
     private void onKill() {
         killsInRun++;
         bonusDamageMult = 1.0;   // 上一轮伤害增益作用于刚击杀的敌人，到此结算重置
         Ui.vibrate(getContext(), new long[]{0, 50, 40, 70, 40, 90});   // 击杀胜利反馈
+        Sfx.play(getContext(), Sfx.KILL);                              // V11.8 击杀琶音
         // V7.0 战斗胜利词魂：普通 15 / 精英 35 / Boss 60（冠军 ×1.5）
         boolean boss = enemy != null && enemy.optBoolean("boss", false);
         boolean elite = enemy != null && enemy.optBoolean("elite", false);
@@ -1244,6 +1355,7 @@ public class BattleView extends FrameLayout {
             try {
                 JSONObject b = new JSONObject();
                 b.put("item", "reroll");
+                b.put("souls", act.souls);
                 res = act.router().dispatch("/shop/buy", "POST", b);
             } catch (Throwable ignore) {}
             final JSONObject buyRes = res;
@@ -1255,7 +1367,7 @@ public class BattleView extends FrameLayout {
                 }
                 if (buyRes != null) {
                     act.souls = buyRes.optInt("souls", act.souls);
-                    soulNum.setText("词魂 " + act.souls);
+                    updateHud();
                 }
                 // 重抽三槽
                 JSONObject draw = null;
@@ -1750,6 +1862,7 @@ public class BattleView extends FrameLayout {
             lv.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(380).start();
             burstParticles(getWidth() / 2f, getHeight() / 2f, 26, 0xFFFBBF24, 100);
             Ui.vibrate(getContext(), new long[]{0, 40, 30, 60, 30, 80, 40, 100});
+            Sfx.play(getContext(), Sfx.LEVEL);   // V11.8 升级琶音
             main.postDelayed(() -> {
                 lv.animate().alpha(0f).setDuration(400)
                         .withEndAction(() -> { try { removeView(lv); } catch (Throwable ignore) {} }).start();
