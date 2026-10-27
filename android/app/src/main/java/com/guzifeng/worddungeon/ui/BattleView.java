@@ -1031,7 +1031,7 @@ public class BattleView extends FrameLayout {
                     b.setPadding(dp(8), dp(9), dp(8), dp(9));
                     // V11.5 字母徽章：A/B/C/D 方徽章 + 圆角卡片，信息层次更强
                     // UI-iteration-01: 每选项独立持有 normal/pressed 两个 Drawable（不共用实例）
-                    final GradientDrawable normalBg = Ui.card(12, Ui.BG0, 1, Ui.LINE);
+                    final GradientDrawable normalBg = Ui.card(12, Ui.BG1, 1, Ui.LINE);   // UI-iteration-09：常态提亮 BG1，按钮浮起
                     final GradientDrawable pressedBg = new GradientDrawable();
                     pressedBg.setColor(Ui.BG1);
                     pressedBg.setCornerRadius(dp(12));
