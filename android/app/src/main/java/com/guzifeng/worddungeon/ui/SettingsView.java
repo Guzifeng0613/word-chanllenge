@@ -90,7 +90,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V12.0 · 快速刷题版", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V12.6.1", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -139,8 +139,10 @@ public class SettingsView extends LinearLayout {
             box.setOrientation(HORIZONTAL);
             box.setGravity(Gravity.CENTER);
             box.setPadding(dp(2), dp(9), dp(2), dp(9));
-            box.setBackground(Ui.card(9, Ui.BG_PILL, 1, Ui.LINE));
-            TextView nm = Ui.text(getContext(), diffNames[i], 12, Ui.TXT, true);
+            // V12.6.1 难度选中高亮：青边+青字，未选中保持灰底
+            boolean sel = act.difficulty.equals(diffIds[idx]);
+            box.setBackground(Ui.card(9, sel ? Ui.BG1 : Ui.BG_PILL, sel ? 2 : 1, sel ? Ui.CYAN : Ui.LINE));
+            TextView nm = Ui.text(getContext(), diffNames[i], 12, sel ? Ui.CYAN : Ui.TXT, true);
             box.addView(nm);
             diffBoxes[idx] = box;
             box.setOnClickListener(v -> {
@@ -364,7 +366,7 @@ public class SettingsView extends LinearLayout {
 
             // 范围
             String diffName = diffNameOf(act.difficulty);
-            String diffShow = act.difficulty.equals("adaptive") ? "自适应 · θ 配比"
+            String diffShow = act.difficulty.equals("adaptive") ? "自适应"
                     : act.difficulty.equals("all") ? "全部" : diffName;
             rangeTxt.setText("词书 " + bookName + " · 难度 " + diffShow);
 

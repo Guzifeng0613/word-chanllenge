@@ -582,6 +582,7 @@ public class BattleView extends FrameLayout {
 
     /** R2-C：微目标改读后端下发 goal（streak4/hit5/flawless），缺省时本地兜底。 */
     private void pickGoal(boolean boss, boolean elite) {
+        if (goalBox == null) return;   // V12.6 微目标卡已移除：仅保留 goalKind 空态
         if ("quick".equals(mode)) { goalBox.setVisibility(GONE); goalKind = ""; return; }
         String g = enemy != null ? enemy.optString("goal", "") : "";
         // 后端命名映射到内部 goalKind
@@ -602,7 +603,7 @@ public class BattleView extends FrameLayout {
 
     /** 微目标进度实时刷新（答题/击杀时调用）。 */
     private void refreshGoal() {
-        if (goalKind.isEmpty() || goalBox.getVisibility() != VISIBLE) return;
+        if (goalBox == null || goalKind.isEmpty()) return;   // V12.6 修复 NPE：goalBox 已移除
         boolean done = false;
         if ("streak4".equals(goalKind)) done = maxCombo >= 4;
         else if ("hit5".equals(goalKind)) done = correctInRun >= 5;

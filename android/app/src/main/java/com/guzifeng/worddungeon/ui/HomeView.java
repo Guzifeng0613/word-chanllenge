@@ -128,9 +128,9 @@ public class HomeView extends LinearLayout {
         cfgArea.setOrientation(VERTICAL);
         cfgArea.setGravity(Gravity.CENTER_VERTICAL);
         cfgArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
-        cfgLineTxt = Ui.text(getContext(), "词书 高考 · 难度 自适应", 14, Ui.TXT, true);
+        cfgLineTxt = Ui.text(getContext(), "词书 高考 · 难度 自适应", 13, Ui.TXT, true);
         singleLine(cfgLineTxt);
-        cfgCountTxt = Ui.text(getContext(), "3674 词 ›", 12, Ui.GOLD, false);
+        cfgCountTxt = Ui.text(getContext(), "3674 词 ›", 11, Ui.GOLD, false);
         singleLine(cfgCountTxt);
         LinearLayout cfgRow = new LinearLayout(getContext());
         cfgRow.setOrientation(HORIZONTAL);
@@ -218,6 +218,10 @@ public class HomeView extends LinearLayout {
 
     // ── ③ home-dock：错词本 / 成就 / 设置 ──
     private void buildDock() {
+        // V12.6.1 弹性空隙：把底部功能入口压到屏幕最下方
+        View flex = new View(getContext());
+        flex.setLayoutParams(new LinearLayout.LayoutParams(1, 1, 1f));
+        addView(flex);
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(HORIZONTAL);
         row.addView(dockItem("📕", "错词本", "0 词待复习", () -> act.show(MainActivity.Screen.WRONGBOOK), 0), lp(0, -2, 1f));
@@ -234,11 +238,11 @@ public class HomeView extends LinearLayout {
 
     /** V11.3 入场仪式：banner / 发射卡 / 按钮 / dock 依次淡入上浮。 */
     private void playEntrance() {
-        if (getChildCount() < 7) return;
+        if (getChildCount() < 8) return;
         Ui.entrance(getChildAt(0), 60);    // banner
         Ui.entrance(getChildAt(2), 180);   // launch card
         Ui.entrance(getChildAt(4), 300);   // launchWrap（CTA）
-        Ui.entrance(getChildAt(6), 430);   // dock
+        Ui.entrance(getChildAt(7), 430);   // dock
     }
 
     private LinearLayout dockItem(String icon, String name, String sub, Runnable onTap, int idx) {
@@ -443,7 +447,7 @@ public class HomeView extends LinearLayout {
     }
 
     private String diffNameOf(String diff) {
-        if ("adaptive".equals(diff)) return "自适应 · θ 配比";
+        if ("adaptive".equals(diff)) return "自适应";
         if ("easy".equals(diff)) return "简单";
         if ("normal".equals(diff)) return "中等";
         if ("hard".equals(diff)) return "困难";
