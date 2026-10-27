@@ -208,6 +208,7 @@ public class RewardDrawView extends FrameLayout {
             pl.topMargin = dp(6);
             root.addView(pick, pl);
             if (rare >= 2) {
+                Sfx.play(getContext(), Sfx.EPIC);   // V11.8 史诗揭晓明亮琶音
                 root.setAlpha(0f);
                 root.animate().alpha(1f).scaleX(1.05f).scaleY(1.05f).setDuration(320)
                         .withEndAction(() -> root.animate().scaleX(1f).scaleY(1f).setDuration(220).start()).start();
@@ -222,6 +223,7 @@ public class RewardDrawView extends FrameLayout {
     private void flip(CardView card) {
         if (card.flipped) return;
         card.flipped = true;
+        Sfx.play(getContext(), Sfx.FLIP);   // V11.8 翻牌滑音
         card.root.animate().scaleX(0f).setDuration(160).withEndAction(() -> {
             card.reveal();
             card.root.animate().scaleX(1f).setDuration(180).start();

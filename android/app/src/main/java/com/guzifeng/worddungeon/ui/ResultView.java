@@ -64,7 +64,10 @@ public class ResultView extends FrameLayout {
         rebuild();
         if (w) {
             Ui.vibrate(getContext(), new long[]{0, 60, 50, 90, 60, 120});
+            Sfx.play(getContext(), Sfx.WIN);   // V11.8 胜利琶音
             postDelayed(this::confetti, 350);   // V11.3 胜利彩带
+        } else {
+            Sfx.play(getContext(), Sfx.FAIL);  // V11.8 失败下行音
         }
         // 后端结算：每日目标 / 无尽纪录 / 成就
         new Thread(() -> {
