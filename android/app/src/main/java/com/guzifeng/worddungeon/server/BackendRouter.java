@@ -185,12 +185,14 @@ public class BackendRouter {
             if (lifestealPct > 0) healBack = (int) Math.round(dmg * lifestealPct);
         }
 
-        // 击杀词魂即时入账 DB（V7.0 C.gold：普通15/精英35/Boss60，冠军×1.5）
-        int souls = store.getMeta().optInt("souls", 0);
+        // 词魂局内制（V11.8）：击杀词魂不再写入持久钱包，改为返回局内增量 soul_gain
+        int souls = b.optInt("souls", 0);
+        int soulGain = 0;
         if (isCorrect && kill && !"quick".equals(mode)) {
             int reward = "boss".equals(killKind) ? 60 : "elite".equals(killKind) ? 35 : 15;
             if (champion) reward = Math.round(reward * 1.5f);
-            souls = store.addSouls(reward);
+            soulGain = reward;
+            souls += reward;
         }
 
         WordRec newRec = oldRec == null ? new WordRec() : oldRec;
@@ -244,6 +246,7 @@ public class BackendRouter {
         out.put("crit", crit);
         out.put("heal_back", healBack);
         out.put("souls", souls);
+        out.put("soul_gain", soulGain);
         out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
         meta.remove("new_ach");
         return out;
@@ -602,7 +605,8 @@ public class BackendRouter {
             case "reroll": price = CardCatalog.REROLL_COST; break;
             default: throw new RuntimeException("未知商品: " + item);
         }
-        int souls = store.getMeta().optInt("souls", 0);
+        // 局内制：余额由前端请求携带，后端只做校验与扣减，不持久化
+        int souls = b.optInt("souls", 0);
         if (souls < price) {
             JSONObject o = new JSONObject();
             o.put("ok", false);
@@ -610,16 +614,7 @@ public class BackendRouter {
             o.put("souls", souls);
             return o;
         }
-        souls = store.addSouls(-price);
-        if (souls < 0) {   // 并发/异常兜底：余额扣穿则回滚，不允许负余额
-            store.addSouls(price);
-            souls = store.getMeta().optInt("souls", 0);
-            JSONObject o = new JSONObject();
-            o.put("ok", false);
-            o.put("reason", "souls_not_enough");
-            o.put("souls", souls);
-            return o;
-        }
+        souls -= price;
         JSONObject o = new JSONObject();
         o.put("ok", true);
         o.put("item", item);
