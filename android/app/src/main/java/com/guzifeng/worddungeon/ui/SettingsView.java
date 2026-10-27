@@ -18,6 +18,7 @@ public class SettingsView extends LinearLayout {
 
     private final MainActivity act;
     private TextView[] bookLines = new TextView[4];
+    private LinearLayout[] diffBoxes;   // V12.7 难度按钮引用（refresh 刷新选中高亮）
     private TextView rangeTxt, masteryTxt;
     private LinearLayout barHost;
     private TextView dataRows;
@@ -90,7 +91,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V12.6.1", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V12.7", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -132,7 +133,7 @@ public class SettingsView extends LinearLayout {
         card.addView(dh);
         LinearLayout dgrid = new LinearLayout(getContext());
         dgrid.setOrientation(HORIZONTAL);
-        final LinearLayout[] diffBoxes = new LinearLayout[diffIds.length];
+        diffBoxes = new LinearLayout[diffIds.length];
         for (int i = 0; i < diffIds.length; i++) {
             final int idx = i;
             LinearLayout box = new LinearLayout(getContext());
@@ -152,6 +153,7 @@ public class SettingsView extends LinearLayout {
             });
             dgrid.addView(box, lp(0, -2, 1f));
         }
+        applyDiffHighlight();   // V12.7 首次构建即按当前档位高亮
         card.addView(dgrid);
         card.addView(spacer(8));
 
@@ -364,6 +366,9 @@ public class SettingsView extends LinearLayout {
                 }
             }
 
+            // V12.7 难度选中高亮随点击刷新（修复"高亮锁死"）
+            applyDiffHighlight();
+
             // 范围
             String diffName = diffNameOf(act.difficulty);
             String diffShow = act.difficulty.equals("adaptive") ? "自适应"
@@ -401,6 +406,18 @@ public class SettingsView extends LinearLayout {
             rebuildAch(ach == null ? new JSONArray() : ach);
         } catch (Throwable e) {
             dataRows.setText("数据加载失败：" + e.getMessage());
+        }
+    }
+
+    /** V12.7 难度选中高亮刷新：当前档青边+青字，未选中灰底。 */
+    private void applyDiffHighlight() {
+        if (diffBoxes == null) return;
+        for (int i = 0; i < diffBoxes.length && i < diffIds.length; i++) {
+            LinearLayout box = diffBoxes[i];
+            boolean sel = act.difficulty.equals(diffIds[i]);
+            box.setBackground(Ui.card(9, sel ? Ui.BG1 : Ui.BG_PILL, sel ? 2 : 1, sel ? Ui.CYAN : Ui.LINE));
+            TextView nm = (TextView) box.getChildAt(0);
+            if (nm != null) nm.setTextColor(sel ? Ui.CYAN : Ui.TXT);
         }
     }
 

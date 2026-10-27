@@ -94,14 +94,6 @@ public class AchievementsView extends LinearLayout {
                 body.addView(row);
                 body.addView(spacer(8));
             }
-
-            TextView home = Ui.text(getContext(), "返回主页", 13, Ui.MUT, true);
-            home.setGravity(Gravity.CENTER);
-            home.setPadding(dp(10), dp(10), dp(10), dp(10));
-            home.setBackground(Ui.card(12, Ui.CARD2, 1, Ui.LINE));
-            home.setClickable(true);
-            home.setOnClickListener(v -> act.show(MainActivity.Screen.HOME));
-            body.addView(home);
         } catch (Throwable e) {
             body.addView(Ui.text(getContext(), "成就加载失败：" + e.getMessage(), 14, Ui.RED, false));
         }

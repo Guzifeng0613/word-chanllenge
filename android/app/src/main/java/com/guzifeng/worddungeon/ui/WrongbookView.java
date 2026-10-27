@@ -113,6 +113,19 @@ public class WrongbookView extends LinearLayout {
         }
 
         android.util.Log.d("WD", "wrongbook words.length=" + words.length());
+        // 开始复习（顽固优先）——V12.7 按钮置于分组卡上方
+        TextView start = Ui.text(getContext(), "开始复习（顽固优先）", 15, 0xFF081326, true);
+        start.setGravity(Gravity.CENTER);
+        start.setPadding(dp(14), dp(13), dp(14), dp(13));
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFFFCD34D, 0xFFF59E0B});
+        gd.setCornerRadius(dp(13));
+        start.setBackground(gd);
+        start.setOnClickListener(v -> startReview(sw));
+        body.addView(start);
+        body.addView(spacer(10));
+
         // 三档分组：顽固3 / 易错2 / 生疏1
         int[] gv = {3, 2, 1};
         int[] gc = {0xFFF87171, 0xFFFB923C, 0xFFFBBF24};
@@ -155,18 +168,6 @@ public class WrongbookView extends LinearLayout {
             body.addView(spacer(10));
         }
 
-        // 开始复习（顽固优先）
-        TextView start = Ui.text(getContext(), "开始复习（顽固优先）", 15, 0xFF081326, true);
-        start.setGravity(Gravity.CENTER);
-        start.setPadding(dp(14), dp(13), dp(14), dp(13));
-        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFFFCD34D, 0xFFF59E0B});
-        gd.setCornerRadius(dp(13));
-        start.setBackground(gd);
-        start.setOnClickListener(v -> startReview(sw));
-        body.addView(start);
-        body.addView(spacer(8));
         TextView home = Ui.text(getContext(), "返回主页", 13, Ui.MUT, true);
         home.setGravity(Gravity.CENTER);
         home.setPadding(dp(10), dp(10), dp(10), dp(10));
