@@ -106,6 +106,7 @@ public class BattleView extends FrameLayout {
     private ValueAnimator fillAnim;
     private TextView feedbackLayer;
     private LinearLayout enemyCard;
+    private LinearLayout playerHudBox;   // 玩家HUD（快刷隐藏）
     private View enemyGlow;
     private ObjectAnimator idleAnim;
     private TextView dmgPop;
@@ -305,6 +306,7 @@ public class BattleView extends FrameLayout {
         pbox.addView(Ui.spacer(getContext(), 8));
         pbox.addView(soulNum);
         col.addView(pbox);
+        playerHudBox = pbox;
 
         // 反馈层（飘字/闪字）
         feedbackLayer = new TextView(getContext());
@@ -395,7 +397,15 @@ public class BattleView extends FrameLayout {
         lowHpVignette.setVisibility(GONE);
         flowBanner.setVisibility(GONE);
         initTts();
-        spawnEnemy();
+        if ("quick".equals(mode)) {
+            // 快刷：无敌人、无玩家血条，纯快速答题 + 振动/音效反馈
+            enemyCard.setVisibility(GONE);
+            playerHudBox.setVisibility(GONE);
+        } else {
+            enemyCard.setVisibility(VISIBLE);
+            playerHudBox.setVisibility(VISIBLE);
+            spawnEnemy();
+        }
         nextQuiz();
     }
 
@@ -1076,8 +1086,7 @@ public class BattleView extends FrameLayout {
                 // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅，每答对 +1 词魂
                 if (combo >= 5) {
                     if (!flowOn) { flowOn = true; triggerFlow(); }
-                    act.souls += 1;
-                    updateHud();
+                    if (!"quick".equals(mode)) { act.souls += 1; updateHud(); }
                 }
                 // 新学词收集（结算页 chip）
                 if ("NEW".equals(res.optString("state", "")) && !act.runNewWords.contains(quiz.optString("word"))) {
@@ -1126,7 +1135,16 @@ public class BattleView extends FrameLayout {
                         showFeed("🩸 汲词：生命 +" + heal, Ui.GREEN);
                     }
                 }
-                hitEnemy(damage, crit, wrongCnt > 0);
+                if ("quick".equals(mode)) {
+                    // 快刷无敌人：只振动+音效，300ms 快速下一题
+                    boolean big = crit || wrongCnt > 0;
+                    if (big) Ui.vibrate(getContext(), new long[]{0, 40, 30, 55});
+                    else Ui.vibrate(getContext(), 20);
+                    Sfx.play(getContext(), big ? Sfx.CRIT : Sfx.HIT);
+                    main.postDelayed(this::nextQuiz, 300);
+                } else {
+                    hitEnemy(damage, crit, wrongCnt > 0);
+                }
             } else {
                 questionsInRun++;
                 // R2-A：势如破竹 unstop——答错连击减半（向下取整）而非清零
@@ -1157,7 +1175,13 @@ public class BattleView extends FrameLayout {
                     if (!act.runWrongWords.contains(w)) act.runWrongWords.add(w);
                 }
                 quickDone++;
-                hitPlayer(enemy.optInt("atk", 10));
+                if ("quick".equals(mode)) {
+                    // 快刷无敌人：不扣血，只沉重振动+错误音效
+                    Ui.vibrate(getContext(), new long[]{0, 60, 50, 80, 50, 100});
+                    Sfx.play(getContext(), Sfx.HURT);
+                } else {
+                    hitPlayer(enemy.optInt("atk", 10));
+                }
                 refreshGoal();
                 // V3.5 拼写答错回归：先红抖展示玩家拼写，约 0.6s 后替换为正确答案（金色）
                 // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
@@ -1424,10 +1448,7 @@ public class BattleView extends FrameLayout {
         // 快刷持续模式（V12.2）：击杀后立刻召唤下一个敌人继续刷，不结算、不翻牌、不进层间，
         // 直到用户主动点「退出快刷」（快刷击杀不发词魂，后端 kill 入账已排除 quick）。
         if ("quick".equals(mode)) {
-            quickKills++;
-            if (quickKills % 5 == 0) showFeed("已连续击杀 " + quickKills + " · 已刷 " + quickDone + " 词", Ui.CYAN);
-            spawnEnemy();
-            main.postDelayed(this::nextQuiz, 420);
+            // 快刷无敌人，onKill 不触发；安全返回
             return;
         }
         if ("campaign".equals(mode)) {
