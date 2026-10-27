@@ -127,7 +127,7 @@ public class HomeView extends LinearLayout {
         cfgArea = new LinearLayout(getContext());
         cfgArea.setOrientation(VERTICAL);
         cfgArea.setGravity(Gravity.CENTER_VERTICAL);
-        cfgArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+        cfgArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(58)));
         cfgLineTxt = Ui.text(getContext(), "词书 高考 · 难度 自适应", 13, Ui.TXT, true);
         singleLine(cfgLineTxt);
         cfgCountTxt = Ui.text(getContext(), "3674 词 ›", 11, Ui.GOLD, false);
@@ -149,7 +149,7 @@ public class HomeView extends LinearLayout {
         quickArea = new LinearLayout(getContext());
         quickArea.setOrientation(HORIZONTAL);
         quickArea.setGravity(Gravity.CENTER_VERTICAL);
-        quickArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+        quickArea.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(58)));
         String[] subs = {"高频优先·识别快刷", "错词加权·进阶", "拼写为主·拼写压轴"};
         for (int i = 0; i < 3; i++) {
             final int idx = i;
@@ -167,11 +167,7 @@ public class HomeView extends LinearLayout {
             box.setOnClickListener(v -> {
                 act.quickLevel = quickIds[idx];
                 act.savePrefs();   // GAP-08：持久化快刷档
-                for (int j = 0; j < quickBtns.length; j++) {
-                    LinearLayout target = (LinearLayout) quickBtns[j].getParent();
-                    target.setBackground(Ui.card(12, Ui.BG_PILL, 1, Ui.LINE));
-                }
-                box.setBackground(Ui.card(12, 0xFF1E2F1E, 2, Ui.GOLD));
+                applyQuickLevel();
             });
             quickBtns[i] = b;
             quickArea.addView(box, lp(0, -2, 1f));
@@ -330,6 +326,15 @@ public class HomeView extends LinearLayout {
         target.setBackground(selTab(sel1, sel2));
     }
 
+    /** V12.6.1 快刷难度档：按持久化档位刷选中高亮（金边+深绿底），未选中灰底。 */
+    private void applyQuickLevel() {
+        for (int j = 0; j < quickBtns.length; j++) {
+            LinearLayout target = (LinearLayout) quickBtns[j].getParent();
+            boolean sel = quickIds[j].equals(act.quickLevel);
+            target.setBackground(Ui.card(12, sel ? 0xFF1E2F1E : Ui.BG_PILL, sel ? 2 : 1, sel ? Ui.GOLD : Ui.LINE));
+        }
+    }
+
     private void updateLaunchCard() {
         boolean quick = "quick".equals(pickMode);
         cfgArea.setVisibility(quick ? GONE : VISIBLE);
@@ -337,6 +342,7 @@ public class HomeView extends LinearLayout {
         if (quick) {
             launchBtn.setText("开始快刷");
             modeDescLab.setText(quickNames[indexOf(act.quickLevel)] + "档 · 高频词快速刷");
+            applyQuickLevel();
         } else {
             launchBtn.setText("开始" + ("campaign".equals(pickMode) ? "远征" : "无尽"));
             String desc = "campaign".equals(pickMode) ? "5 层远征" : "无上限下潜";

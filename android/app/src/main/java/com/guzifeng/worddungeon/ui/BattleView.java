@@ -99,6 +99,7 @@ public class BattleView extends FrameLayout {
     private TextView topTxt, enemyName, enemyEmoji, playerEmoji, playerName;
     private TextView enemyTag, warnTxt, hpNumTxt, comboLab, comboNum, comboSub;
     private LinearLayout topRight;
+    private TextView comboTag;   // V12.7 顶栏连击数（手绘框架：顶部圆形徽+连击数）
     private HpBar enemyHp, playerHp;
     private TextView posTag, revTag, promptTxt, ladderTxt, qBody, timerTxt;
     private TextView enemyLevel;              // V12.6 敌人等级图标行（替代名字）
@@ -163,6 +164,15 @@ public class BattleView extends FrameLayout {
         LinearLayout top = new LinearLayout(getContext());
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
+        // V12.7 手绘框架：顶栏左端圆形玩家徽 + 连击数（词灵使徽章，金色圆底）
+        TextView playerBadge = Ui.goldBadge(getContext(), "🧙", 36);
+        top.addView(playerBadge);
+        comboTag = Ui.text(getContext(), "", 12, Ui.GOLD, true);
+        LinearLayout.LayoutParams tagLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        tagLp.leftMargin = dp(8);
+        comboTag.setLayoutParams(tagLp);
+        top.addView(comboTag);
         topTxt = Ui.text(getContext(), "第 1 层 · 词境", 14, Ui.CYAN, true);
         top.addView(topTxt, new LinearLayout.LayoutParams(0, -2, 1f));
         topRight = new LinearLayout(getContext());
@@ -171,45 +181,6 @@ public class BattleView extends FrameLayout {
         top.addView(topRight);
         col.addView(top);
         col.addView(spacer(8));
-
-        // 敌人卡（V7.0：face 大字 + 名字 + rtag + 反击警告 + 血条 + 血量数字）
-        LinearLayout ebox = new LinearLayout(getContext());
-        ebox.setOrientation(LinearLayout.VERTICAL);
-        ebox.setGravity(Gravity.CENTER);
-        ebox.setPadding(dp(12), dp(10), dp(12), dp(10));
-        ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.LINE));
-        // V11.3 敌人面部：径向光晕（类型色）+ emoji，光晕随类型变化
-        FrameLayout faceWrap = new FrameLayout(getContext());
-        enemyGlow = new View(getContext());
-        int glowSize = dp(98);
-        enemyGlow.setLayoutParams(new FrameLayout.LayoutParams(glowSize, glowSize, Gravity.CENTER));
-        enemyEmoji = Ui.text(getContext(), "👹", 46, Ui.TXT, false);
-        faceWrap.addView(enemyGlow);
-        faceWrap.addView(enemyEmoji, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-        ebox.addView(faceWrap);
-        // V12.6 敌人等级图标行（替代名字：👑首领 / ⚡精英 / 💠普通）
-        enemyLevel = Ui.text(getContext(), "💠", 18, Ui.CYAN, false);
-        enemyLevel.setGravity(Gravity.CENTER);
-        ebox.addView(enemyLevel);
-        enemyName = Ui.text(getContext(), "", 0, Ui.TXT, true);   // 保留引用避免下游 NPE，不再显示
-        enemyName.setGravity(Gravity.CENTER);
-        enemyTag = Ui.text(getContext(), "普通战", 11, Ui.CYAN, true);
-        enemyTag.setGravity(Gravity.CENTER);
-        ebox.addView(enemyTag);
-        warnTxt = Ui.text(getContext(), "答错 / 超时将受到 10 点伤害", 11, Ui.MUT, false);
-        warnTxt.setGravity(Gravity.CENTER);
-        ebox.addView(warnTxt);
-        enemyHp = new HpBar(getContext(), Ui.RED, Ui.CARD2);
-        enemyHp.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(8)));
-        ebox.addView(enemyHp);
-        hpNumTxt = Ui.text(getContext(), "100 / 100", 11, Ui.TXT, true);
-        hpNumTxt.setGravity(Gravity.CENTER);
-        ebox.addView(hpNumTxt);
-        // V12.6 微目标卡不再显示（避免杂乱；目标进度并入连击反馈条）
-        goalBox = null;
-        enemyCard = ebox;
-        col.addView(ebox);
-        col.addView(flexSpacer());   // V12.6 弹性空隙：答题区垂直居中
 
         // 题目卡（V7.0 qcard：qhead 大字 + 词性徽章 + 复仇徽章 + 提示 + 阶梯 + 计时）
         LinearLayout qbox = new LinearLayout(getContext());
@@ -250,6 +221,46 @@ public class BattleView extends FrameLayout {
         qbox.addView(timerTxt);
         col.addView(qbox);
         col.addView(spacer(8));
+
+
+        // 敌人卡（V7.0：face 大字 + 名字 + rtag + 反击警告 + 血条 + 血量数字）
+        LinearLayout ebox = new LinearLayout(getContext());
+        ebox.setOrientation(LinearLayout.VERTICAL);
+        ebox.setGravity(Gravity.CENTER);
+        ebox.setPadding(dp(12), dp(10), dp(12), dp(10));
+        ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.LINE));
+        // V11.3 敌人面部：径向光晕（类型色）+ emoji，光晕随类型变化
+        FrameLayout faceWrap = new FrameLayout(getContext());
+        enemyGlow = new View(getContext());
+        int glowSize = dp(98);
+        enemyGlow.setLayoutParams(new FrameLayout.LayoutParams(glowSize, glowSize, Gravity.CENTER));
+        enemyEmoji = Ui.text(getContext(), "👹", 46, Ui.TXT, false);
+        faceWrap.addView(enemyGlow);
+        faceWrap.addView(enemyEmoji, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        ebox.addView(faceWrap);
+        // V12.6 敌人等级图标行（替代名字：👑首领 / ⚡精英 / 💠普通）
+        enemyLevel = Ui.text(getContext(), "💠", 18, Ui.CYAN, false);
+        enemyLevel.setGravity(Gravity.CENTER);
+        ebox.addView(enemyLevel);
+        enemyName = Ui.text(getContext(), "", 0, Ui.TXT, true);   // 保留引用避免下游 NPE，不再显示
+        enemyName.setGravity(Gravity.CENTER);
+        enemyTag = Ui.text(getContext(), "普通战", 11, Ui.CYAN, true);
+        enemyTag.setGravity(Gravity.CENTER);
+        ebox.addView(enemyTag);
+        warnTxt = Ui.text(getContext(), "答错 / 超时将受到 10 点伤害", 11, Ui.MUT, false);
+        warnTxt.setGravity(Gravity.CENTER);
+        ebox.addView(warnTxt);
+        enemyHp = new HpBar(getContext(), Ui.RED, Ui.CARD2);
+        enemyHp.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(8)));
+        ebox.addView(enemyHp);
+        hpNumTxt = Ui.text(getContext(), "100 / 100", 11, Ui.TXT, true);
+        hpNumTxt.setGravity(Gravity.CENTER);
+        ebox.addView(hpNumTxt);
+        // V12.6 微目标卡不再显示（避免杂乱；目标进度并入连击反馈条）
+        goalBox = null;
+        enemyCard = ebox;
+        col.addView(ebox);
+        col.addView(flexSpacer());   // V12.6 弹性空隙：答题区垂直居中
 
         // 答题区（V11.5 高度上调以容纳拼写字母格 + 确认按钮）
         answerArea = new FrameLayout(getContext());
@@ -548,6 +559,12 @@ public class BattleView extends FrameLayout {
         } catch (Throwable e) {
             showFeed("敌人召唤失败", Ui.RED);
         }
+    }
+
+    /** V12.7 顶栏连击数：连击≥2 显示 🔥xN，否则留空。 */
+    private void refreshComboTag() {
+        if (comboTag == null) return;
+        comboTag.setText(combo >= 2 ? ("🔥 " + combo) : "");
     }
 
     /** V7.0 顶栏右侧：远征/无尽 = 节点圆点进度；快刷 = ‹ 退出快刷 + 已刷 N 词。 */
@@ -1148,6 +1165,7 @@ public class BattleView extends FrameLayout {
                 maxCombo = Math.max(maxCombo, combo);
                 wrongStreak = 0;
                 comboNum.setText(String.valueOf(combo));
+                refreshComboTag();
                 // R1-5/6：连击副文案走统一档位助手（5/8 心流档 + 10/20/30 里程碑档）
                 comboSub.setText(comboSubText(combo));
                 comboNum.setTextColor(combo >= 5 ? Ui.CYAN : Ui.GOLD);
