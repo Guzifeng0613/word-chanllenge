@@ -433,6 +433,7 @@ public class BattleView extends FrameLayout {
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
+            placeAt(feedbackBar, 50, 17);   // V12.7.8 每次显示强制定位（连击行处），避免构建时序导致位置丢失
             resultBig.setText(ok ? "✓" : "✗");
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
@@ -818,10 +819,14 @@ public class BattleView extends FrameLayout {
             case "judge": {
                 qBody.setText(word);
                 qBody.setTextSize(24);
+                // V12.7.8 修复：judge 题显示 judgeShown（与后端判定依据一致），
+                // 原显示 mean 会导致出题命中错误释义分支时"看到正确释义、判断对却被判错"
+                String shown = quiz.optString("judgeShown", "");
+                if (shown.isEmpty()) shown = mean;
                 LinearLayout meanRow = new LinearLayout(getContext());
                 meanRow.setOrientation(LinearLayout.HORIZONTAL);
                 meanRow.setGravity(Gravity.CENTER);
-                TextView mv = Ui.text(getContext(), mean, 19, Ui.CYAN, true);
+                TextView mv = Ui.text(getContext(), shown, 19, Ui.CYAN, true);
                 meanRow.addView(mv);
                 LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
                 ml.topMargin = dp(2);
