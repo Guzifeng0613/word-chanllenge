@@ -394,11 +394,14 @@ public class BattleView extends FrameLayout {
         placeAt(summonBanner, 50, 20);
     }
 
-    /** 自由元素按百分比定位：x/y 为相对根布局的百分比（x 为元素中心，y 为元素顶部）。 */
+    /** 自由元素按百分比定位：x/y 为相对屏幕的百分比（x 为元素中心，y 为元素顶部）。
+     *  V12.7.10 基准改为 getRootView()（屏幕），避免宿主布局高度不等于屏高时（WRAP_CONTENT）
+     *  百分比定位被内容高放大、浮层落到屏幕下部的问题。 */
     private void placeAt(View v, double xPct, double yPct) {
         post(() -> {
             try {
-                int w = getWidth(), h = getHeight();
+                View rootView = getRootView();
+                int w = rootView.getWidth(), h = rootView.getHeight();
                 if (w <= 0 || h <= 0) return;
                 v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.AT_MOST),
                         View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST));

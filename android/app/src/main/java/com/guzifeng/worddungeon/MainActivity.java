@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
@@ -204,7 +205,13 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case BATTLE:
-                if (battle != null) { root.addView(battle); battle.startRun(); }
+                if (battle != null) {
+                    // V12.7.10 根治：battle 必须 MATCH_PARENT，否则按内容高(WRAP_CONTENT)布局，
+                    // 浮层百分比定位(placeAt)会以内容高为基准，反馈条实际显示在屏高 65% 处
+                    root.addView(battle, new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                    battle.startRun();
+                }
                 else { TopToast.error(this, "战斗页不可用"); show(Screen.HOME); }
                 break;
             case RESULT:
