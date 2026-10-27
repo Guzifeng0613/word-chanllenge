@@ -244,7 +244,7 @@ public class ResultView extends FrameLayout {
             bigSub.setText(win ? "高频词快速刷完一轮，继续巩固！" : "别灰心，错词已经全部保留。");
         } else {
             bigTitle.setText(win ? "远征通关！" : "远征失败");
-            bigSub.setText(win ? "你击败了三层词魇，词库又厚了一页。" : "别灰心，错词已经全部保留，会在复习中再出现。");
+            bigSub.setText(win ? "你击败了词魇·深渊领主，五层远征通关！" : "别灰心，错词已经全部保留，会在复习中再出现。");
         }
         fillLevelCard(badge, ll, barl);
 

@@ -189,7 +189,7 @@ public class HomeView extends LinearLayout {
         launchBtn.setPadding(dp(14), dp(14), dp(14), dp(14));
         GradientBuilder gb = new GradientBuilder(13, new int[]{0xFFFCD34D, 0xFFF59E0B});
         launchBtn.setBackground(gb.build());
-        modeDescLab = Ui.text(getContext(), "3 层闯关", 10.5f, 0xFF5B4310, false);
+        modeDescLab = Ui.text(getContext(), "5 层远征", 10.5f, 0xFF5B4310, false);
         modeDescLab.setGravity(Gravity.CENTER);
         singleLine(modeDescLab);
         Ui.ctaGlow(launchBtn);   // V11.3 持续发光脉动 + 按压变暗
@@ -298,7 +298,7 @@ public class HomeView extends LinearLayout {
     }
 
     private String subOf(String name) {
-        if ("远征".equals(name)) return "3 层闯关";
+        if ("远征".equals(name)) return "5 层远征";
         if ("无尽".equals(name)) return "无限深渊";
         return "刷词冲刺";
     }
@@ -335,7 +335,7 @@ public class HomeView extends LinearLayout {
             modeDescLab.setText(quickNames[indexOf(act.quickLevel)] + "档 · 高频词快速刷");
         } else {
             launchBtn.setText("开始" + ("campaign".equals(pickMode) ? "远征" : "无尽"));
-            String desc = "campaign".equals(pickMode) ? "3 层闯关" : "无上限下潜";
+            String desc = "campaign".equals(pickMode) ? "5 层远征" : "无上限下潜";
             int best = act.lastBest;
             if (best > 0 && "endless".equals(pickMode)) desc = "最高纪录 第 " + best + " 层";
             modeDescLab.setText(desc);
