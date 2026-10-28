@@ -251,6 +251,8 @@ public class ResultView extends FrameLayout {
         // V11.3 逐项入场
         Ui.entrance(face, 60);
         Ui.entrance(lv, 200);
+        Ui.entrance(row1, 230);   // UI-iteration-19：2×2 统计格补入场，补全错落节奏
+        Ui.entrance(row2, 260);
         Ui.entrance(wordCardHost, 330);
         Ui.entrance(againBtn, 460);
     }
