@@ -137,7 +137,8 @@ public class QuizEngine {
         if (tryNew && !wrongReplay) {
             List<String> unseen = collectUnseen(bookWords, progress, tier);
             if (unseen.isEmpty()) unseen = collectUnseen(bookWords, progress, null);
-            if (!unseen.isEmpty()) word = unseen.get(rnd.nextInt(unseen.size()));
+            // V13.6：新词候选按核心度加权（oxford→collins），不再纯随机
+            if (!unseen.isEmpty()) word = pickCoreWeighted(unseen);
         }
         if (word == null && !due.isEmpty()) {
             word = !dl.isEmpty() ? dl.get(rnd.nextInt(dl.size()))
@@ -169,7 +170,7 @@ public class QuizEngine {
             // 新词兜底（前面 tryNew 未出词）
             List<String> unseen = collectUnseen(bookWords, progress, tier);
             if (unseen.isEmpty()) unseen = collectUnseen(bookWords, progress, null);
-            if (!unseen.isEmpty()) word = unseen.get(rnd.nextInt(unseen.size()));
+            if (!unseen.isEmpty()) word = pickCoreWeighted(unseen);
         }
         if (word == null) {
             // 最终兜底（新词额度满 + 非冷却到期/学习词都空）：
@@ -324,6 +325,40 @@ public class QuizEngine {
             out.add(w);
         }
         return out;
+    }
+
+    /**
+     * V13.6 核心词优先：在新词候选池里按核心度加权随机抽 1 个。
+     * 口径（层级与 θ/词频不冲突）：θ/手动难度先决定 tier 过滤（第一道）→
+     * 同 tier 候选内，oxford=1 权重最高(100)，否则按柯林斯星级 5→1 递减(60/45/30/18/10)，
+     * 无标记最低(3)；同权重内仍由随机打散，不是死板固定顺序。
+     */
+    public static int coreWeight(WordEntry e) {
+        if (e == null) return 3;
+        if (e.o == 1) return 100;
+        switch (e.c) {
+            case 5: return 60;
+            case 4: return 45;
+            case 3: return 30;
+            case 2: return 18;
+            case 1: return 10;
+            default: return 3;
+        }
+    }
+
+    private String pickCoreWeighted(List<String> unseen) {
+        double[] ws = new double[unseen.size()];
+        double total = 0;
+        for (int i = 0; i < unseen.size(); i++) {
+            ws[i] = coreWeight(bank.entry(unseen.get(i)));
+            total += ws[i];
+        }
+        double r = rnd.nextDouble() * total;
+        for (int i = 0; i < unseen.size(); i++) {
+            r -= ws[i];
+            if (r <= 0) return unseen.get(i);
+        }
+        return unseen.get(unseen.size() - 1);
     }
 
     /** 构建题目（快刷与闯关共用，按题型填充 options/correct/timeLimit）。 */

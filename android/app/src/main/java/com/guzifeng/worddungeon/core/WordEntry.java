@@ -21,6 +21,9 @@ public class WordEntry {
     public JSONObject x;
     /** 英英释义（V13.5，精简 1 个核心义项）；无则空串。 */
     public String d2 = "";
+    /** V13.6 核心词标记：o=牛津3000(1=是)；c=柯林斯星级1-5(越大越常用)。0/缺失=无标记。 */
+    public int o = 0;
+    public int c = 0;
 
     public WordEntry() {}
 
