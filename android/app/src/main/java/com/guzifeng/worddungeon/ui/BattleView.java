@@ -70,6 +70,7 @@ public class BattleView extends FrameLayout {
     // V11.3 战利品增益
     private double bonusDamageMult = 1.0;   // 作用于下一个敌人
     private int bonusTime = 0;             // 下题时间 +秒
+    private boolean focusRevenge = false;   // P0-2 凝神复仇标记：连错2次后下一题答对伤害额外+25%（一次性）
     // V11.7 对齐 V7.0：商店祝福（下一层伤害+25%）
     private boolean pendingBless = false;
     // R2-A：25 词典卡机制标志（按 V7.0 CARDS 语义接线）
@@ -524,6 +525,7 @@ public class BattleView extends FrameLayout {
         wrongStreak = 0;
         flowOn = false;
         flowTier = 0;   // P0-1：每局心流档归零
+        focusRevenge = false;   // P0-2：每局凝神复仇标记归零
         quickDone = 0;
         quickKills = 0;
         layerWrong.clear();
@@ -1306,6 +1308,15 @@ public class BattleView extends FrameLayout {
             boolean ok = res.optBoolean("correct", false);
             int damage = res.optInt("damage", 0);
             int wrongCnt = res.optInt("wrong_count", 0);
+            // P0-2 凝神复仇：连错2次挂的"下一题"标记是一次性——无论本题对错都消耗；答对则伤害额外+25%
+            boolean focusRevengeHit = false;
+            if (focusRevenge) {
+                focusRevenge = false;
+                if (ok) {
+                    damage = (int) Math.round(damage * (1.0 + GameConfig.FOCUS_REVENGE_BONUS));
+                    focusRevengeHit = true;
+                }
+            }
             int xpGain = res.optInt("xp_gained", 0);
             int newLevel = res.optInt("level", 1);
             String correctAnswer = res.optString("correct_answer", "");
@@ -1376,7 +1387,9 @@ public class BattleView extends FrameLayout {
                 if (spellInput != null) { spellInput.setText(""); }
                 hideKeyboard();
                 // 复仇提示
-                if (wrongCnt > 0) {
+                if (focusRevengeHit) {
+                    showFeed("⚔ 凝神复仇！伤害+25% +" + damage, Ui.PURPLE);
+                } else if (wrongCnt > 0) {
                     showFeed("⚡ 复仇！伤害 ×" + (wrongCnt >= 2 ? 2.0 : 1.5) + " +" + damage, Ui.PURPLE);
                 } else if (crit) {
                     showFeed("💥 暴击！ +" + damage, Ui.GOLD);
@@ -1419,13 +1432,13 @@ public class BattleView extends FrameLayout {
                 }
                 if ("quick".equals(mode)) {
                     // 快刷无敌人：只振动+音效，300ms 快速下一题
-                    boolean big = crit || wrongCnt > 0;
+                    boolean big = crit || wrongCnt > 0 || focusRevengeHit;
                     if (big) Ui.vibrate(getContext(), new long[]{0, 40, 30, 55});
                     else Ui.vibrate(getContext(), 20);
                     Sfx.play(getContext(), big ? Sfx.CRIT : Sfx.HIT);
                     main.postDelayed(this::nextQuiz, meanHold ? 1450 : 300);   // V12.7.11 judge-错答对释义可读延时
                 } else {
-                    hitEnemy(damage, crit, wrongCnt > 0);
+                    hitEnemy(damage, crit, wrongCnt > 0 || focusRevengeHit);
                 }
             } else {
                 questionsInRun++;
@@ -1441,10 +1454,11 @@ public class BattleView extends FrameLayout {
                 flowOn = false;
                 flowTier = 0;   // P0-1：断连击复位心流档，不残留 +2/+3 或 +5%
                 wrongStreak++;
-                // V7.0 凝神：连错 2 次 → 紫色横幅 + 下一题限时 +2 秒
+                // P0-2 凝神策略化：连错 2 次 → 显式紫色横幅 + 下一题限时 +2 秒 + 挂复仇标记（下一题答对伤害+25%）
                 if (wrongStreak >= 2) {
                     bonusTime += 2;
-                    showFlowBanner("凝 神", Ui.PURPLE);
+                    showFlowBanner("连错2次 · 下一题限时+2秒", Ui.PURPLE);
+                    focusRevenge = true;
                     wrongStreak = 0;
                 }
                 // 记录本层错词（复习之泉素材，按出错次数累计≈顽固优先）+ 结算页错词 chip

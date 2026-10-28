@@ -35,6 +35,9 @@ public final class GameConfig {
     public static final int FLOW_SOUL_MAX = 3;         // ≥12 每答对词魂 +3
     public static final double FLOW_MAX_CRIT = 0.05;   // ≥12 暴击率 +5%
 
+    // 凝神复仇（P0-2）：连错2次后下一题答对，伤害额外 +25%（复用复仇紫乘区）
+    public static final double FOCUS_REVENGE_BONUS = 0.25;
+
     // 熟练度
     public static final double PROF_NEW = 1.0;
     public static final double PROF_LEARNING = 1.05;
