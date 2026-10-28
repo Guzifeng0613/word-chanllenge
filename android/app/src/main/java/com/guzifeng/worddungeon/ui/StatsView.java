@@ -90,7 +90,13 @@ public class StatsView extends FrameLayout {
             cell.setPadding(0, dp(12), 0, dp(10));
             cell.setBackground(Ui.card(12, Ui.CARD, 1, Ui.LINE));
             TextView n = Ui.text(getContext(), "—", 22, Ui.TXT, true);
+            n.setGravity(Gravity.CENTER);
+            n.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             TextView l = Ui.text(getContext(), "", 10, Ui.MUT, false);
+            l.setGravity(Gravity.CENTER);
+            l.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             cell.addView(n);
             cell.addView(l);
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
@@ -106,30 +112,52 @@ public class StatsView extends FrameLayout {
         lQ.setText("总答题");
         lAcc.setText("平均正确率");
 
-        // 宽卡：最深层 / 最高连击 / 总词魂
+        // 宽卡：左（最深纪录+层数竖排）｜右（最高连击+总词魂横排）——一行式，与设计稿对齐
         LinearLayout wide = new LinearLayout(getContext());
-        wide.setOrientation(LinearLayout.VERTICAL);
-        wide.setPadding(dp(14), dp(12), dp(14), dp(12));
+        wide.setOrientation(LinearLayout.HORIZONTAL);
+        wide.setGravity(Gravity.CENTER_VERTICAL);
+        wide.setPadding(dp(14), dp(10), dp(14), dp(10));
         wide.setBackground(Ui.card(12, Ui.CARD, 1, Ui.LINE));
         LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         wp.topMargin = dp(8);
         wide.setLayoutParams(wp);
+
+        // 左块：最深纪录（label 上、value 下）
+        LinearLayout deepL = new LinearLayout(getContext());
+        deepL.setOrientation(LinearLayout.VERTICAL);
+        deepL.setGravity(Gravity.CENTER_VERTICAL);
         TextView deep = Ui.text(getContext(), "最深纪录", 11, Ui.MUT, false);
+        deep.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         TextView deepV = Ui.text(getContext(), "—", 18, Ui.TXT, true);
-        wide.addView(deep);
-        wide.addView(deepV);
+        deepV.setGravity(Gravity.CENTER);
+        deepV.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        deepL.addView(deep);
+        deepL.addView(deepV);
+        deepL.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        wide.addView(deepL);
+
+        // 右块：最高连击 / 总词魂 横排
         LinearLayout wr = new LinearLayout(getContext());
         wr.setOrientation(LinearLayout.HORIZONTAL);
-        wr.setWeightSum(2);
+        wr.setGravity(Gravity.CENTER_VERTICAL);
         TextView combo = Ui.text(getContext(), "最高连击 —", 11, Ui.MUT, false);
+        combo.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         TextView souls = Ui.text(getContext(), "总词魂 —", 11, Ui.MUT, false);
-        wr.addView(combo, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        wr.addView(souls, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams wrp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        wrp.topMargin = dp(8);
-        wr.setLayoutParams(wrp);
+        souls.setGravity(Gravity.RIGHT);
+        souls.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        slp.leftMargin = dp(14);
+        souls.setLayoutParams(slp);
+        wr.addView(combo);
+        wr.addView(souls);
+        wr.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         wide.addView(wr);
         body.addView(wide);
         deepTxt = deepV; comboTxt = combo; soulsTxt = souls;
@@ -391,12 +419,12 @@ public class StatsView extends FrameLayout {
                 p.setColor(Ui.MUT);
                 cv.drawText(v + "", w - pr + Ui.dp(getContext(), 3), y + Ui.dp(getContext(), 3), p);
             }
-            int maxQv = 1;
+            int maxQv = 0;
             for (int x : q) maxQv = Math.max(maxQv, x);
-            final int maxQ = maxQv;
-            // 左轴刻度（0 / maxQ）
+            final int maxQ = maxQv > 0 ? maxQv : 1;
+            // 左轴刻度（0 / maxQ）；无数据时显示 0 而非 1
             p.setColor(Ui.MUT);
-            cv.drawText(String.valueOf(maxQ), 2, pt + Ui.dp(getContext(), 3), p);
+            cv.drawText(String.valueOf(maxQv), 2, pt + Ui.dp(getContext(), 3), p);
             cv.drawText("0", 2, pt + ih, p);
 
             if (q.length < 2) return;
