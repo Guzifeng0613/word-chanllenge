@@ -11,8 +11,11 @@ import com.guzifeng.worddungeon.core.WordRec;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -24,7 +27,7 @@ import java.util.Set;
 public class ProgressStore extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "word_dungeon.db";
-    private static final int DB_VERSION = 5;
+    private static final int DB_VERSION = 6;
     public static final long LOCAL_USER_ID = 1L;
 
     private static ProgressStore instance;
@@ -55,6 +58,10 @@ public class ProgressStore extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE IF NOT EXISTS answers(" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, word TEXT, " +
                 "qtype TEXT, correct INTEGER, damage INTEGER, ts INTEGER)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS runs(" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, mode TEXT, " +
+                "win INTEGER, layer INTEGER, questions INTEGER, correct INTEGER, " +
+                "wrong INTEGER, max_combo INTEGER, kills INTEGER, souls INTEGER, ts INTEGER)");
     }
 
     @Override
@@ -90,6 +97,13 @@ public class ProgressStore extends SQLiteOpenHelper {
             } catch (Throwable ignore) {
                 // 列已存在时忽略
             }
+        }
+        if (oldV < 6) {
+            // V12.8：回顾系统——每局战绩表
+            db.execSQL("CREATE TABLE IF NOT EXISTS runs(" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, mode TEXT, " +
+                    "win INTEGER, layer INTEGER, questions INTEGER, correct INTEGER, " +
+                    "wrong INTEGER, max_combo INTEGER, kills INTEGER, souls INTEGER, ts INTEGER)");
         }
     }
 
@@ -302,6 +316,7 @@ public class ProgressStore extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.execSQL("DELETE FROM progress WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
         db.execSQL("DELETE FROM answers WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+        db.execSQL("DELETE FROM runs WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
         ContentValues v = new ContentValues();
         v.put("xp", 0);
         v.put("level", 1);
@@ -334,5 +349,175 @@ public class ProgressStore extends SQLiteOpenHelper {
         if (c.moveToFirst()) n = c.getInt(0);
         c.close();
         return n;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 回顾系统（V12.8）：每局战绩写入 + 周/月/年聚合
+    // ════════════════════════════════════════════════════════════════
+
+    /** 单局明细（最近战绩列表用）。 */
+    public static class RunRow {
+        public String mode;
+        public boolean win;
+        public int layer, questions, correct, maxCombo;
+        public long ts;
+    }
+
+    /** 总览数据。 */
+    public static class RunOverview {
+        public int totalRuns, totalQuestions, totalCorrect, deepestLayer, maxCombo, totalSouls;
+    }
+
+    /** 趋势序列（折线/柱状共用）。 */
+    public static class RunSeries {
+        public String[] labels;
+        public int[] runs, questions, correct, wins;
+    }
+
+    /** 写入一局战绩。 */
+    public void insertRun(String mode, boolean win, int layer, int questions,
+                          int correct, int wrong, int maxCombo, int kills,
+                          int souls, long ts) {
+        ContentValues v = new ContentValues();
+        v.put("user_id", LOCAL_USER_ID);
+        v.put("mode", mode == null ? "campaign" : mode);
+        v.put("win", win ? 1 : 0);
+        v.put("layer", layer);
+        v.put("questions", questions);
+        v.put("correct", correct);
+        v.put("wrong", wrong);
+        v.put("max_combo", maxCombo);
+        v.put("kills", kills);
+        v.put("souls", souls);
+        v.put("ts", ts);
+        getWritableDatabase().insert("runs", null, v);
+    }
+
+    /** 总览：总闯关/总答题/总正确/最深层/最高连击/总词魂。 */
+    public RunOverview runOverview() {
+        RunOverview o = new RunOverview();
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT COUNT(*), COALESCE(SUM(questions),0), COALESCE(SUM(correct),0), " +
+                "COALESCE(MAX(layer),0), COALESCE(MAX(max_combo),0), COALESCE(SUM(souls),0) " +
+                "FROM runs WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+        if (c.moveToFirst()) {
+            o.totalRuns = c.getInt(0);
+            o.totalQuestions = c.getInt(1);
+            o.totalCorrect = c.getInt(2);
+            o.deepestLayer = c.getInt(3);
+            o.maxCombo = c.getInt(4);
+            o.totalSouls = c.getInt(5);
+        }
+        c.close();
+        return o;
+    }
+
+    /** 时间桶聚合：[runs, questions, correct, wins]。 */
+    private int[] runAgg(SQLiteDatabase db, long from, long to) {
+        Cursor c = db.rawQuery("SELECT COUNT(*), COALESCE(SUM(questions),0), COALESCE(SUM(correct),0), " +
+                "COALESCE(SUM(win),0) FROM runs WHERE user_id=? AND ts>=? AND ts<?",
+                new String[]{String.valueOf(LOCAL_USER_ID), String.valueOf(from), String.valueOf(to)});
+        int[] a = new int[4];
+        if (c.moveToFirst()) {
+            a[0] = c.getInt(0);
+            a[1] = c.getInt(1);
+            a[2] = c.getInt(2);
+            a[3] = c.getInt(3);
+        }
+        c.close();
+        return a;
+    }
+
+    private static final String[] WEEK_NAMES = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+
+    /**
+     * 趋势序列。
+     * @param period 0=周（近7天按天） 1=月（近4周按周） 2=年（12个月按月）
+     */
+    public RunSeries runSeries(int period) {
+        SQLiteDatabase db = getReadableDatabase();
+        long nowSec = System.currentTimeMillis() / 1000;
+        long today0 = nowSec / 86400 * 86400;
+        int n = period == 0 ? 7 : period == 1 ? 4 : 12;
+        RunSeries s = new RunSeries();
+        s.labels = new String[n];
+        s.runs = new int[n];
+        s.questions = new int[n];
+        s.correct = new int[n];
+        s.wins = new int[n];
+
+        for (int i = 0; i < n; i++) {
+            long from, to;
+            if (period == 0) {
+                // 近 7 天：i=0 是 6 天前，i=6 是今天
+                from = today0 - (6 - i) * 86400L;
+                to = from + 86400L;
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(from * 1000L);
+                s.labels[i] = WEEK_NAMES[cal.get(Calendar.DAY_OF_WEEK) - 1];
+            } else if (period == 1) {
+                // 近 4 个 7 天桶，i=0 最旧
+                long base = today0 + 86400L;   // 明天 0 点
+                to = base - (3 - i) * 604800L;
+                from = to - 604800L;
+                s.labels[i] = "第" + (i + 1) + "周";
+            } else {
+                // 今年 12 个月
+                Calendar cal = Calendar.getInstance();
+                int year = cal.get(Calendar.YEAR);
+                Calendar f = Calendar.getInstance();
+                f.clear();
+                f.set(year, i, 1, 0, 0, 0);
+                from = f.getTimeInMillis() / 1000L;
+                Calendar t = Calendar.getInstance();
+                t.clear();
+                t.set(year, i + 1, 1, 0, 0, 0);
+                to = t.getTimeInMillis() / 1000L;
+                s.labels[i] = (i + 1) + "月";
+            }
+            int[] a = runAgg(db, from, to);
+            s.runs[i] = a[0];
+            s.questions[i] = a[1];
+            s.correct[i] = a[2];
+            s.wins[i] = a[3];
+        }
+        return s;
+    }
+
+    /** 模式占比：[campaign, endless, quick] 局数。 */
+    public int[] modeShare() {
+        int[] share = new int[3];
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT mode, COUNT(*) FROM runs WHERE user_id=? GROUP BY mode",
+                new String[]{String.valueOf(LOCAL_USER_ID)});
+        while (c.moveToNext()) {
+            String m = c.getString(0);
+            int idx = "endless".equals(m) ? 1 : "quick".equals(m) ? 2 : 0;
+            share[idx] = c.getInt(1);
+        }
+        c.close();
+        return share;
+    }
+
+    /** 最近 n 局战绩（按时间倒序）。 */
+    public List<RunRow> recentRuns(int n) {
+        List<RunRow> list = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT mode,win,layer,questions,correct,max_combo,ts FROM runs " +
+                "WHERE user_id=? ORDER BY id DESC LIMIT ?",
+                new String[]{String.valueOf(LOCAL_USER_ID), String.valueOf(n)});
+        while (c.moveToNext()) {
+            RunRow r = new RunRow();
+            r.mode = c.getString(0);
+            r.win = c.getInt(1) == 1;
+            r.layer = c.getInt(2);
+            r.questions = c.getInt(3);
+            r.correct = c.getInt(4);
+            r.maxCombo = c.getInt(5);
+            r.ts = c.getLong(6);
+            list.add(r);
+        }
+        c.close();
+        return list;
     }
 }

@@ -2094,7 +2094,7 @@ public class BattleView extends FrameLayout {
                         .setTitle("退出快刷？")
                         .setMessage("本次已刷 " + quickDone + " 词；退出后返回主页，学习进度已保存，错词已记入错词本。")
                         .setNegativeButton("继续刷", null)
-                        .setPositiveButton("退出", (d, w) -> exitToHome())
+                        .setPositiveButton("退出", (d, w) -> finishQuickSession())
                         .show();
             } else {
                 new android.app.AlertDialog.Builder(getContext())
@@ -2107,6 +2107,28 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {
             exitToHome();
         }
+    }
+
+    /** 快刷退出：后台记录本次快刷会话（写 runs，不弹结算页），再回主页。 */
+    private void finishQuickSession() {
+        if (questionsInRun <= 0) { exitToHome(); return; }
+        new Thread(() -> {
+            try {
+                JSONObject b = new JSONObject();
+                b.put("mode", "quick");
+                b.put("layer", 1);
+                b.put("win", true);
+                b.put("max_combo", maxCombo);
+                b.put("correct", correctInRun);
+                b.put("questions", questionsInRun);
+                b.put("wrong", wrongInRun);
+                b.put("kills", killsInRun);
+                b.put("souls", act.souls);
+                b.put("cards", act.runCards);
+                act.router().dispatch("/progress/finish", "POST", b);
+            } catch (Throwable ignore) {}
+            main.post(this::exitToHome);
+        }).start();
     }
 
     private void exitToHome() {

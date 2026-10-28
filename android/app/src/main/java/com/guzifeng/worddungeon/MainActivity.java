@@ -17,6 +17,7 @@ import com.guzifeng.worddungeon.ui.HomeView;
 import com.guzifeng.worddungeon.ui.TopToast;
 import com.guzifeng.worddungeon.ui.ResultView;
 import com.guzifeng.worddungeon.ui.SettingsView;
+import com.guzifeng.worddungeon.ui.StatsView;
 import com.guzifeng.worddungeon.ui.Ui;
 import com.guzifeng.worddungeon.ui.WrongbookView;
 
@@ -60,8 +61,9 @@ public class MainActivity extends AppCompatActivity {
     private WrongbookView wrongbook;
     private SettingsView settings;
     private AchievementsView achievements;
+    private StatsView stats;
 
-    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS }
+    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS, STATS }
     private Screen screen = Screen.HOME;
 
     @Override
@@ -101,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
         try { wrongbook = new WrongbookView(this); } catch (Throwable e) { Log.e(TAG, "WrongbookView 构造失败", e); }
         try { settings = new SettingsView(this); } catch (Throwable e) { Log.e(TAG, "SettingsView 构造失败", e); }
         try { achievements = new AchievementsView(this); } catch (Throwable e) { Log.e(TAG, "AchievementsView 构造失败", e); }
+        try { stats = new StatsView(this); } catch (Throwable e) { Log.e(TAG, "StatsView 构造失败", e); }
 
         if (crash != null && !crash.isEmpty() && home != null) {
             try { home.onCrashInfo(crash); } catch (Throwable ignore) {}
@@ -232,6 +235,12 @@ public class MainActivity extends AppCompatActivity {
                     try { achievements.refresh(); } catch (Throwable ignore) {}
                 }
                 break;
+            case STATS:
+                if (stats != null) {
+                    root.addView(stats);
+                    try { stats.refresh(); } catch (Throwable ignore) {}
+                }
+                break;
         }
     }
 
@@ -249,6 +258,7 @@ public class MainActivity extends AppCompatActivity {
             case WRONGBOOK:
             case SETTINGS:
             case ACHIEVEMENTS:
+            case STATS:
                 show(Screen.HOME); return;
             case HOME:
             default:

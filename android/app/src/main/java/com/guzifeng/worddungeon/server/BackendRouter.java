@@ -497,6 +497,13 @@ public class BackendRouter {
         if (correct >= 50) unlock(meta, "correct50");
         store.saveMeta(meta);
 
+        // V12.8 回顾系统：每局战绩落 runs 表（无论胜负都记）
+        int questions = b.optInt("questions", 0);
+        int wrong = b.optInt("wrong", 0);
+        int kills = b.optInt("kills", 0);
+        int runSouls = b.optInt("souls", 0);
+        store.insertRun(mode, win, layer, questions, correct, wrong, maxCombo, kills, runSouls, nowSec);
+
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("endless_best", meta.optInt("endless_best", 0));

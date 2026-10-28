@@ -49,6 +49,7 @@ public class SettingsView extends LinearLayout {
         buildBookCard(body);
         buildSoundCard(body);
         buildDataCard(body);
+        buildStatsCard(body);
         buildWrongCard(body);
         buildAchCard(body);
         buildHowtoCard(body);
@@ -91,7 +92,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V12.7.14", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V12.8.0", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -267,6 +268,28 @@ public class SettingsView extends LinearLayout {
         body.addView(spacer(10));
     }
 
+    private void buildStatsCard(LinearLayout body) {
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("回顾看板 ⓘ", "自动记录每局闯关、答题与正确率，按周 / 月 / 年汇总，含趋势与模式占比。"));
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(8), 0, dp(8));
+        TextView lab = Ui.text(getContext(), "战绩回顾", 13, Ui.MUT, false);
+        row.addView(lab, lp(0, -2, 1f));
+        TextView arrow = Ui.text(getContext(), "›", 20, Ui.GOLD, true);
+        row.addView(arrow);
+        row.setClickable(true);
+        Ui.pressable(row);
+        row.setOnClickListener(v -> act.show(MainActivity.Screen.STATS));
+        card.addView(row);
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
     private void buildWrongCard(LinearLayout body) {
         LinearLayout card = new LinearLayout(getContext());
         card.setOrientation(VERTICAL);
@@ -335,7 +358,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V12.7.14 · 全原生快速刷题（7388 词已内置）",
+                        + "版本：V12.8.0 · 全原生快速刷题（7388 词已内置）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);

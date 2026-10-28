@@ -86,6 +86,10 @@ public class ResultView extends FrameLayout {
                 b.put("win", win);
                 b.put("max_combo", maxCombo);
                 b.put("correct", correct);
+                b.put("questions", questions);
+                b.put("wrong", wrong);
+                b.put("kills", kills);
+                b.put("souls", act.souls);
                 b.put("cards", act.runCards);   // GAP-05：本局选卡数（成就 cards5/cards10 计数）
                 JSONObject res = act.router().dispatch("/progress/finish", "POST", b);
                 // 优先等价字段 new_ach（后端若显式回传）；否则以全量 ach 与基线 diff
