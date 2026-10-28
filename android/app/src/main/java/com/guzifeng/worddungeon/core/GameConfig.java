@@ -26,6 +26,15 @@ public final class GameConfig {
     public static final double COMBO_STEP = 0.05;
     public static final double COMBO_CAP = 1.0;
 
+    // 心流档位（P0-1）：≥5 基础心流 / ≥8 高涨 / ≥12 沸腾
+    public static final int FLOW_BASE_COMBO = 5;
+    public static final int FLOW_HIGH_COMBO = 8;
+    public static final int FLOW_MAX_COMBO = 12;
+    public static final int FLOW_SOUL_BASE = 1;       // ≥5 每答对词魂 +1
+    public static final int FLOW_SOUL_HIGH = 2;       // ≥8 每答对词魂 +2
+    public static final int FLOW_SOUL_MAX = 3;         // ≥12 每答对词魂 +3
+    public static final double FLOW_MAX_CRIT = 0.05;   // ≥12 暴击率 +5%
+
     // 熟练度
     public static final double PROF_NEW = 1.0;
     public static final double PROF_LEARNING = 1.05;

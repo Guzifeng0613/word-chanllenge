@@ -89,6 +89,7 @@ public class BattleView extends FrameLayout {
     // V11.7 对齐 V7.0：心流/凝神/微目标/词魂/层间泉与商店
     private int wrongStreak = 0;           // 连错计数（凝神触发：≥2）
     private boolean flowOn = false;        // 当前是否在心流状态
+    private int flowTier = 0;               // 心流档（P0-1）：0=无 1=≥5 2=≥8 3=≥12，用于升档一次性加深演出
     private String goalKind = "";           // none / combo4 / correct5 / flawless
     private boolean lastGoalDone = false;   // UI-iteration-07：记录目标达成跳变帧，只跳一次
     private int lastHp = 100;               // UI-iteration-12：记录上次玩家血量，判断是否受扣血
@@ -522,6 +523,7 @@ public class BattleView extends FrameLayout {
         defeated = false;
         wrongStreak = 0;
         flowOn = false;
+        flowTier = 0;   // P0-1：每局心流档归零
         quickDone = 0;
         quickKills = 0;
         layerWrong.clear();
@@ -1261,7 +1263,10 @@ public class BattleView extends FrameLayout {
         stopTimer();
         try {
             // R2-A：暴击由卡驱动（默认 critChance=0），roll < critChance 则暴击；致命一击改 ×3
-            boolean crit = critChance > 0 && Math.random() < critChance;
+            // P0-1：连击≥12 心流沸腾额外 +5% 暴击率（与卡叠加，无卡也可暴击）
+            double flowCrit = combo >= GameConfig.FLOW_MAX_COMBO ? GameConfig.FLOW_MAX_CRIT : 0.0;
+            double effCrit = critChance + flowCrit;
+            boolean crit = effCrit > 0 && Math.random() < effCrit;
             double critMultSend = crit ? this.critMult : 1.0;
             JSONObject body = new JSONObject();
             body.put("word", quiz.optString("word"));
@@ -1339,10 +1344,11 @@ public class BattleView extends FrameLayout {
                     else if (elapsed <= GameConfig.NORMAL_T) grade = "good";
                 }
                 if (grade != null) showJudgePop(grade);
-                // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅，每答对 +1 词魂
-                if (combo >= 5) {
-                    if (!flowOn) { flowOn = true; triggerFlow(); }
-                    if (!"quick".equals(mode)) { act.souls += 1; updateHud(); }
+                // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅；P0-1 档位化：≥5/+1，≥8/+2，≥12/+3
+                if (combo >= GameConfig.FLOW_BASE_COMBO) {
+                    if (!flowOn) { flowOn = true; flowTier = 1; triggerFlow(); }
+                    if (!"quick".equals(mode)) { act.souls += flowSoulPerAnswer(combo); updateHud(); }
+                    maybeEscalateFlow(combo);
                 }
                 // 新学词收集（结算页 chip）
                 if ("NEW".equals(res.optString("state", "")) && !act.runNewWords.contains(quiz.optString("word"))) {
@@ -1433,6 +1439,7 @@ public class BattleView extends FrameLayout {
                 comboSub.setText(comboSubText(combo));
                 wrongInRun++;
                 flowOn = false;
+                flowTier = 0;   // P0-1：断连击复位心流档，不残留 +2/+3 或 +5%
                 wrongStreak++;
                 // V7.0 凝神：连错 2 次 → 紫色横幅 + 下一题限时 +2 秒
                 if (wrongStreak >= 2) {
@@ -1705,11 +1712,36 @@ public class BattleView extends FrameLayout {
     private String comboSubText(int combo) {
         if (combo >= 30) return "👑 ×" + combo + " · 登峰造极！";
         if (combo >= 20) return "⚡ ×" + combo + " · 势不可挡！";
+        if (combo >= GameConfig.FLOW_MAX_COMBO) return "💠+" + GameConfig.FLOW_SOUL_MAX + " 心流沸腾·暴击+5%！";
         if (combo >= 10) return "🔥 ×" + combo + " · 势如破竹！";
-        if (combo >= 8) return "🔥 输出高涨！";
-        if (combo >= 5) return "💫 心流加成中";
+        if (combo >= GameConfig.FLOW_HIGH_COMBO) return "💠+" + GameConfig.FLOW_SOUL_HIGH + " 心流高涨！";
+        if (combo >= GameConfig.FLOW_BASE_COMBO) return "💫 心流加成中";
         if (combo > 0) return "⚡ 再答 " + (5 - combo) + " 题进入心流";
         return "";
+    }
+
+    /** P0-1：心流每答对词魂分档——≥12 +3 / ≥8 +2 / ≥5 +1。 */
+    private int flowSoulPerAnswer(int combo) {
+        if (combo >= GameConfig.FLOW_MAX_COMBO) return GameConfig.FLOW_SOUL_MAX;
+        if (combo >= GameConfig.FLOW_HIGH_COMBO) return GameConfig.FLOW_SOUL_HIGH;
+        return GameConfig.FLOW_SOUL_BASE;
+    }
+
+    /** P0-1：心流跨档升档一次性演出——刚到8弹「心流·高涨」深青(0xFF0E7490)圆环，刚到12弹「心流·沸腾」更深青绿(0xFF0F766E)圆环（光环青色加深）。 */
+    private void maybeEscalateFlow(int combo) {
+        int tier;
+        if (combo >= GameConfig.FLOW_MAX_COMBO) tier = 3;
+        else if (combo >= GameConfig.FLOW_HIGH_COMBO) tier = 2;
+        else tier = 1;
+        if (tier <= flowTier) return;
+        flowTier = tier;
+        if (tier >= 3) {
+            showFlowBanner("心流·沸腾", 0xFF0F766E);
+            ringBurst(0xFF0F766E);
+        } else if (tier == 2) {
+            showFlowBanner("心流·高涨", 0xFF0E7490);
+            ringBurst(0xFF0E7490);
+        }
     }
 
     private void onKill() {
