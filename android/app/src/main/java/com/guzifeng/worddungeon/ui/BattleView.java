@@ -108,6 +108,7 @@ public class BattleView extends FrameLayout {
     private FrameLayout feedbackBar;          // V12.6 底部反馈条（连击⇄对错）
     private LinearLayout comboBox, resultBox; // V12.6 连击态 / 对错态容器
     private TextView resultBig, resultMsg;    // V12.6 对错反馈大字与文案
+    private boolean meanHold = false;   // V12.7.11 judge-错答对：释义可读，切题延时
     private FrameLayout answerArea;
     private LinearLayout timerTrack;
     private View timerFill;
@@ -764,6 +765,7 @@ public class BattleView extends FrameLayout {
 
     private void nextQuiz() {
         answering = true;
+        meanHold = false;   // V12.7.11 释义延时标记随切题复位
         quiz = null;
         hideKeyboard();   // 切题时先收键盘（拼写题会在 renderQuiz 里重新请求弹出）
         try {
@@ -1374,7 +1376,17 @@ public class BattleView extends FrameLayout {
                     showFeed("+" + damage, Ui.GOLD);
                 }
                 // V12.7.11 连击/答对反馈条：显示 0.25s 快速淡出切题（用户调短）
-                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 250);
+                // judge 题答案为「错」且答对时：补正确释义学习提示，停留延长到 1.2s 可读，切题同步延后
+                boolean judgeWrongOk = "judge".equals(quiz.optString("qtype")) && "no".equals(correctAnswer);
+                String jmOk = judgeWrongOk ? res.optString("correct_mean", "") : "";
+                int okHold = 250;
+                String okTxt = "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : "");
+                if (judgeWrongOk && !jmOk.isEmpty()) {
+                    okTxt += "\n正确释义：" + jmOk;
+                    okHold = 1200;
+                    meanHold = true;   // 切题延后，释义读完后新题再入场
+                }
+                showAnswerResult(true, okTxt, okHold);
                 // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
                 showJudgeGrade(quiz.optString("qtype"), quiz.optDouble("timeLimit", 6));
                 if (xpGain > 0) popXp(xpGain);
@@ -1397,7 +1409,7 @@ public class BattleView extends FrameLayout {
                     if (big) Ui.vibrate(getContext(), new long[]{0, 40, 30, 55});
                     else Ui.vibrate(getContext(), 20);
                     Sfx.play(getContext(), big ? Sfx.CRIT : Sfx.HIT);
-                    main.postDelayed(this::nextQuiz, 300);
+                    main.postDelayed(this::nextQuiz, meanHold ? 1450 : 300);   // V12.7.11 judge-错答对释义可读延时
                 } else {
                     hitEnemy(damage, crit, wrongCnt > 0);
                 }
@@ -1573,10 +1585,10 @@ public class BattleView extends FrameLayout {
             if (left <= 0) {
                 onKill();
             } else {
-                main.postDelayed(this::nextQuiz, 260);   // V12.7.7 答对：240ms 飞行 + 260ms ≈ 0.5s 切下一题
+                main.postDelayed(this::nextQuiz, meanHold ? 1450 : 260);   // V12.7.7 答对：240ms 飞行 + 260ms ≈ 0.5s 切下一题；V12.7.11 judge-错释义可读延时
             }
         } catch (Throwable ignore) {
-            main.postDelayed(this::nextQuiz, 260);
+            main.postDelayed(this::nextQuiz, meanHold ? 1450 : 260);
         }
     }
     private void hitPlayer(int atk) {
