@@ -958,7 +958,11 @@ public class BattleView extends FrameLayout {
             for (int i = 0; i < labs.length; i++) {
                 sb.append(i <= stage ? "▣" : "▢").append(" ").append(labs[i]).append(" ");
             }
-            ladderTxt.setText("复习  " + sb.toString().trim());
+            // V13.2 SM-2 晋升进度：stage 上限由 SRS_LADDER.length-1 推导（stage=末级即 MASTERED），不写死魔法数字
+            int masterStage = GameConfig.SRS_LADDER.length - 1;
+            int remain = masterStage - stage;
+            String prog = remain <= 0 ? "  · 已 MASTERED" : "  · 距掌握还差 " + remain + "/" + masterStage + " 级";
+            ladderTxt.setText("复习  " + sb.toString().trim() + prog);
         } else {
             String[] labs = {"识", "认", "写", "拼"};
             StringBuilder sb = new StringBuilder();
@@ -1496,6 +1500,8 @@ public class BattleView extends FrameLayout {
                     }
                     showAchToast(sb.toString());
                 }
+                // V13.2 毕业里程碑：拼写走完4步毕业瞬间的轻量小庆祝（短横幅+光环，≤1s，非模态不阻塞下一题）
+                if (res.optBoolean("just_graduated", false)) showGraduationSpark();
                 refreshGoal();
                 // V11.5 答题反馈：选项题高亮答对的选项（绿框+放大，其余变暗）；拼写题格子逐个点亮
                 boolean isSpell = "spell".equals(quiz.optString("qtype"));
@@ -2937,6 +2943,36 @@ public class BattleView extends FrameLayout {
             t.animate().alpha(1f).translationY(0f).setDuration(260).start();
             main.postDelayed(() -> t.animate().alpha(0f).translationY(-dp(20)).setDuration(300)
                     .withEndAction(() -> { try { removeView(t); } catch (Throwable ignore) {} }).start(), 1800);
+        } catch (Throwable ignore) {}
+    }
+
+    /** V13.2 毕业里程碑小庆祝：顶部青绿短横幅 + 中心金色光环，约 0.9s（650ms 停留 + 250ms 淡出）自动消失。
+     *  纯覆盖层动画，不暂停出题/计时、不阻塞下一题；与彩蛋 SaintAwakeningView 的大仪式明确区分。 */
+    private void showGraduationSpark() {
+        try {
+            TextView t = new TextView(getContext());
+            t.setText("🎓 毕业！新词进入长期记忆");
+            t.setTextSize(14);
+            t.setTypeface(Typeface.DEFAULT_BOLD);
+            t.setTextColor(0xFF081326);
+            t.setGravity(Gravity.CENTER);
+            GradientDrawable g = new GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR, new int[]{0xFF6EE7B7, 0xFF34D399});
+            g.setCornerRadius(dp(12));
+            t.setBackground(g);
+            t.setPadding(dp(16), dp(10), dp(16), dp(10));
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            lp.topMargin = dp(24);
+            addView(t, lp);
+            t.setAlpha(0f);
+            t.setTranslationY(-dp(24));
+            t.animate().alpha(1f).translationY(0f).setDuration(180).start();
+            ringBurst(Ui.GOLD);
+            Ui.vibrate(getContext(), new long[]{0, 30, 20, 40});
+            main.postDelayed(() -> t.animate().alpha(0f).translationY(-dp(16)).setDuration(250)
+                    .withEndAction(() -> { try { removeView(t); } catch (Throwable ignore) {} }).start(), 650);
         } catch (Throwable ignore) {}
     }
 

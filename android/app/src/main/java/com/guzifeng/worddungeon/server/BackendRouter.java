@@ -213,6 +213,9 @@ public class BackendRouter {
         }
 
         WordRec newRec = oldRec == null ? new WordRec() : oldRec;
+        // V13.2 毕业跃迁检测：schedule 会原地修改 newRec（==oldRec），必须在调度前捕获旧毕业状态，
+        // 才能区分「本次刚毕业」与「早已毕业」（仅返回 graduated 不足以区分）。
+        boolean wasGraduated = oldRec != null && oldRec.graduated;
         SrsEngine.schedule(newRec, isCorrect, fast, nowMs);
 
         if ("quick".equals(mode) && quickLevel != null) {
@@ -263,6 +266,8 @@ public class BackendRouter {
         out.put("grade", newRec.wrongCount > 0 ? SrsEngine.gradeOf(newRec.wrongCount) : 0);
         // V13.1 错词消化闭环：本局错词在主循环中被重新答对（复仇/攻克）的权威信号，前端据此给「已攻克」反馈
         out.put("digested", isCorrect && Boolean.TRUE.equals(runState.wrong.get(word)));
+        // V13.2 毕业跃迁：未毕业词在本次答对后走完4步阶梯（拼写压轴）首次毕业，前端据此触发轻量小庆祝
+        out.put("just_graduated", isCorrect && !wasGraduated && newRec.graduated);
         out.put("theta", newTheta);
         out.put("due_min", intervalMin);
         out.put("step", newRec.step);
