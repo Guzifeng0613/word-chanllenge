@@ -32,8 +32,10 @@ public class ShopView extends FrameLayout {
         setBackgroundColor(0xDD08111F);
 
         ScrollView sv = new ScrollView(c);
+        sv.setFillViewport(true);   // V12.7.11 商店整体上下居中（内容不满屏时填满视口，配合 col 垂直居中）
         LinearLayout col = new LinearLayout(c);
         col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_VERTICAL);   // V12.7.11 整列垂直居中；内容超出时正常滚动
         col.setPadding(dp(16), dp(20), dp(16), dp(20));
         sv.addView(col);
         addView(sv, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
@@ -87,11 +89,14 @@ public class ShopView extends FrameLayout {
         tx.addView(d);
         tx.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         row.addView(tx);
-        final TextView buy = Ui.text(getContext(), price + " 词魂", 12.5f, 0xFF081326, true);
+        final boolean afford = souls >= price;   // V12.7.11 词魂不足置灰：灰底灰字、不可购买
+        final TextView buy = Ui.text(getContext(), price + " 词魂", 12.5f,
+                afford ? 0xFF081326 : 0xFF7A8494, true);
         buy.setGravity(Gravity.CENTER);
         buy.setPadding(dp(12), dp(9), dp(12), dp(9));
-        buy.setBackground(Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0));
-        buy.setClickable(true);
+        buy.setBackground(afford ? Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0)
+                : Ui.card(999, 0xFF2A3442, 0, 0));
+        buy.setClickable(afford);
         buy.setOnClickListener(v -> {
             if (souls < price) return;
             souls -= price;

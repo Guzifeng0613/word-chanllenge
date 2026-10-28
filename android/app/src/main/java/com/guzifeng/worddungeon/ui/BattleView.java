@@ -1388,8 +1388,8 @@ public class BattleView extends FrameLayout {
                 } else {
                     showFeed("+" + damage, Ui.GOLD);
                 }
-                // V12.7.7 答题反馈条：答对停留 0.5s 快速切题
-                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 500);
+                // V12.7.11 连击/答对反馈条：显示 0.25s 快速淡出切题（用户调短）
+                showAnswerResult(true, "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : ""), 250);
                 // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
                 showJudgeGrade(quiz.optString("qtype"), quiz.optDouble("timeLimit", 6));
                 if (xpGain > 0) popXp(xpGain);

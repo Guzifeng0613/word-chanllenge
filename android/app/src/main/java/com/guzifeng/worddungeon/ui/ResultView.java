@@ -46,7 +46,7 @@ public class ResultView extends FrameLayout {
         sv.setFillViewport(true);
         body = new LinearLayout(c);
         body.setOrientation(VERTICAL);
-        body.setPadding(dp(16), dp(24), dp(16), dp(20));
+        body.setPadding(dp(16), dp(34), dp(16), dp(20));   // V12.7.11 顶部安全间距：保证标题卡完整显示不贴顶
         sv.addView(body);
         addView(sv, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     }
@@ -326,6 +326,9 @@ public class ResultView extends FrameLayout {
         }
         for (int i = 0; i < words.size(); i++) {
             TextView chip = Ui.text(getContext(), words.get(i), 12, color, true);
+            chip.setSingleLine(true);   // V12.7.11 单词强制单行显示，不换行不折行
+            chip.setMaxWidth(dp(160));  // 防超长词撑破行；过长省略（ellipsize）
+            chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
             chip.setPadding(dp(10), dp(4), dp(10), dp(4));
             chip.setBackground(Ui.pill(Ui.BG_PILL, color));
             wrap.addView(chip);
