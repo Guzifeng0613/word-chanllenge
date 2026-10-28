@@ -601,7 +601,7 @@ public class BattleView extends FrameLayout {
             // 再做 R2 新怪入场：从透明 + 下方 10dp 上浮淡入（230ms），结束后交回 idleFloat 待机浮动。
             enemyEmoji.animate().cancel();
             if (idleAnim != null) idleAnim.cancel();   // 停掉上一层待机浮动，避免与入场 translationY 冲突
-            enemyEmoji.setScaleX(1f); enemyEmoji.setScaleY(1f);
+            enemyEmoji.setScaleX(0.6f); enemyEmoji.setScaleY(0.6f);   // UI-iteration-18：入场缩放起点 0.6
             enemyEmoji.setAlpha(0f);                 // 淡入起点
             enemyEmoji.setTranslationY(dp(10));     // 轻微上浮入场起点（下方 10dp）
             // UI-iteration-14：头部文字（名字/战斗徽章/等级图标）随 emoji 入场一起淡入，不再凭空出现
@@ -623,8 +623,8 @@ public class BattleView extends FrameLayout {
             enemyLevel.setTextColor(boss ? Ui.RED : elite ? Ui.ORANGE : champion ? Ui.GOLD : Ui.CYAN);
             applyEnemyGlow(boss, elite, champion);
             // R2-3：新怪入场演出（淡入+上浮 230ms），结束后启动待机浮动循环
-            enemyEmoji.animate().alpha(1f).translationY(0f).setDuration(230)
-                    .withEndAction(this::idleFloat).start();
+            enemyEmoji.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)   // UI-iteration-18：补缩放弹出 0.6→1.0
+                    .setDuration(230).withEndAction(this::idleFloat).start();
             // UI-iteration-14：头部文字 230ms 同步淡入到不透明
             enemyName.animate().alpha(1f).setDuration(230).start();
             enemyTag.animate().alpha(1f).setDuration(230).start();
