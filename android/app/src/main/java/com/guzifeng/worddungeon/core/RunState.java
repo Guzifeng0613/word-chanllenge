@@ -29,6 +29,8 @@ public class RunState {
     public int formGap = 0;
     /** V13.4 一词多形：本局已考察过的「词|形名」（同一词的同一形本局不重复考）。 */
     public Map<String, Boolean> formSeen = new HashMap<>();
+    /** V13.5 英英模式：距上一次 en2en 题已过的普通题数；达到 EN2EN_REVIEW_GAP 且抽中概率时才偶发出 1 个，随后归零。 */
+    public int en2enGap = 0;
 
     public RunState() {}
 
@@ -85,6 +87,7 @@ public class RunState {
         }
         r.replayGap = o.optInt("replay_gap", 0);
         r.formGap = o.optInt("form_gap", 0);
+        r.en2enGap = o.optInt("en2en_gap", 0);
         JSONObject fs = o.optJSONObject("form_seen");
         if (fs != null) {
             for (java.util.Iterator<String> it = fs.keys(); it.hasNext(); ) {
@@ -138,6 +141,7 @@ public class RunState {
             o.put("adv_queue", new JSONArray(advQueue));
             o.put("replay_gap", replayGap);
             o.put("form_gap", formGap);
+            o.put("en2en_gap", en2enGap);
             JSONObject fs = new JSONObject();
             for (Map.Entry<String, Boolean> e : formSeen.entrySet()) fs.put(e.getKey(), e.getValue());
             o.put("form_seen", fs);

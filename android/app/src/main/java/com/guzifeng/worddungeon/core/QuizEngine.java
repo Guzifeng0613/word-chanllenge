@@ -30,6 +30,8 @@ public class QuizEngine {
         public String mode = "campaign";
         /** 当前敌人是否「易混词妖」（confuse）：干扰项优先同组 */
         public boolean confuse = false;
+        /** V13.5 英英模式开关（来自 Settings 持久化）：开启后才可能偶发 en2en 题。 */
+        public boolean en2en = false;
     }
 
     private final WordBank bank;
@@ -219,6 +221,20 @@ public class QuizEngine {
         String baseQtype = qtype;          // buildQuiz 仍按原复习题型搭骨架
         if (formKey != null) qtype = "form";
 
+        // V13.5 英英模式（默认关）：开关开启后，已学词复习题按间隔+概率偶发升级为 en2en（看英文释义选单词）。
+        // 与 form 互斥（form 已命中则不升级）；不占新词/错词槽；关闭开关后 a.en2en=false，本分支永不进入。
+        boolean toEn2en = false;
+        if (formKey == null && a.en2en && a.force == null && !wrongReplay && rec != null) {
+            WordEntry e0 = bank.entry(word);
+            if (e0 != null && !e0.d2.isEmpty()
+                    && runState.en2enGap >= GameConfig.EN2EN_REVIEW_GAP
+                    && rnd.nextDouble() < GameConfig.EN2EN_PROB) {
+                toEn2en = true;
+            }
+        }
+        if (toEn2en) runState.en2enGap = 0; else runState.en2enGap++;
+        if (toEn2en) qtype = "en2en";
+
         // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
         if (!"spell".equals(baseQtype)) runState.exposed.put(word, true);
 
@@ -237,6 +253,18 @@ public class QuizEngine {
             quiz.options = opts;
             quiz.correct = correct;
             quiz.timeLimit = (int) GameConfig.NORMAL_T;
+        }
+        // V13.5：覆盖为 en2en 题——题干=英文释义 d2，选项=正确单词+3 个英文干扰词（复用 cn2en 干扰机制）
+        if (toEn2en) {
+            WordEntry e = bank.entry(word);
+            List<String> opts2 = new ArrayList<>(bank.distractorWords(word, 3, a.book, a.confuse));
+            opts2.add(word);
+            Collections.shuffle(opts2, bank.rnd);
+            quiz.qtype = "en2en";
+            quiz.d2 = e == null ? "" : e.d2;
+            quiz.options = opts2;
+            quiz.correct = word;
+            quiz.timeLimit = GameConfig.EN2EN_TIME;
         }
         // 远征限时（V12.0）：非拼写选择题用逐层收紧限时；拼写在基线之上加逐层额外秒。
         // 无尽/快刷不经过此覆盖，逻辑保持不变。

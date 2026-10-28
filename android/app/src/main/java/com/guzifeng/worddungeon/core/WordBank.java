@@ -84,6 +84,7 @@ public class WordBank {
                     for (int j = 0; j < bs.length(); j++) e.b.add(bs.getString(j));
                 }
                 e.x = o.optJSONObject("x");
+                e.d2 = o.optString("d2", "");
                 words.add(e);
                 byWord.put(e.w, e);
                 // V13.4：按形名收集全库真实变形，作为 form 题干扰项素材

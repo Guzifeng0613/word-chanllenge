@@ -35,6 +35,8 @@ public class Quiz {
     /** V13.4 一词多形：本次考察的形名键（past/ing/third/plural/comparative/superlative）与中文展示标签。 */
     public String formKey;
     public String formLabel;
+    /** V13.5 英英释义题干（en2en 题型展示）。 */
+    public String d2;
 
     public JSONObject toJson() {
         JSONObject o = new JSONObject();
@@ -67,6 +69,7 @@ public class Quiz {
             if (quickLevel != null) o.put("quickLevel", quickLevel);
             if (formKey != null) o.put("formKey", formKey);
             if (formLabel != null) o.put("formLabel", formLabel);
+            if (d2 != null && !d2.isEmpty()) o.put("d2", d2);
             if (runState != null) o.put("run_state", runState.toJson());
         } catch (Exception e) {
             // 内部结构固定

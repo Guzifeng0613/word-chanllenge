@@ -19,6 +19,8 @@ public class WordEntry {
     public int f;
     /** 词形变化表（V13.4）；无变形数据时为 null。键：plural/past/pastp/ing/comparative/superlative/third */
     public JSONObject x;
+    /** 英英释义（V13.5，精简 1 个核心义项）；无则空串。 */
+    public String d2 = "";
 
     public WordEntry() {}
 

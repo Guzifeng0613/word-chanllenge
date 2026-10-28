@@ -125,6 +125,9 @@ public class BackendRouter {
             a.runState = runState;
             a.mode = mode;
             a.confuse = enemyConfuse;
+            // V13.5 英英模式：从 Settings 持久化开关读取（默认关）；关闭时永不产生 en2en 题
+            a.en2en = ctx.getSharedPreferences("wd_ui", android.content.Context.MODE_PRIVATE)
+                    .getBoolean("en2en_on", false);
             q = quizEngine.draw(a);
         }
         return q.toJson();
@@ -271,7 +274,8 @@ public class BackendRouter {
             correctAnswerVal = entry.w;
         } else if ("judge".equals(qtype)) {
             correctAnswerVal = entry.m.equals(shown) ? "yes" : "no";
-        } else if ("cn2en".equals(qtype)) {
+        } else if ("cn2en".equals(qtype) || "en2en".equals(qtype)) {
+            // V13.5 en2en：题干是英文释义，正确答案仍是该单词本身
             correctAnswerVal = entry.w;
         } else {
             correctAnswerVal = entry.m;

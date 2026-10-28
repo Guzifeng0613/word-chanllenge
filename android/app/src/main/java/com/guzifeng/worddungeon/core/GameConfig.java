@@ -160,6 +160,14 @@ public final class GameConfig {
     public static final int FORM_REVIEW_GAP = 9;
     /** 达到间隔后仍要掷骰才升级为 form 题：约一半的候选复习题被升级，另一半保持原复习题型。 */
     public static final double FORM_QUESTION_PROB = 0.5;
+    // ── V13.5 英英模式（默认关；开启后才生效，关闭零残留）──
+    /** en2en 最小间隔：每连续 EN2EN_REVIEW_GAP 个普通题之后，才偶发 1 道英英题（替换一道已学词复习题）。 */
+    public static final int EN2EN_REVIEW_GAP = 8;
+    /** 达到间隔后仍要掷骰才升级为 en2en：约一半的候选复习题被升级，避免一上来全是英英题。 */
+    public static final double EN2EN_PROB = 0.4;
+    /** en2en 题干较长，基础限时略宽于普通选择题（秒）。 */
+    public static final int EN2EN_TIME = 9;
+
     /** 形名 → 中文标签（展示用；pastp 不单独出题，仅入库）。 */
     public static String formLabel(String key) {
         if (key == null) return "变形";

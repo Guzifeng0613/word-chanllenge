@@ -950,6 +950,7 @@ public class BattleView extends FrameLayout {
         else if ("cn2en".equals(qtype)) prompt = "选择正确的英文单词";
         else if ("judge".equals(qtype)) prompt = "这个释义对吗？";
         else if ("form".equals(qtype)) prompt = "一词多形 · 选择正确的变形";
+        else if ("en2en".equals(qtype)) prompt = "英英模式 · 根据英文释义选单词";
         else prompt = "根据释义默写英文单词";
         promptTxt.setText(prompt);
         // 题型阶梯（V7.0 ladder：识→认→写→拼；复习则 10分/1天/3天/7天/16天/30天）
@@ -1044,6 +1045,15 @@ public class BattleView extends FrameLayout {
                     llp.bottomMargin = dp(8);
                     col.addView(lv, llp);
                 }
+                addOptions(col, quiz.optJSONArray("options"), false);
+                break;
+            }
+            case "en2en": {
+                // V13.5 英英模式：题干=英文释义（可较长，小字卡片内换行居中），四选一英文单词
+                qBody.setText(quiz.optString("d2", ""));
+                qBody.setTextSize(16);
+                qBody.setLineSpacing(dp(3), 1f);
+                qBody.setGravity(Gravity.CENTER);
                 addOptions(col, quiz.optJSONArray("options"), false);
                 break;
             }
@@ -1551,7 +1561,8 @@ public class BattleView extends FrameLayout {
                 // V13.4 form 题同选择题：答对也展示「正确单词：xxx」，1.2s 可读
                 boolean choiceOk = "en2cn".equals(quiz.optString("qtype"))
                         || "cn2en".equals(quiz.optString("qtype"))
-                        || "form".equals(quiz.optString("qtype"));
+                        || "form".equals(quiz.optString("qtype"))
+                        || "en2en".equals(quiz.optString("qtype"));
                 String jmOk = judgeWrongOk ? res.optString("correct_mean", "") : "";
                 int okHold = 250;
                 String okTxt = "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : "");
