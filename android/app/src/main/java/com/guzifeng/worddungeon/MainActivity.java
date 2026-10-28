@@ -1,5 +1,7 @@
 package com.guzifeng.worddungeon;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -8,6 +10,8 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.guzifeng.worddungeon.server.BackendRouter;
@@ -65,6 +69,10 @@ public class MainActivity extends AppCompatActivity {
     private StatsView stats;
     private AltarView altar;
 
+    // P1 学习数据导出/恢复（V13.7）：Storage Access Framework，免存储权限
+    private ActivityResultLauncher<String> exportLauncher;
+    private ActivityResultLauncher<String[]> importLauncher;
+
     public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS, STATS, ALTAR }
     private Screen screen = Screen.HOME;
 
@@ -72,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
+        registerSaflaunchers();
         try {
             createApp();
         } catch (Throwable e) {
@@ -138,6 +147,87 @@ public class MainActivity extends AppCompatActivity {
 
     public BackendRouter router() {
         return router;
+    }
+
+    // ── P1 学习数据导出/恢复（V13.7）─────────────────────────────────────
+
+    /** 在 onCreate 早期注册 SAF launcher（必须在 STARTED 之前）。 */
+    private void registerSaflaunchers() {
+        exportLauncher = registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"),
+                uri -> {
+                    if (uri == null) return;   // 用户取消
+                    new Thread(() -> {
+                        try {
+                            JSONObject backup = router.backup();
+                            try (java.io.OutputStream os = getContentResolver().openOutputStream(uri)) {
+                                os.write(backup.toString(2).getBytes("UTF-8"));
+                            }
+                            main.post(() -> Toast.makeText(this, "✅ 学习数据已导出", Toast.LENGTH_SHORT).show());
+                        } catch (Throwable e) {
+                            Log.e(TAG, "导出失败", e);
+                            main.post(() -> Toast.makeText(this, "导出失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
+                        }
+                    }, "wd-export").start();
+                });
+        importLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(),
+                uri -> {
+                    if (uri == null) return;
+                    new Thread(() -> {
+                        String text;
+                        try (java.io.InputStream is = getContentResolver().openInputStream(uri)) {
+                            java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+                            byte[] tmp = new byte[8192];
+                            int n;
+                            while ((n = is.read(tmp)) > 0) buf.write(tmp, 0, n);
+                            text = buf.toString("UTF-8");
+                        } catch (Throwable e) {
+                            main.post(() -> Toast.makeText(this, "读取备份失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
+                            return;
+                        }
+                        try {
+                            JSONObject root = new JSONObject(text);
+                            main.post(() -> confirmRestore(root));
+                        } catch (Throwable e) {
+                            main.post(() -> Toast.makeText(this, "备份文件已损坏，已拒绝恢复", Toast.LENGTH_LONG).show());
+                        }
+                    }, "wd-import").start();
+                });
+    }
+
+    /** 设置页调用：弹出系统文件选择器导出 JSON。 */
+    public void launchExport() {
+        if (!backendReady) { Toast.makeText(this, "后端未就绪，请稍候", Toast.LENGTH_SHORT).show(); return; }
+        String name = "word-dungeon-backup-" + new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+                .format(new java.util.Date()) + ".json";
+        exportLauncher.launch(name);
+    }
+
+    /** 设置页调用：弹出系统文件选择器导入 JSON。 */
+    public void launchImport() {
+        if (!backendReady) { Toast.makeText(this, "后端未就绪，请稍候", Toast.LENGTH_SHORT).show(); return; }
+        importLauncher.launch(new String[]{"application/json"});
+    }
+
+    /** 恢复是破坏性操作：写库前必须弹确认框；取消则什么都不做。 */
+    private void confirmRestore(JSONObject root) {
+        int prog = root.optJSONArray("progress") == null ? 0 : root.optJSONArray("progress").length();
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("恢复学习数据？")
+                .setMessage("将从备份恢复 " + prog + " 条单词记录。\n当前所有进度将被覆盖，且不可撤销。")
+                .setPositiveButton("恢复", (d, w) -> new Thread(() -> {
+                    try {
+                        router.restoreBackup(root);
+                        main.post(() -> {
+                            Toast.makeText(this, "✅ 恢复完成，正在重启…", Toast.LENGTH_SHORT).show();
+                            main.postDelayed(this::recreate, 600);
+                        });
+                    } catch (Throwable e) {
+                        Log.e(TAG, "恢复失败", e);
+                        main.post(() -> Toast.makeText(this, "恢复失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
+                    }
+                }, "wd-restore").start())
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     /** V13.0：根容器（彩蛋全屏动画挂载用）。 */

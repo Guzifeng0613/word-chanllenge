@@ -556,4 +556,218 @@ public class ProgressStore extends SQLiteOpenHelper {
         c.close();
         return list;
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // P1 学习数据导出 / 备份（V13.7）：JSON 全量导出 + 事务恢复
+    // ════════════════════════════════════════════════════════════════
+
+    /** answers 流水可能很大：备份只导最近 N 条（足够恢复每日统计与回顾趋势）。 */
+    private static final int BACKUP_ANSWERS_LIMIT = 2000;
+
+    /** 导出全量学习数据为自描述 JSON（只读，不写库）。 */
+    public JSONObject buildBackup() throws Exception {
+        SQLiteDatabase db = getReadableDatabase();
+        JSONObject root = new JSONObject();
+        root.put("app", "word-dungeon");
+        root.put("format", 1);
+        root.put("exported_at", System.currentTimeMillis() / 1000);
+
+        // user 关键字段
+        JSONObject user = new JSONObject();
+        Cursor c = db.rawQuery(
+                "SELECT theta,xp,level,streak,last_day,endless_best,ach,souls,extra FROM users WHERE id=?",
+                new String[]{String.valueOf(LOCAL_USER_ID)});
+        if (c.moveToFirst()) {
+            user.put("theta", c.getDouble(0));
+            user.put("xp", c.getInt(1));
+            user.put("level", c.getInt(2));
+            user.put("streak", c.getInt(3));
+            user.put("last_day", c.getLong(4));
+            user.put("endless_best", c.getInt(5));
+            user.put("ach", new JSONArray(c.getString(6) == null ? "[]" : c.getString(6)));
+            user.put("souls", c.getInt(7));
+            user.put("extra", new JSONObject(c.getString(8) == null ? "{}" : c.getString(8)));
+        }
+        c.close();
+        root.put("user", user);
+
+        // progress 全量（含 created/last_review，往返原样写回，不能用 due_ms 推 created——newToday 依赖它）
+        JSONArray prog = new JSONArray();
+        c = db.rawQuery("SELECT word,state,step,graduated,stage,lapses,streak,wrong_count,due_ms,wrong_by,quick_pass,created,last_review " +
+                "FROM progress WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+        while (c.moveToNext()) {
+            JSONObject o = new JSONObject();
+            o.put("word", c.getString(0));
+            o.put("state", c.getString(1));
+            o.put("step", c.getInt(2));
+            o.put("graduated", c.getInt(3) == 1);
+            o.put("stage", c.getInt(4));
+            o.put("lapses", c.getInt(5));
+            o.put("streak", c.getInt(6));
+            o.put("wrong_count", c.getInt(7));
+            o.put("due_ms", c.getLong(8));
+            o.put("wrong_by", new JSONObject(c.getString(9) == null ? "{}" : c.getString(9)));
+            o.put("quick_pass", c.getInt(10) == 1);
+            o.put("created", c.getLong(11));
+            o.put("last_review", c.getLong(12));
+            prog.put(o);
+        }
+        c.close();
+        root.put("progress", prog);
+
+        // runs 全量（每局 1 行，量小）
+        JSONArray runs = new JSONArray();
+        c = db.rawQuery("SELECT mode,win,layer,questions,correct,wrong,max_combo,kills,souls,ts " +
+                "FROM runs WHERE user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+        while (c.moveToNext()) {
+            JSONObject o = new JSONObject();
+            o.put("mode", c.getString(0));
+            o.put("win", c.getInt(1) == 1);
+            o.put("layer", c.getInt(2));
+            o.put("questions", c.getInt(3));
+            o.put("correct", c.getInt(4));
+            o.put("wrong", c.getInt(5));
+            o.put("max_combo", c.getInt(6));
+            o.put("kills", c.getInt(7));
+            o.put("souls", c.getInt(8));
+            o.put("ts", c.getLong(9));
+            runs.put(o);
+        }
+        c.close();
+        root.put("runs", runs);
+
+        // answers：最近 N 条（倒序取，写回时再正序插入）；超过上限则 answers_truncated=true
+        int totalAnswers = 0;
+        Cursor cc = db.rawQuery("SELECT COUNT(*) FROM answers WHERE user_id=?",
+                new String[]{String.valueOf(LOCAL_USER_ID)});
+        if (cc.moveToFirst()) totalAnswers = cc.getInt(0);
+        cc.close();
+        JSONArray ans = new JSONArray();
+        c = db.rawQuery("SELECT word,qtype,correct,damage,ts FROM answers WHERE user_id=? " +
+                "ORDER BY id DESC LIMIT " + BACKUP_ANSWERS_LIMIT,
+                new String[]{String.valueOf(LOCAL_USER_ID)});
+        while (c.moveToNext()) {
+            JSONObject o = new JSONObject();
+            o.put("word", c.getString(0));
+            o.put("qtype", c.getString(1));
+            o.put("correct", c.getInt(2) == 1);
+            o.put("damage", c.getInt(3));
+            o.put("ts", c.getLong(4));
+            ans.put(o);
+        }
+        c.close();
+        root.put("answers", ans);
+        root.put("answers_truncated", totalAnswers > BACKUP_ANSWERS_LIMIT);
+        return root;
+    }
+
+    /**
+     * 恢复备份：先校验，再在单个事务内「替换」（清该用户现有 progress/runs/answers，更新 users，写回备份数据）。
+     * 校验失败/损坏直接抛异常，不写库；取消恢复则根本不调用本方法。
+     */
+    public void restoreBackup(JSONObject root) throws Exception {
+        if (root == null) throw new Exception("备份为空");
+        if (!"word-dungeon".equals(root.optString("app", "")))
+            throw new Exception("文件不是本游戏的备份");
+        int fmt = root.optInt("format", 0);
+        if (fmt != 1) throw new Exception("备份格式版本不兼容: " + fmt);
+        JSONObject user = root.optJSONObject("user");
+        if (user == null) throw new Exception("备份缺少 user 字段");
+        JSONArray prog = root.optJSONArray("progress");
+        if (prog == null) throw new Exception("备份缺少 progress 数组");
+        // 字段粗校验：每条 progress 的 word 必须是非空字符串
+        for (int i = 0; i < prog.length(); i++) {
+            JSONObject p = prog.optJSONObject(i);
+            if (p == null || p.optString("word", "").isEmpty())
+                throw new Exception("progress 第 " + (i + 1) + " 条非法");
+        }
+
+        ensureLocalUser();
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete("progress", "user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+            db.delete("answers", "user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+            db.delete("runs", "user_id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+
+            // user：整行更新（保留 token/created 不动）
+            ContentValues v = new ContentValues();
+            v.put("theta", user.optDouble("theta", 1.5));
+            v.put("xp", user.optInt("xp", 0));
+            v.put("level", user.optInt("level", 1));
+            v.put("streak", user.optInt("streak", 0));
+            v.put("last_day", user.optLong("last_day", 0));
+            v.put("endless_best", user.optInt("endless_best", 0));
+            v.put("ach", user.optJSONArray("ach") == null ? "[]" : user.optJSONArray("ach").toString());
+            v.put("souls", user.optInt("souls", 0));
+            JSONObject ex = user.optJSONObject("extra");
+            v.put("extra", ex == null ? "{}" : ex.toString());
+            db.update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+
+            // progress
+            for (int i = 0; i < prog.length(); i++) {
+                JSONObject p = prog.getJSONObject(i);
+                ContentValues pv = new ContentValues();
+                pv.put("user_id", LOCAL_USER_ID);
+                pv.put("word", p.optString("word"));
+                pv.put("state", p.optString("state", "NEW"));
+                pv.put("step", p.optInt("step", 0));
+                pv.put("graduated", p.optBoolean("graduated", false) ? 1 : 0);
+                pv.put("stage", p.optInt("stage", 0));
+                pv.put("lapses", p.optInt("lapses", 0));
+                pv.put("streak", p.optInt("streak", 0));
+                pv.put("wrong_count", p.optInt("wrong_count", 0));
+                pv.put("due_ms", p.optLong("due_ms", 0));
+                pv.put("quick_pass", p.optBoolean("quick_pass", false) ? 1 : 0);
+                JSONObject wb = p.optJSONObject("wrong_by");
+                pv.put("wrong_by", wb == null ? "{}" : wb.toString());
+                // created/last_review 原样写回（created 是 newToday 今日新学口径的依据，不能用 due_ms 推）
+                pv.put("created", p.optLong("created", 0));
+                pv.put("last_review", p.optLong("last_review", 0));
+                db.insert("progress", null, pv);
+            }
+
+            // runs
+            JSONArray runs = root.optJSONArray("runs");
+            if (runs != null) {
+                for (int i = 0; i < runs.length(); i++) {
+                    JSONObject r = runs.optJSONObject(i);
+                    if (r == null) continue;
+                    ContentValues rv = new ContentValues();
+                    rv.put("user_id", LOCAL_USER_ID);
+                    rv.put("mode", r.optString("mode", "campaign"));
+                    rv.put("win", r.optBoolean("win", false) ? 1 : 0);
+                    rv.put("layer", r.optInt("layer", 1));
+                    rv.put("questions", r.optInt("questions", 0));
+                    rv.put("correct", r.optInt("correct", 0));
+                    rv.put("wrong", r.optInt("wrong", 0));
+                    rv.put("max_combo", r.optInt("max_combo", 0));
+                    rv.put("kills", r.optInt("kills", 0));
+                    rv.put("souls", r.optInt("souls", 0));
+                    rv.put("ts", r.optLong("ts", 0));
+                    db.insert("runs", null, rv);
+                }
+            }
+
+            // answers
+            JSONArray ans = root.optJSONArray("answers");
+            if (ans != null) {
+                for (int i = 0; i < ans.length(); i++) {
+                    JSONObject a = ans.optJSONObject(i);
+                    if (a == null) continue;
+                    ContentValues av = new ContentValues();
+                    av.put("user_id", LOCAL_USER_ID);
+                    av.put("word", a.optString("word", ""));
+                    av.put("qtype", a.optString("qtype", ""));
+                    av.put("correct", a.optBoolean("correct", false) ? 1 : 0);
+                    av.put("damage", a.optInt("damage", 0));
+                    av.put("ts", a.optLong("ts", 0));
+                    db.insert("answers", null, av);
+                }
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
 }

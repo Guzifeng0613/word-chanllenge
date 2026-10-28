@@ -56,6 +56,7 @@ public class SettingsView extends LinearLayout {
         buildExamCard(body);
         buildEn2EnCard(body);
         buildDataCard(body);
+        buildBackupCard(body);
         buildStatsCard(body);
         buildAltarCard(body);
         buildWrongCard(body);
@@ -100,7 +101,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.6", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.7", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -442,6 +443,53 @@ public class SettingsView extends LinearLayout {
         body.addView(spacer(10));
     }
 
+    /** P1：学习数据导出 / 恢复（V13.7）。导出为 JSON 备份；恢复会覆盖当前数据（破坏性）。 */
+    private void buildBackupCard(LinearLayout body) {
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("学习数据备份 ⓘ",
+                "导出为 JSON 文件保存到任意位置；恢复会用备份覆盖当前全部进度。"));
+
+        // 导出
+        LinearLayout exp = new LinearLayout(getContext());
+        exp.setOrientation(HORIZONTAL);
+        exp.setGravity(Gravity.CENTER_VERTICAL);
+        exp.setPadding(0, dp(8), 0, dp(8));
+        LinearLayout exLab = new LinearLayout(getContext());
+        exLab.setOrientation(VERTICAL);
+        exLab.addView(Ui.text(getContext(), "导出学习数据", 13.5f, Ui.TXT, false));
+        exLab.addView(Ui.text(getContext(), "保存为 JSON（含单词进度 / 成就 / 战绩）", 10.5f, Ui.MUT, false));
+        exLab.setLayoutParams(lp(0, -2, 1f));
+        exp.addView(exLab);
+        exp.addView(Ui.text(getContext(), "导出 ›", 12.5f, Ui.CYAN, true));
+        exp.setClickable(true);
+        Ui.pressable(exp);
+        exp.setOnClickListener(v -> act.launchExport());
+        card.addView(exp);
+
+        // 恢复
+        LinearLayout imp = new LinearLayout(getContext());
+        imp.setOrientation(HORIZONTAL);
+        imp.setGravity(Gravity.CENTER_VERTICAL);
+        imp.setPadding(0, dp(8), 0, dp(8));
+        LinearLayout imLab = new LinearLayout(getContext());
+        imLab.setOrientation(VERTICAL);
+        imLab.addView(Ui.text(getContext(), "恢复学习数据", 13.5f, Ui.TXT, false));
+        imLab.addView(Ui.text(getContext(), "从 JSON 备份恢复，将覆盖当前进度", 10.5f, Ui.RED, false));
+        imLab.setLayoutParams(lp(0, -2, 1f));
+        imp.addView(imLab);
+        imp.addView(Ui.text(getContext(), "恢复 ›", 12.5f, Ui.GOLD, true));
+        imp.setClickable(true);
+        Ui.pressable(imp);
+        imp.setOnClickListener(v -> act.launchImport());
+        card.addView(imp);
+
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
     private void buildStatsCard(LinearLayout body) {
         LinearLayout card = new LinearLayout(getContext());
         card.setOrientation(VERTICAL);
@@ -554,7 +602,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.6 · 核心词优先（牛津3000/柯林斯星级，7388 词已内置）",
+                        + "版本：V13.7 · 学习数据导出 / 备份（JSON 导出与恢复，免存储权限）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);

@@ -49,6 +49,12 @@ public class BackendRouter {
         this.quizEngine = new QuizEngine();
     }
 
+    /** P1：导出全量学习数据（只读）。 */
+    public JSONObject backup() throws Exception { return store.buildBackup(); }
+
+    /** P1：恢复备份（事务替换；调用方需先弹确认框）。 */
+    public void restoreBackup(JSONObject o) throws Exception { store.restoreBackup(o); }
+
     /** 分发：route 以 / 开头；method 仅 GET/POST。body 可为 null（GET 请求）。 */
     public JSONObject dispatch(String route, String method, JSONObject body) throws Exception {
         if ("/auth/guest".equals(route)) return guest();
