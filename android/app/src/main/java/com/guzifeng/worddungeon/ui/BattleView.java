@@ -694,8 +694,15 @@ public class BattleView extends FrameLayout {
             GradientDrawable g = new GradientDrawable();
             g.setShape(GradientDrawable.OVAL);
             g.setColor(i < cur ? Ui.GOLD : i == cur ? Ui.GOLD : Ui.CARD2);
-            if (i == cur) { g.setStroke(dp(1.5f), Ui.GOLD); }
-            dot.setBackground(g);
+            if (i == cur) {
+                g.setStroke(dp(1.5f), Ui.GOLD);
+                dot.setBackground(g);
+                // UI-iteration-17：当前节点点入场弹跳（0.4→1.0），提示楼层进度推进到下一站
+                dot.setScaleX(0.4f); dot.setScaleY(0.4f);
+                dot.post(() -> dot.animate().scaleX(1f).scaleY(1f).setDuration(220).start());
+            } else {
+                dot.setBackground(g);
+            }
             topRight.addView(dot);
         }
     }
