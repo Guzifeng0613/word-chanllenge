@@ -91,6 +91,7 @@ public class BattleView extends FrameLayout {
     private String goalKind = "";           // none / combo4 / correct5 / flawless
     private boolean lastGoalDone = false;   // UI-iteration-07：记录目标达成跳变帧，只跳一次
     private int lastHp = 100;               // UI-iteration-12：记录上次玩家血量，判断是否受扣血
+    private int lastSouls = 0;               // UI-iteration-16：记录上次词魂，判断是否获得（收益弹跳）
     private int quickDone = 0;             // 快刷已刷词数
     private int quickKills = 0;            // 快刷连续击杀数（持续模式）
     private final java.util.Map<String, String[]> layerWrong = new java.util.LinkedHashMap<>(); // 本层错词 word→[pos,mean]
@@ -435,7 +436,19 @@ public class BattleView extends FrameLayout {
             }
             lastHp = newHp;
             if (playerHp != null) playerHp.setRatio(newHp / 100f);
-            if (soulNum != null) soulNum.setText("💠 词魂 " + act.souls);
+            // UI-iteration-16：词魂增加（答对获利）时计数器弹跳，赚到货币有获得感；消费不跳
+            int newSouls = act.souls;
+            if (soulNum != null) {
+                soulNum.setText("💠 词魂 " + newSouls);
+                if (newSouls > lastSouls) {
+                    soulNum.animate().cancel();
+                    soulNum.setScaleX(1f); soulNum.setScaleY(1f);
+                    soulNum.animate().scaleX(1.15f).scaleY(1.15f).setDuration(90)
+                            .withEndAction(() -> soulNum.animate().scaleX(1f).scaleY(1f).setDuration(120).start())
+                            .start();
+                }
+            }
+            lastSouls = newSouls;
         } catch (Throwable ignore) {}
     }
 
