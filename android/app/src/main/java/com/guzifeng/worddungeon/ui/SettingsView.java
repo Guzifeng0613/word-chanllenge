@@ -94,7 +94,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.0.0", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.0.1", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -173,7 +173,7 @@ public class SettingsView extends LinearLayout {
         LinearLayout master = new LinearLayout(getContext());
         master.setOrientation(HORIZONTAL);
         master.setGravity(Gravity.CENTER_VERTICAL);
-        masteryTxt = Ui.text(getContext(), "掌握进度（《高考》）", 12.5f, Ui.MUT, false);
+        masteryTxt = Ui.text(getContext(), "学习进度（《高考》）", 12.5f, Ui.MUT, false);
         master.addView(masteryTxt, lp(0, -2, 1f));
         card.addView(master);
         barHost = new LinearLayout(getContext());
@@ -382,7 +382,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.0.0 · 全原生快速刷题（7388 词已内置）",
+                        + "版本：V13.0.1 · 全原生快速刷题（7388 词已内置）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);
@@ -422,13 +422,15 @@ public class SettingsView extends LinearLayout {
                     : act.difficulty.equals("all") ? "全部" : diffName;
             rangeTxt.setText("词书 " + bookName + " · 难度 " + diffShow);
 
-            // 掌握进度
+            // 掌握进度：进度条以「已学 seen」为口径（LEARNING/FAMILIAR/MASTERED 都算），
+            // 附注显示已掌握 mastered——V13.0.1 修复：此前只用 mastered 新用户恒为 0
             JSONObject bs = act.router().dispatch("/stats/book", "POST", new JSONObject().put("book", act.book));
+            int seen = bs.optInt("seen", 0);
             int mastered = bs.optInt("mastered", 0);
             int total = bs.optInt("total", 0);
-            masteryTxt.setText("掌握进度（《" + bookName + "》）  " + mastered + " / " + total);
+            masteryTxt.setText("学习进度（《" + bookName + "》）  已学 " + seen + " / " + total + " · 掌握 " + mastered);
             if (barHost.getChildCount() > 0) barHost.removeAllViews();
-            View[] bar = Ui.bar(getContext(), total > 0 ? (float) mastered / total : 0, 0xFF22C55E, 0xFF4ADE80, 6);
+            View[] bar = Ui.bar(getContext(), total > 0 ? (float) seen / total : 0, 0xFF22C55E, 0xFF4ADE80, 6);
             barHost.addView(bar[0]);
 
             // 数据
