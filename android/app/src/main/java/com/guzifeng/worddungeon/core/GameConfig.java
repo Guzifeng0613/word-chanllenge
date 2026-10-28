@@ -196,4 +196,71 @@ public final class GameConfig {
         }
         return out;
     }
+
+    // ── V13.8 不规则形优先：运行时规则判定，零词库体积 ──
+    private static boolean isVowel(char c) {
+        return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
+    }
+    /** 辅音+ y 结尾（y 前是辅音）。 */
+    private static boolean endsConsY(String w) {
+        return w.endsWith("y") && w.length() >= 2 && !isVowel(w.charAt(w.length() - 2));
+    }
+    /** 重读闭音节近似：长度≥3，末三位 C-V-C，且末尾不是 w/x/y（不双写）。 */
+    private static boolean isCvc(String w) {
+        if (w.length() < 3) return false;
+        char a = w.charAt(w.length() - 3), b = w.charAt(w.length() - 2), c = w.charAt(w.length() - 1);
+        if (c == 'w' || c == 'x' || c == 'y') return false;
+        return !isVowel(a) && isVowel(b) && !isVowel(c);
+    }
+    private static boolean endsSibilant(String w) {
+        return w.endsWith("s") || w.endsWith("x") || w.endsWith("z") || w.endsWith("ch") || w.endsWith("sh");
+    }
+
+    /**
+     * 判定变形是否「不规则」（不能由标准规则推出）。
+     * 保守口径：拿不准就判不规则（避免把 went 误判成规则）；自指/空值不算不规则。
+     * 返回 true = 不规则（应优先考）。
+     */
+    public static boolean isIrregular(String base, String key, String form) {
+        if (base == null || form == null) return false;
+        String b = base.toLowerCase().trim();
+        String f = form.toLowerCase().trim();
+        if (b.isEmpty() || f.isEmpty() || b.equals(f)) return false;
+        switch (key == null ? "" : key) {
+            case "plural":
+            case "third": {
+                // +s；嘶音结尾 +es；辅音+y → ies
+                if (f.equals(b + "s")) return false;
+                if (endsSibilant(b) && f.equals(b + "es")) return false;
+                if (b.endsWith("o") && f.equals(b + "es")) return false;       // go→goes
+                if (endsConsY(b) && f.equals(b.substring(0, b.length() - 1) + "ies")) return false;
+                return true;
+            }
+            case "past":
+            case "pastp": {
+                if (f.equals(b + "ed")) return false;
+                if (b.endsWith("e") && f.equals(b + "d")) return false;
+                if (endsConsY(b) && f.equals(b.substring(0, b.length() - 1) + "ied")) return false;
+                if (isCvc(b) && f.equals(b + b.charAt(b.length() - 1) + "ed")) return false;
+                return true;
+            }
+            case "ing": {
+                if (f.equals(b + "ing")) return false;
+                if (b.endsWith("e") && f.equals(b.substring(0, b.length() - 1) + "ing")) return false; // make→making
+                if (isCvc(b) && f.equals(b + b.charAt(b.length() - 1) + "ing")) return false;           // run→running
+                return true;
+            }
+            case "comparative":
+            case "superlative": {
+                String suf = "superlative".equals(key) ? "est" : "er";
+                if (f.equals(b + suf)) return false;
+                if (b.endsWith("e") && f.equals(b.substring(0, b.length() - 1) + suf)) return false;   // nice→nicer
+                if (endsConsY(b) && f.equals(b.substring(0, b.length() - 1) + "i" + suf)) return false;  // happy→happier
+                if (isCvc(b) && f.equals(b + b.charAt(b.length() - 1) + suf)) return false;               // big→bigger
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
 }

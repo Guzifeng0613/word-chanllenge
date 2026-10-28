@@ -307,7 +307,20 @@ public class QuizEngine {
             candidates.add(key);
         }
         if (candidates.isEmpty()) return null;
-        return candidates.get(rnd.nextInt(candidates.size()));
+        // V13.8：不规则形优先——把有限的 form 题名额留给教学价值高的不规则形；
+        // 有不规则候选时 85% 选不规则、15% 选规则；只有规则形时仍照常考（book→books 仍可考，只是占比下降）。
+        List<String> irregular = new ArrayList<>();
+        List<String> regular = new ArrayList<>();
+        for (String key : candidates) {
+            String val = e.x.optString(key, "");
+            if (GameConfig.isIrregular(word, key, val)) irregular.add(key);
+            else regular.add(key);
+        }
+        List<String> pool;
+        if (!irregular.isEmpty() && rnd.nextDouble() < 0.85) pool = irregular;
+        else if (!regular.isEmpty()) pool = regular;
+        else pool = irregular;
+        return pool.get(rnd.nextInt(pool.size()));
     }
 
     /** V12.1 单局冷却：本局已答对过、且非本局答错词的候选不再短期回归（错词仍按 cap 重现）。 */
