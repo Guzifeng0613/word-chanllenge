@@ -204,6 +204,12 @@ public class BackendRouter {
             // V7.0：wrong_by 仅快刷记录；答对（任意档）若无任何错误记录则置 quick_pass
             if (!isCorrect) QuickEngine.markQuickWrong(newRec, quickLevel, qtype);
             else QuickEngine.markQuickPass(newRec);
+            // V12.7.14 局内进阶：答对且未毕业，排入进阶队列（去重、上限），同一局内出更高阶梯题
+            if (isCorrect && !newRec.graduated
+                    && !runState.advQueue.contains(word)
+                    && runState.advQueue.size() < GameConfig.QUICK_ADV_QUEUE_MAX) {
+                runState.advQueue.add(word);
+            }
         }
 
         double newTheta = SrsEngine.updateTheta(store.getTheta(), isCorrect, fast);

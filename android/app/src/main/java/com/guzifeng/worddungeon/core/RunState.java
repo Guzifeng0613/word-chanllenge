@@ -1,6 +1,7 @@
 package com.guzifeng.worddungeon.core;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +21,8 @@ public class RunState {
     public Map<String, Integer> drawn = new HashMap<>();
     /** 本局已答对过的词（V12.1 冷却去重：答对词不再短期回归，除非候选池耗尽） */
     public Map<String, Boolean> correctOnce = new HashMap<>();
+    /** V12.7.14 局内进阶队列：答对且未毕业的词排队，在同一局内出更高阶梯题（识→认→写→拼） */
+    public java.util.List<String> advQueue = new java.util.ArrayList<>();
 
     public RunState() {}
 
@@ -68,6 +71,12 @@ public class RunState {
                 r.correctOnce.put(k, co.optBoolean(k));
             }
         }
+        JSONArray aq = o.optJSONArray("adv_queue");
+        if (aq != null) {
+            try {
+                for (int i = 0; i < aq.length(); i++) r.advQueue.add(aq.getString(i));
+            } catch (Exception ignored) {}
+        }
         return r;
     }
 
@@ -111,6 +120,7 @@ public class RunState {
             JSONObject co = new JSONObject();
             for (Map.Entry<String, Boolean> e : correctOnce.entrySet()) co.put(e.getKey(), e.getValue());
             o.put("correct_once", co);
+            o.put("adv_queue", new JSONArray(advQueue));
         } catch (Exception e) {
             // 内部结构固定
         }

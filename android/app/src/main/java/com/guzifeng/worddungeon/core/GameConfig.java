@@ -71,7 +71,11 @@ public final class GameConfig {
     public static final double QUICK_CAROUSEL = 0.03;
     public static final int QUICK_FREQ_REF = 10000;
     public static final double QUICK_NO_FREQ_SCORE = 0.05;
-    public static final double QUICK_FLOOR = 0.05;
+    public static final double[] QUICK_FLOOR = {0.05, 0.02, 0.01};   // V12.7.14 保底按档收紧，强化高频优先
+    public static final double[] QUICK_ADV_PICK = {0.30, 0.35, 0.40};   // V12.7.14 局内进阶队列抽取概率
+    public static final double[] QUICK_NEW_PICK = {0.50, 0.55, 0.55};   // V12.7.14 新词路径概率（档越高新词越多）
+    public static final double[] QUICK_NEW_BOOST = {1.30, 1.40, 1.50};  // V12.7.14 全池新词权重加成
+    public static final int QUICK_ADV_QUEUE_MAX = 12;
     public static final int[] QUICK_ENEMY_HP = {30, 45, 60};
     public static final int QUICK_CHOICE_T = 8;
 
