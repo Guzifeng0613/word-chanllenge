@@ -2096,6 +2096,13 @@ public class BattleView extends FrameLayout {
                         .setNegativeButton("继续刷", null)
                         .setPositiveButton("退出", (d, w) -> finishQuickSession())
                         .show();
+            } else if ("endless".equals(mode)) {
+                new android.app.AlertDialog.Builder(getContext())
+                        .setTitle("退出无尽？")
+                        .setMessage("本次已到第 " + layer + " 层，答对 " + correctInRun + " 题；退出后战绩将记入回顾看板，错词已记入错词本。")
+                        .setNegativeButton("继续战斗", null)
+                        .setPositiveButton("退出", (d, w) -> finishEndlessSession())
+                        .show();
             } else {
                 new android.app.AlertDialog.Builder(getContext())
                         .setTitle("放弃本层战斗？")
@@ -2118,6 +2125,28 @@ public class BattleView extends FrameLayout {
                 b.put("mode", "quick");
                 b.put("layer", 1);
                 b.put("win", true);
+                b.put("max_combo", maxCombo);
+                b.put("correct", correctInRun);
+                b.put("questions", questionsInRun);
+                b.put("wrong", wrongInRun);
+                b.put("kills", killsInRun);
+                b.put("souls", act.souls);
+                b.put("cards", act.runCards);
+                act.router().dispatch("/progress/finish", "POST", b);
+            } catch (Throwable ignore) {}
+            main.post(this::exitToHome);
+        }).start();
+    }
+
+    /** 无尽模式中途退出：后台记录本次无尽会话（写 runs，不弹结算页），再回主页。 */
+    private void finishEndlessSession() {
+        if (questionsInRun <= 0) { exitToHome(); return; }
+        new Thread(() -> {
+            try {
+                JSONObject b = new JSONObject();
+                b.put("mode", "endless");
+                b.put("layer", layer);
+                b.put("win", false);
                 b.put("max_combo", maxCombo);
                 b.put("correct", correctInRun);
                 b.put("questions", questionsInRun);
