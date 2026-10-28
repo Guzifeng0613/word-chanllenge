@@ -351,6 +351,17 @@ public class ProgressStore extends SQLiteOpenHelper {
         return n;
     }
 
+    /** P0-4：历史单局最高答对题数（成就 correct50 进度，纯读 runs 表）。 */
+    public int bestRunCorrect() {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT COALESCE(MAX(correct),0) FROM runs WHERE user_id=?",
+                new String[]{String.valueOf(LOCAL_USER_ID)});
+        int n = 0;
+        if (c.moveToFirst()) n = c.getInt(0);
+        c.close();
+        return n;
+    }
+
     // ════════════════════════════════════════════════════════════════
     // 回顾系统（V12.8）：每局战绩写入 + 周/月/年聚合
     // ════════════════════════════════════════════════════════════════

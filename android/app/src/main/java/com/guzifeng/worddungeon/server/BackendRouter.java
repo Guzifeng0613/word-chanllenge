@@ -447,6 +447,7 @@ public class BackendRouter {
         out.put("new_cap", DAILY_NEW_WORDS);
         out.put("target_rate", 0.85);
         out.put("mastered_total", store.masteredCount());
+        out.put("best_correct", store.bestRunCorrect());   // P0-4：成就 correct50 进度
         return out;
     }
 
@@ -483,10 +484,10 @@ public class BackendRouter {
             if (best >= 5) unlock(meta, "endless5");
             if (best >= 10) unlock(meta, "endless10");
         }
-        if (win && "campaign".equals(mode)) {
-            // 每日远征目标 + 打卡 streak（仅完成远征才记）
-            store.insertAnswer("__run__", "run", true, 0, nowSec);
-            markStreak(meta, today0Sec);
+        // P0-4：打卡口径扩展为"完成任意模式一局"（远征/无尽/快刷，含中途退出，runs 表已记录）
+        store.insertAnswer("__run__", "run", true, 0, nowSec);
+        markStreak(meta, today0Sec);
+        if ("campaign".equals(mode)) {
             unlock(meta, "first_win");
             if (layer >= 1) unlock(meta, "boss1");
             if (layer >= 2) unlock(meta, "boss2");

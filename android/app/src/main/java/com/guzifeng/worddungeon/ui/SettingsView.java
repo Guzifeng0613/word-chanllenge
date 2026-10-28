@@ -92,7 +92,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V12.8.6", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V12.8.7", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -358,7 +358,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V12.8.6 · 全原生快速刷题（7388 词已内置）",
+                        + "版本：V12.8.7 · 全原生快速刷题（7388 词已内置）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);
@@ -426,7 +426,9 @@ public class SettingsView extends LinearLayout {
 
             // 成就墙
             JSONArray ach = stats.optJSONArray("ach");
-            rebuildAch(ach == null ? new JSONArray() : ach);
+            int masteredTotal = stats.optInt("mastered_total", 0);
+            int bestCorrect = stats.optInt("best_correct", 0);
+            rebuildAch(ach == null ? new JSONArray() : ach, streak, masteredTotal, bestCorrect);
         } catch (Throwable e) {
             dataRows.setText("数据加载失败：" + e.getMessage());
         }
@@ -444,7 +446,7 @@ public class SettingsView extends LinearLayout {
         }
     }
 
-    private void rebuildAch(JSONArray got) {
+    private void rebuildAch(JSONArray got, int streak, int mastered, int bestCorrect) {
         if (achHost.getChildCount() > 0) achHost.removeAllViews();
         String[][] defs = {
                 {"🏆", "初战告捷", "击败第 1 层 Boss", "boss1"},
@@ -487,6 +489,17 @@ public class SettingsView extends LinearLayout {
                 TextView ds = Ui.text(getContext(), defs[i][2], 10, Ui.MUT, false);
                 tx.addView(nm);
                 tx.addView(ds);
+                // P0-4：streak3/7、master30/60、correct50 五格加细进度条 + N/target
+                int tgt = achTarget(defs[i][3]);
+                if (tgt > 0) {
+                    int cur = achCurrent(defs[i][3], streak, mastered, bestCorrect);
+                    float frac = Math.max(0f, Math.min(1f, cur / (float) tgt));
+                    View[] bar = Ui.bar(getContext(), frac, 0xFF22C55E, 0xFF4ADE80, 4);
+                    tx.addView(bar[0]);
+                    TextView pv = Ui.text(getContext(), Math.min(cur, tgt) + "/" + tgt, 9, Ui.MUT, false);
+                    pv.setPadding(0, dp(2), 0, 0);
+                    tx.addView(pv);
+                }
                 tx.setLayoutParams(lp(0, -2, 1f));
                 cell.addView(tx);
                 cell.setAlpha(has[i] ? 1f : 0.45f);
@@ -496,6 +509,30 @@ public class SettingsView extends LinearLayout {
             if (r < 6) achHost.addView(spacer(7));
         }
         achTitle.setText("成就墙（" + countTrue(has) + "/14）");
+    }
+
+    /** P0-4：需要进度外显的成就目标值（0=无进度条）。 */
+    private int achTarget(String key) {
+        switch (key) {
+            case "streak3": return 3;
+            case "streak7": return 7;
+            case "master30": return 30;
+            case "master60": return 60;
+            case "correct50": return 50;
+            default: return 0;
+        }
+    }
+
+    /** P0-4：成就当前进度值。 */
+    private int achCurrent(String key, int streak, int mastered, int bestCorrect) {
+        switch (key) {
+            case "streak3":
+            case "streak7": return streak;
+            case "master30":
+            case "master60": return mastered;
+            case "correct50": return bestCorrect;
+            default: return 0;
+        }
     }
 
     private int countTrue(boolean[] a) {
