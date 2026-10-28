@@ -10,6 +10,28 @@ public final class GameConfig {
     // 玩家
     public static final int BASE_DAMAGE = 10;
 
+    // ── V13.0 玩家身份：称号 4 阶（按玩家等级）、火花 4 阶（按连续打卡）──
+    /** 称号各阶所需玩家等级（0-based 对应名称）：词灵使/词灵行者/词灵领主/词灵圣者 */
+    public static final int[] TITLE_LV = {1, 3, 6, 10};
+    public static final String[] TITLE_NAMES = {"词灵使", "词灵行者", "词灵领主", "词灵圣者"};
+    /** 火花各阶所需连续打卡天数（0-based）：灰烬/星火/烈火/圣焰 */
+    public static final int[] SPARK_STREAK = {0, 3, 7, 30};
+    public static final String[] SPARK_NAMES = {"灰烬", "星火", "烈火", "圣焰"};
+
+    /** 称号阶段（0-based）：末阶 Lv10 门槛跨度为前阶 2.5 倍，中两阶前移易拿 */
+    public static int titleStage(int level) {
+        int s = 0;
+        for (int i = 0; i < TITLE_LV.length; i++) if (level >= TITLE_LV[i]) s = i;
+        return s;
+    }
+
+    /** 火花阶段（0-based）：连续打卡 3/7/30 天逐级点亮 */
+    public static int sparkStage(int streak) {
+        int s = 0;
+        for (int i = 0; i < SPARK_STREAK.length; i++) if (streak >= SPARK_STREAK[i]) s = i;
+        return s;
+    }
+
     // 速度（非拼写题）
     public static final double FAST_T = 3.0;
     public static final double NORMAL_T = 6.0;

@@ -63,6 +63,8 @@ public class BattleView extends FrameLayout {
     private int seerLv = 0;      // 先知：首节点翻牌多1张/级
     private int reviveLv = 0;    // 复苏：每局免死复活次数
     private int reviveUsed = 0;  // 本局已用复活次数
+    private boolean saintLv = false;   // V13.0 彩蛋圣辉：开局+15魂、产出+15%（后端）、每局1次圣辉复活
+    private boolean saintReviveUsed = false;
     private boolean sacrificeUsed = false;  // V12.9 献祭：每场限1
     private boolean killViaSacrifice = false;  // V12.9 标记本次击杀来自献祭（不发击杀词魂）
     private TextView sacrificeBtn = null;  // 献祭按钮引用（随敌人显隐）
@@ -572,9 +574,12 @@ public class BattleView extends FrameLayout {
         seerLv = altar.optInt("seer", 0);
         reviveLv = altar.optInt("revive", 0);
         reviveUsed = 0;
+        saintLv = altar.optInt("saint", 0) == 1;
+        saintReviveUsed = false;
         maxHp = 100 + 10 * altar.optInt("vigor", 0);
         hp = maxHp;
-        act.souls = 15 * altar.optInt("magnet", 0);
+        // 磁石每级 +15 开局魂；V13.0 圣辉额外 +15
+        act.souls = 15 * altar.optInt("magnet", 0) + (saintLv ? 15 : 0);
         updateHud();
         lowHpVignette.setVisibility(GONE);
         flowBanner.setVisibility(GONE);
@@ -1751,6 +1756,12 @@ public class BattleView extends FrameLayout {
             hp = 1;
             showFeed("♾ 复苏：以 1 HP 重新站起（" + reviveUsed + "/" + reviveLv + "）", Ui.GOLD);
         }
+        // V13.0 圣辉复活——彩蛋专属，与复苏独立，每局 1 次
+        if (hp <= 0 && saintLv && !saintReviveUsed) {
+            saintReviveUsed = true;
+            hp = 1;
+            showFeed("✨ 圣辉：圣者之光托举你重新站起", Ui.PURPLE);
+        }
         updateHud();
         playerHp.flashHit();   // R2-5：玩家受击血条白闪反馈（独立于 160ms 平滑）
         flashRed(playerEmoji);
@@ -2720,7 +2731,8 @@ public class BattleView extends FrameLayout {
     private void onLevelUp() {
         try {
             TextView lv = new TextView(getContext());
-            lv.setText("LEVEL UP · 词灵使 Lv." + playerLevel);
+            lv.setText("LEVEL UP · " + GameConfig.TITLE_NAMES[GameConfig.titleStage(playerLevel)]
+                    + " Lv." + playerLevel);
             lv.setTextSize(22);
             lv.setTypeface(Typeface.DEFAULT_BOLD);
             lv.setTextColor(Ui.GOLD);

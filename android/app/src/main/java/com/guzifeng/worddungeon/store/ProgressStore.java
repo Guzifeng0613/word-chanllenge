@@ -27,7 +27,7 @@ import java.util.Set;
 public class ProgressStore extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "word_dungeon.db";
-    private static final int DB_VERSION = 6;
+    private static final int DB_VERSION = 7;
     public static final long LOCAL_USER_ID = 1L;
 
     private static ProgressStore instance;
@@ -47,7 +47,7 @@ public class ProgressStore extends SQLiteOpenHelper {
                 "id INTEGER PRIMARY KEY, name TEXT, token TEXT UNIQUE, created INTEGER, theta REAL DEFAULT 1.5, " +
                 "xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1, streak INTEGER DEFAULT 0, " +
                 "last_day INTEGER DEFAULT 0, endless_best INTEGER DEFAULT 0, ach TEXT DEFAULT '[]', " +
-                "souls INTEGER DEFAULT 0)");
+                "souls INTEGER DEFAULT 0, extra TEXT DEFAULT '{}')");
         db.execSQL("CREATE TABLE IF NOT EXISTS progress(" +
                 "user_id INTEGER, word TEXT, state TEXT DEFAULT 'NEW', " +
                 "step INTEGER DEFAULT 0, graduated INTEGER DEFAULT 0, stage INTEGER DEFAULT 0, " +
@@ -105,6 +105,14 @@ public class ProgressStore extends SQLiteOpenHelper {
                     "win INTEGER, layer INTEGER, questions INTEGER, correct INTEGER, " +
                     "wrong INTEGER, max_combo INTEGER, kills INTEGER, souls INTEGER, ts INTEGER)");
         }
+        if (oldV < 7) {
+            // V13.0：extra JSON 列——持久化精华 essence / 祭坛 altar（含彩蛋圣辉 saint）
+            try {
+                db.execSQL("ALTER TABLE users ADD COLUMN extra TEXT DEFAULT '{}'");
+            } catch (Throwable ignore) {
+                // 列已存在时忽略
+            }
+        }
     }
 
     /** 确保本地用户存在，返回 token。 */
@@ -159,7 +167,7 @@ public class ProgressStore extends SQLiteOpenHelper {
     public JSONObject getMeta() {
         JSONObject o = new JSONObject();
         SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT level,xp,streak,last_day,endless_best,ach,souls FROM users WHERE id=?",
+        Cursor c = db.rawQuery("SELECT level,xp,streak,last_day,endless_best,ach,souls,extra FROM users WHERE id=?",
                 new String[]{String.valueOf(LOCAL_USER_ID)});
         if (c.moveToFirst()) {
             try {
@@ -170,6 +178,14 @@ public class ProgressStore extends SQLiteOpenHelper {
                 o.put("endless_best", c.getInt(4));
                 o.put("ach", new JSONArray(c.getString(5)));
                 o.put("souls", c.getInt(6));
+                // V13.0：extra JSON 承载精华/祭坛（含彩蛋圣辉），重启不丢
+                String extra = c.getString(7);
+                if (extra != null && extra.trim().length() > 2) {
+                    JSONObject ex = new JSONObject(extra);
+                    if (ex.has("essence")) o.put("essence", ex.optInt("essence", 0));
+                    JSONObject al = ex.optJSONObject("altar");
+                    if (al != null) o.put("altar", al);
+                }
             } catch (Exception ignore) {
             }
         } else {
@@ -192,6 +208,15 @@ public class ProgressStore extends SQLiteOpenHelper {
         v.put("endless_best", meta.optInt("endless_best", 0));
         v.put("ach", meta.optJSONArray("ach") == null ? "[]" : meta.optJSONArray("ach").toString());
         v.put("souls", meta.optInt("souls", 0));
+        // V13.0：精华/祭坛写入 extra JSON
+        try {
+            JSONObject extra = new JSONObject();
+            extra.put("essence", meta.optInt("essence", 0));
+            JSONObject al = meta.optJSONObject("altar");
+            extra.put("altar", al == null ? new JSONObject() : al);
+            v.put("extra", extra.toString());
+        } catch (Throwable ignore) {
+        }
         getWritableDatabase().update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
     }
 

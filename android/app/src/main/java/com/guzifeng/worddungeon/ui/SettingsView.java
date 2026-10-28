@@ -9,6 +9,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
+import com.guzifeng.worddungeon.core.GameConfig;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -93,7 +94,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V12.9.1", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.0.0", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -381,7 +382,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V12.9.1 · 全原生快速刷题（7388 词已内置）",
+                        + "版本：V13.0.0 · 全原生快速刷题（7388 词已内置）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);
@@ -441,7 +442,8 @@ public class SettingsView extends LinearLayout {
             int run = daily == null ? 0 : daily.optInt("run", 0);
             int dl = stats.optInt("due_learning", 0);
             int dg = stats.optInt("due_graduated", 0);
-            dataRows.setText("词灵使等级      Lv." + level + " · " + xp + " / " + xpNeed + " XP\n"
+            int tStage = stats.optInt("title_stage", GameConfig.titleStage(level));
+            dataRows.setText(GameConfig.TITLE_NAMES[tStage] + "      Lv." + level + " · " + xp + " / " + xpNeed + " XP\n"
                     + "连续打卡         🔥 " + streak + " 天\n"
                     + "能力 θ           " + String.format("%.2f", theta) + "\n"
                     + "今日目标         答对 " + q + "/40 · 新学 " + nw + "/15 · 远征 " + run + "/1\n"

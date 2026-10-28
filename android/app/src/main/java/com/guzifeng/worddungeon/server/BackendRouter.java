@@ -183,6 +183,7 @@ public class BackendRouter {
         if (altar == null) altar = new JSONObject();
         int edgeLv = altar.optInt("edge", 0);
         int greedLv = altar.optInt("greed", 0);
+        int saintLv = altar.optInt("saint", 0);   // V13.0 彩蛋圣辉：产出 +15%
         int baseDamage = GameConfig.BASE_DAMAGE + edgeLv;
 
         int dmg = 0;
@@ -204,8 +205,9 @@ public class BackendRouter {
             if (champion) reward = Math.round(reward * 1.5f);
             // V12.9 击杀质量加成：拼写击杀 ×1.2；3 秒内 PERFECT 击杀 ×1.3（不叠加）
             double quality = "spell".equals(qtype) ? 1.2 : (fast ? 1.3 : 1.0);
-            // V12.9 贪婪：战魂产出 +8%/级
-            reward = (int) Math.round(reward * quality * (1.0 + 0.08 * greedLv));
+            // V12.9 贪婪：战魂产出 +8%/级；V13.0 圣辉：额外 +15%
+            reward = (int) Math.round(reward * quality
+                    * (1.0 + 0.08 * greedLv + 0.15 * saintLv));
             soulGain = reward;
             souls += reward;
         }
@@ -447,10 +449,17 @@ public class BackendRouter {
         daily.put("run_goal", 1);
 
         JSONObject out = new JSONObject();
-        out.put("level", meta.optInt("level", 1));
+        int metaLevel = meta.optInt("level", 1);
+        int metaStreak = meta.optInt("streak", 0);
+        out.put("level", metaLevel);
         out.put("xp", meta.optInt("xp", 0));
-        out.put("xp_needed", XP_BASE * meta.optInt("level", 1));
-        out.put("streak", meta.optInt("streak", 0));
+        out.put("xp_needed", XP_BASE * metaLevel);
+        out.put("streak", metaStreak);
+        // V13.0：称号/火花阶段（0-based），前端据此派生名称与样式
+        out.put("title_stage", GameConfig.titleStage(metaLevel));
+        out.put("spark_stage", GameConfig.sparkStage(metaStreak));
+        out.put("saint", meta.optJSONObject("altar") != null
+                && meta.optJSONObject("altar").optInt("saint", 0) == 1);
         out.put("theta", store.getTheta());
         out.put("endless_best", meta.optInt("endless_best", 0));
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
@@ -527,6 +536,18 @@ public class BackendRouter {
         }
         int essence = meta.optInt("essence", 0) + essenceGain;
         meta.put("essence", essence);
+        // V13.0 彩蛋「圣者觉醒」：称号 4 阶（Lv10）+ 火花 4 阶（连续 30 天）首次双满时触发
+        boolean saintTriggered = false;
+        JSONObject altar = meta.optJSONObject("altar");
+        if (altar == null) altar = new JSONObject();
+        if (altar.optInt("saint", 0) == 0
+                && GameConfig.titleStage(meta.optInt("level", 1)) >= 3
+                && GameConfig.sparkStage(meta.optInt("streak", 0)) >= 3) {
+            altar.put("saint", 1);
+            meta.put("altar", altar);
+            unlock(meta, "saint_awakened");
+            saintTriggered = true;
+        }
         store.saveMeta(meta);
 
         // V12.8 回顾系统：每局战绩落 runs 表（无论胜负都记）
@@ -544,6 +565,7 @@ public class BackendRouter {
         out.put("souls", souls);
         out.put("essence", essence);
         out.put("essence_gained", essenceGain);
+        out.put("saint_triggered", saintTriggered);
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         return out;
     }

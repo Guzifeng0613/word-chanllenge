@@ -1,6 +1,8 @@
 package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
+import android.graphics.LinearGradient;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -11,6 +13,7 @@ import android.widget.TextView;
 
 import com.guzifeng.worddungeon.App;
 import com.guzifeng.worddungeon.MainActivity;
+import com.guzifeng.worddungeon.core.GameConfig;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,6 +24,7 @@ public class HomeView extends LinearLayout {
     private final MainActivity act;
 
     private TextView lvlBadge, streakTxt, xpLab;
+    private TextView titleSub;   // V13.0：横幅副标题（称号动态名 + 4 阶样式）
     private TextView goalTxt;   // R3：banner 内「今日目标进度」行（无数据时 GONE，只读消费 /stats/daily）
     private View fillView;
     private LinearLayout xpBarWrap;
@@ -36,6 +40,10 @@ public class HomeView extends LinearLayout {
     private String[] quickNames = {"普通", "困难", "地狱"};
 
     private String pickMode = "campaign";
+
+    // V13.0：已应用的称号/火花阶段（避免重复启动无限呼吸动画）
+    private int appliedTitleStage = -1;
+    private int appliedSparkStage = -1;
 
     public HomeView(Context c) {
         super(c);
@@ -73,11 +81,11 @@ public class HomeView extends LinearLayout {
         TextView h1 = Ui.text(getContext(), "单词地下城", 21, Ui.TXT, true);
         h1.setTypeface(Typeface.DEFAULT_BOLD);
         titles.addView(h1);
-        TextView sub = Ui.text(getContext(), "词灵使 Lv.1 · 应试单词战斗", 11, Ui.MUT, false);
-        titles.addView(sub);
+        titleSub = Ui.text(getContext(), "词灵使 · 应试单词战斗", 11, 0xFF94A3B8, false);
+        titles.addView(titleSub);
         top.addView(titles);
 
-        streakTxt = Ui.text(getContext(), "🔥 0 天", 13, Ui.GOLD, true);
+        streakTxt = Ui.text(getContext(), "🔥 0 天", 13, 0xFF64748B, false);
         singleLine(streakTxt);
         top.addView(streakTxt);
         banner.addView(top);
@@ -419,7 +427,10 @@ public class HomeView extends LinearLayout {
             }
 
             lvlBadge.setText(String.valueOf(level));
-            streakTxt.setText("🔥 " + streak + " 天");
+            int tStage = stats.optInt("title_stage", GameConfig.titleStage(level));
+            int sStage = stats.optInt("spark_stage", GameConfig.sparkStage(streak));
+            applyTitleStyle(tStage);
+            applySparkStyle(sStage, streak);
             xpLab.setText(xp + " / " + xpNeed + " XP · 目标成功率 85%");
             rebuildXpBar((float) xp / Math.max(1, xpNeed));
 
@@ -439,7 +450,7 @@ public class HomeView extends LinearLayout {
             cfgCountTxt.setText(bookTotal + " 词 ›");
 
             wrongCntTxt.setText(wrongCnt + " 词待复习");
-            achCntTxt.setText(achCnt + "/14");
+            achCntTxt.setText(achCnt + "/" + AchievementsView.ACH_DEFS.length);
             updateLaunchCard();
         } catch (Throwable e) {
             View old = findViewWithTag("meta_err");
@@ -459,6 +470,68 @@ public class HomeView extends LinearLayout {
         if ("hard".equals(diff)) return "困难";
         if ("hell".equals(diff)) return "地狱";
         return "全部";
+    }
+
+    // ── V13.0 称号 4 阶样式：灰蓝素净 → 青蓝 → 金橙加粗+暗金底条 → 紫金渐变+呼吸 ──
+    private void applyTitleStyle(int stage) {
+        titleSub.setText(GameConfig.TITLE_NAMES[stage] + " · 应试单词战斗");
+        titleSub.getPaint().setShader(null);
+        titleSub.setBackground(null);
+        titleSub.setPadding(0, 0, 0, 0);
+        switch (stage) {
+            case 0:
+                titleSub.setTextColor(0xFF94A3B8);
+                titleSub.setTypeface(Typeface.DEFAULT);
+                break;
+            case 1:
+                titleSub.setTextColor(0xFF38BDF8);
+                titleSub.setTypeface(Typeface.DEFAULT);
+                break;
+            case 2:
+                titleSub.setTextColor(0xFFFBBF24);
+                titleSub.setTypeface(Typeface.DEFAULT_BOLD);
+                titleSub.setBackground(Ui.card(6, 0x33FBBF24, 0, 0));
+                titleSub.setPadding(dp(6), dp(1), dp(6), dp(2));
+                break;
+            case 3:
+                titleSub.setTypeface(Typeface.DEFAULT_BOLD);
+                float tw = titleSub.getPaint().measureText(titleSub.getText().toString());
+                titleSub.getPaint().setShader(new LinearGradient(
+                        0, 0, tw, 0, 0xFFA78BFA, 0xFFFBBF24, Shader.TileMode.CLAMP));
+                if (appliedTitleStage != 3) Ui.pulseLoop(titleSub, 1.04f, 1400);
+                break;
+        }
+        appliedTitleStage = stage;
+    }
+
+    // ── V13.0 火花 4 阶样式：暗灰 → 橙黄 → 金红渐变加粗 → 紫金渐变+呼吸 ──
+    private void applySparkStyle(int stage, int streak) {
+        streakTxt.setText("🔥 " + streak + " 天");
+        streakTxt.getPaint().setShader(null);
+        switch (stage) {
+            case 0:
+                streakTxt.setTextColor(0xFF64748B);
+                streakTxt.setTypeface(Typeface.DEFAULT);
+                break;
+            case 1:
+                streakTxt.setTextColor(0xFFF59E0B);
+                streakTxt.setTypeface(Typeface.DEFAULT);
+                break;
+            case 2:
+                streakTxt.setTypeface(Typeface.DEFAULT_BOLD);
+                float sw = streakTxt.getPaint().measureText(streakTxt.getText().toString());
+                streakTxt.getPaint().setShader(new LinearGradient(
+                        0, 0, sw, 0, 0xFFF97316, 0xFFEF4444, Shader.TileMode.CLAMP));
+                break;
+            case 3:
+                streakTxt.setTypeface(Typeface.DEFAULT_BOLD);
+                float sw3 = streakTxt.getPaint().measureText(streakTxt.getText().toString());
+                streakTxt.getPaint().setShader(new LinearGradient(
+                        0, 0, sw3, 0, 0xFFA78BFA, 0xFFFBBF24, Shader.TileMode.CLAMP));
+                if (appliedSparkStage != 3) Ui.pulseLoop(streakTxt, 1.06f, 1300);
+                break;
+        }
+        appliedSparkStage = stage;
     }
 
     private void rebuildXpBar(float pct) {

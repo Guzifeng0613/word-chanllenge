@@ -10,6 +10,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
+import com.guzifeng.worddungeon.core.GameConfig;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -92,6 +93,15 @@ public class ResultView extends FrameLayout {
                 b.put("souls", act.souls);
                 b.put("cards", act.runCards);   // GAP-05：本局选卡数（成就 cards5/cards10 计数）
                 JSONObject res = act.router().dispatch("/progress/finish", "POST", b);
+                // V13.0 彩蛋：称号/火花双满首次触发，全屏圣辉动画（约 2s）
+                if (res != null && res.optBoolean("saint_triggered", false)) {
+                    act.main().post(() -> {
+                        try {
+                            new SaintAwakeningView(getContext()).play(act.root());
+                            Sfx.play(getContext(), Sfx.EPIC);
+                        } catch (Throwable ignore) {}
+                    });
+                }
                 // 优先等价字段 new_ach（后端若显式回传）；否则以全量 ach 与基线 diff
                 JSONArray after = null;
                 try {
@@ -342,7 +352,8 @@ public class ResultView extends FrameLayout {
             int xp = stats.optInt("xp", 0);
             int xpNeed = stats.optInt("xp_needed", 120);
             badge.setText(String.valueOf(level));
-            ll.setText("词灵使 Lv." + level + " · " + xp + "/" + xpNeed + " XP");
+            int tStage = stats.optInt("title_stage", GameConfig.titleStage(level));
+            ll.setText(GameConfig.TITLE_NAMES[tStage] + " Lv." + level + " · " + xp + "/" + xpNeed + " XP");
             View[] bar = Ui.bar(getContext(), (float) xp / Math.max(1, xpNeed), 0xFF22C55E, 0xFF4ADE80, 6);
             barl.addView(bar[0]);
         } catch (Throwable ignore) {}

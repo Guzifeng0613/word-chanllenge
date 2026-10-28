@@ -140,6 +140,11 @@ public class MainActivity extends AppCompatActivity {
         return router;
     }
 
+    /** V13.0：根容器（彩蛋全屏动画挂载用）。 */
+    public FrameLayout root() {
+        return root;
+    }
+
     /** GAP-08：冷启恢复用户上次的词书/难度/快刷档选择。 */
     private void loadPrefs() {
         try {
@@ -172,6 +177,7 @@ public class MainActivity extends AppCompatActivity {
             {"streak7", "一周不辍"},
             {"endless5", "深渊行者"},
             {"endless10", "深渊主宰"},
+            {"saint_awakened", "圣者觉醒"},
     };
 
     /** 成就 key 转中文名；未登记的 key 原样返回，不静默吞掉。 */

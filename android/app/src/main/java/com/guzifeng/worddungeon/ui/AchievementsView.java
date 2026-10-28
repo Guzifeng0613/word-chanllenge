@@ -33,6 +33,7 @@ public class AchievementsView extends LinearLayout {
             {"📅", "一周不辍", "连续打卡 7 天", "streak7"},
             {"🌀", "深渊行者", "无尽模式抵达第 5 层", "endless5"},
             {"💀", "深渊主宰", "无尽模式抵达第 10 层", "endless10"},
+            {"✨", "圣者觉醒", "等级 10 且连续打卡 30 天", "saint_awakened"},
     };
 
     public AchievementsView(Context c) {
