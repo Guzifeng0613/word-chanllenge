@@ -949,6 +949,7 @@ public class BattleView extends FrameLayout {
         if ("en2cn".equals(qtype)) prompt = "选择正确的中文释义";
         else if ("cn2en".equals(qtype)) prompt = "选择正确的英文单词";
         else if ("judge".equals(qtype)) prompt = "这个释义对吗？";
+        else if ("form".equals(qtype)) prompt = "一词多形 · 选择正确的变形";
         else prompt = "根据释义默写英文单词";
         promptTxt.setText(prompt);
         // 题型阶梯（V7.0 ladder：识→认→写→拼；复习则 10分/1天/3天/7天/16天/30天）
@@ -1028,6 +1029,21 @@ public class BattleView extends FrameLayout {
             case "cn2en": {
                 qBody.setText(mean);
                 qBody.setTextSize(19);
+                addOptions(col, quiz.optJSONArray("options"), false);
+                break;
+            }
+            case "form": {
+                // V13.4 一词多形：题干=原型大字，下方金色形名标签（过去式/复数/比较级…），四选一变形
+                qBody.setText(word);
+                qBody.setTextSize(24);
+                String fl = quiz.optString("formLabel", "");
+                if (!fl.isEmpty()) {
+                    TextView lv = Ui.text(getContext(), "▸ 「" + fl + "」是哪一个？", 16, Ui.GOLD, true);
+                    lv.setShadowLayer(10, 0, 0, Ui.GOLD);
+                    LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(-2, -2);
+                    llp.bottomMargin = dp(8);
+                    col.addView(lv, llp);
+                }
                 addOptions(col, quiz.optJSONArray("options"), false);
                 break;
             }
@@ -1404,6 +1420,7 @@ public class BattleView extends FrameLayout {
             body.put("crit_mult", critMultSend);
             body.put("card_mult", bonusDamageMult);   // V11.3 战利品伤害增益
             body.put("shown", quiz.isNull("judgeShown") ? JSONObject.NULL : quiz.optString("judgeShown"));
+            body.put("form_key", quiz.optString("form_key", ""));   // V13.4：服务端按 word+形名权威判答
             body.put("mode", mode);
             if ("quick".equals(mode)) body.put("quick_level", act.quickLevel);
             // R4：击杀词魂入账接线——非快刷才预测本题是否击杀敌人并下发 kill 标志，
@@ -1531,7 +1548,10 @@ public class BattleView extends FrameLayout {
                 // V12.7.12 反馈学习闭环：judge 题答案为「错」答对提示正确释义；
                 //  选择题答对返回正确词条（中文题→英文单词，英文题→中文释义），1.2s 可读、切题同步延后
                 boolean judgeWrongOk = "judge".equals(quiz.optString("qtype")) && "no".equals(correctAnswer);
-                boolean choiceOk = "en2cn".equals(quiz.optString("qtype")) || "cn2en".equals(quiz.optString("qtype"));
+                // V13.4 form 题同选择题：答对也展示「正确单词：xxx」，1.2s 可读
+                boolean choiceOk = "en2cn".equals(quiz.optString("qtype"))
+                        || "cn2en".equals(quiz.optString("qtype"))
+                        || "form".equals(quiz.optString("qtype"));
                 String jmOk = judgeWrongOk ? res.optString("correct_mean", "") : "";
                 int okHold = 250;
                 String okTxt = "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : "");

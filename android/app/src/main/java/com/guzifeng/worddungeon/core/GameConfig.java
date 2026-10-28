@@ -154,4 +154,38 @@ public final class GameConfig {
     public static final int WRONG_REVIEW_GAP = 4;
     /** 顽固度阈值：累计 wrongCount >= WRONG_STUBBORN（即 gradeOf>=2）为「顽固」，仅 1 次为「偶发」；顽固词在错词重现队列中排序更靠前。 */
     public static final int WRONG_STUBBORN = 2;
+
+    // ── V13.4 一词多形·词形变化家族（仅追加；只考察已毕业词的复习题，不新增打断槽位）──
+    /** form 题最小间隔：每连续 FORM_REVIEW_GAP 个普通题之后，才允许偶发 1 个 form 题（替换一道已到期的毕业词复习题）。 */
+    public static final int FORM_REVIEW_GAP = 9;
+    /** 达到间隔后仍要掷骰才升级为 form 题：约一半的候选复习题被升级，另一半保持原复习题型。 */
+    public static final double FORM_QUESTION_PROB = 0.5;
+    /** 形名 → 中文标签（展示用；pastp 不单独出题，仅入库）。 */
+    public static String formLabel(String key) {
+        if (key == null) return "变形";
+        switch (key) {
+            case "plural":      return "复数";
+            case "past":        return "过去式";
+            case "ing":         return "现在分词";
+            case "third":       return "第三人称单数";
+            case "comparative": return "比较级";
+            case "superlative": return "最高级";
+            default:            return "变形";
+        }
+    }
+
+    /** 按词性返回该词可考察的形名候选（与 build_vocab.py POS_ALLOW 的考察子集一致：名词考复数、动词考过去式/-ing/三单、形/副考比较级/最高级）。 */
+    public static java.util.List<String> formKeysForPos(String pos) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (pos == null) return out;
+        String p = pos.toLowerCase();
+        if (p.startsWith("n")) {
+            out.add("plural");
+        } else if (p.startsWith("v")) {
+            out.add("past"); out.add("ing"); out.add("third");
+        } else if (p.startsWith("adj") || p.startsWith("adv")) {
+            out.add("comparative"); out.add("superlative");
+        }
+        return out;
+    }
 }

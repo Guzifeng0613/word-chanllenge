@@ -32,6 +32,9 @@ public class Quiz {
     public String judgeShown;
     public int timeLimit;
     public String quickLevel;
+    /** V13.4 一词多形：本次考察的形名键（past/ing/third/plural/comparative/superlative）与中文展示标签。 */
+    public String formKey;
+    public String formLabel;
 
     public JSONObject toJson() {
         JSONObject o = new JSONObject();
@@ -62,6 +65,8 @@ public class Quiz {
             }
             if (judgeShown != null) o.put("judgeShown", judgeShown);
             if (quickLevel != null) o.put("quickLevel", quickLevel);
+            if (formKey != null) o.put("formKey", formKey);
+            if (formLabel != null) o.put("formLabel", formLabel);
             if (runState != null) o.put("run_state", runState.toJson());
         } catch (Exception e) {
             // 内部结构固定

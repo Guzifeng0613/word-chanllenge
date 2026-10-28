@@ -155,10 +155,18 @@ public class BackendRouter {
         WordEntry entry = WordBank.get().entry(word);
         if (entry == null) throw new RuntimeException("词条不存在: " + word);
 
+        // V13.4 form 题：本次考察的形名键（past/ing/third/plural/comparative/superlative），
+        // 正确答案 = 该词词形表中对应形（服务端按 word+形名权威判定，不信前端）。
+        String formKey = b.optString("form_key", "");
+
         boolean isCorrect;
         if ("judge".equals(qtype)) {
             String truth = entry.m.equals(shown) ? "yes" : "no";
             isCorrect = truth.equals(answer);
+        } else if ("form".equals(qtype)) {
+            String truth = entry.x == null ? "" : entry.x.optString(formKey, "");
+            isCorrect = !truth.isEmpty()
+                    && answer.trim().toLowerCase().equals(truth.trim().toLowerCase());
         } else {
             String correctVal = "en2cn".equals(qtype) ? entry.m : entry.w;
             isCorrect = answer.trim().toLowerCase().equals(correctVal.trim().toLowerCase());
@@ -255,9 +263,19 @@ public class BackendRouter {
         // V11.5 对错反馈一致性：judge 返回 "yes"/"no" 供前端高亮对/错按钮
         // V12.9.1 修复：cn2en（选英文单词）必须返回正确单词 entry.w 与选项值一致，
         //   否则前端 highlightOptions 的 equals 匹配失败，答对选项无法高亮为绿色
-        String correctAnswerVal = "spell".equals(qtype) ? entry.w
-                : ("judge".equals(qtype) ? (entry.m.equals(shown) ? "yes" : "no")
-                : ("cn2en".equals(qtype) ? entry.w : entry.m));
+        String correctAnswerVal;
+        if ("form".equals(qtype)) {
+            // V13.4：返回正确变形词形，前端用于绿框高亮与「正确单词：xxx」反馈
+            correctAnswerVal = entry.x == null ? "" : entry.x.optString(formKey, "");
+        } else if ("spell".equals(qtype)) {
+            correctAnswerVal = entry.w;
+        } else if ("judge".equals(qtype)) {
+            correctAnswerVal = entry.m.equals(shown) ? "yes" : "no";
+        } else if ("cn2en".equals(qtype)) {
+            correctAnswerVal = entry.w;
+        } else {
+            correctAnswerVal = entry.m;
+        }
         out.put("correct_answer", correctAnswerVal);
         // V12.4：判断题答错也要告诉正确释义——补充返回该词真实释义，前端展示"对/错：释义"
         if ("judge".equals(qtype)) out.put("correct_mean", entry.m);

@@ -29,6 +29,9 @@ public class WordBank {
     public final List<List<String>> groups = new ArrayList<>();
     public JSONObject meta = new JSONObject();
 
+    /** V13.4 一词多形：按形名收集全库真实变形，作为 form 题干扰项池（past/ing/third/plural/comparative/superlative）。 */
+    public final Map<String, List<String>> formPools = new HashMap<>();
+
     public final Random rnd = new Random();
 
     private WordBank() {}
@@ -80,8 +83,20 @@ public class WordBank {
                 if (bs != null) {
                     for (int j = 0; j < bs.length(); j++) e.b.add(bs.getString(j));
                 }
+                e.x = o.optJSONObject("x");
                 words.add(e);
                 byWord.put(e.w, e);
+                // V13.4：按形名收集全库真实变形，作为 form 题干扰项素材
+                if (e.x != null) {
+                    for (java.util.Iterator<String> it = e.x.keys(); it.hasNext(); ) {
+                        String key = it.next();
+                        String val = e.x.optString(key, "");
+                        if (val.isEmpty()) continue;
+                        List<String> pool = formPools.get(key);
+                        if (pool == null) { pool = new ArrayList<>(); formPools.put(key, pool); }
+                        pool.add(val);
+                    }
+                }
             }
             // 易混组
             try {
@@ -186,6 +201,26 @@ public class WordBank {
             if (!out.contains(m)) out.add(m);
         }
         return out.subList(0, Math.min(n, out.size()));
+    }
+
+    /**
+     * V13.4 form 题干扰项：从全库「同形名」真实变形中随机取 n 个，排除正确答案本身；
+     * 不足时能给多少给多少（正确答案在出题侧另行加入，保证至少有答案可选）。
+     */
+    public List<String> formDistractors(String formKey, String correct, int n) {
+        List<String> pool = formPools.get(formKey);
+        List<String> out = new ArrayList<>();
+        if (pool != null) {
+            List<String> bag = new ArrayList<>(pool);
+            Collections.shuffle(bag, rnd);
+            String c = correct == null ? "" : correct.trim().toLowerCase();
+            for (String x : bag) {
+                if (out.size() >= n) break;
+                if (x == null || x.trim().toLowerCase().equals(c)) continue;
+                if (!out.contains(x)) out.add(x);
+            }
+        }
+        return out;
     }
 
     /** judge 错题的错误释义：优先同组兄弟词，否则词书池随机（排除同组）。 */

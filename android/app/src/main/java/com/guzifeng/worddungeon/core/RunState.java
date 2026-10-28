@@ -25,6 +25,10 @@ public class RunState {
     public java.util.List<String> advQueue = new java.util.ArrayList<>();
     /** V13.1 错词消化闭环：距上一次错词穿插已过的普通题数；达到 WRONG_REVIEW_GAP 且有错词待消化时穿插 1 个错词，随后归零。 */
     public int replayGap = 0;
+    /** V13.4 一词多形：距上一次 form 题已过的普通题数；达到 FORM_REVIEW_GAP 且抽中概率时才偶发出 1 个，随后归零。 */
+    public int formGap = 0;
+    /** V13.4 一词多形：本局已考察过的「词|形名」（同一词的同一形本局不重复考）。 */
+    public Map<String, Boolean> formSeen = new HashMap<>();
 
     public RunState() {}
 
@@ -80,6 +84,14 @@ public class RunState {
             } catch (Exception ignored) {}
         }
         r.replayGap = o.optInt("replay_gap", 0);
+        r.formGap = o.optInt("form_gap", 0);
+        JSONObject fs = o.optJSONObject("form_seen");
+        if (fs != null) {
+            for (java.util.Iterator<String> it = fs.keys(); it.hasNext(); ) {
+                String k = it.next();
+                r.formSeen.put(k, fs.optBoolean(k));
+            }
+        }
         return r;
     }
 
@@ -125,6 +137,10 @@ public class RunState {
             o.put("correct_once", co);
             o.put("adv_queue", new JSONArray(advQueue));
             o.put("replay_gap", replayGap);
+            o.put("form_gap", formGap);
+            JSONObject fs = new JSONObject();
+            for (Map.Entry<String, Boolean> e : formSeen.entrySet()) fs.put(e.getKey(), e.getValue());
+            o.put("form_seen", fs);
         } catch (Exception e) {
             // 内部结构固定
         }

@@ -204,11 +204,40 @@ public class QuizEngine {
         // 用户规则：单词先以非拼写题型出现过一次，才允许拼写（force=用户显式选型，尊重）
         if (a.force == null) qtype = guardSpell(runState, qtype, word);
 
-        // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
-        if (!"spell".equals(qtype)) runState.exposed.put(word, true);
+        // V13.4 一词多形：仅当本词已毕业、且不是本局错词消化穿插时，按间隔+概率偶发升级为 form 题。
+        // 注意：只替换这道「本来就要出的毕业词复习题」的题型，不占用新词/错词槽位；一次只考一个形。
+        String formKey = null;
+        if (a.force == null && !wrongReplay && rec != null && rec.graduated) {
+            formKey = pickFormKey(word, runState);
+        }
+        if (formKey != null) {
+            runState.formGap = 0;
+            runState.formSeen.put(word + "|" + formKey, true);
+        } else {
+            runState.formGap++;
+        }
+        String baseQtype = qtype;          // buildQuiz 仍按原复习题型搭骨架
+        if (formKey != null) qtype = "form";
 
-        Quiz quiz = buildQuiz(qtype, word, rec, runState, fromReview, null, a.book, a.confuse);
+        // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
+        if (!"spell".equals(baseQtype)) runState.exposed.put(word, true);
+
+        Quiz quiz = buildQuiz(baseQtype, word, rec, runState, fromReview, null, a.book, a.confuse);
         quiz.wrongReplay = wrongReplay;   // V13.1：标记本题为错词消化穿插题，答对触发「已攻克」反馈
+        // V13.4：覆盖为 form 题——题干=原型+形名标签，选项=正确变形+全库同形名真实变形干扰项
+        if (formKey != null) {
+            WordEntry e = bank.entry(word);
+            String correct = e == null || e.x == null ? "" : e.x.optString(formKey, "");
+            List<String> opts = bank.formDistractors(formKey, correct, 3);
+            opts.add(correct);
+            Collections.shuffle(opts, bank.rnd);
+            quiz.qtype = "form";
+            quiz.formKey = formKey;
+            quiz.formLabel = GameConfig.formLabel(formKey);
+            quiz.options = opts;
+            quiz.correct = correct;
+            quiz.timeLimit = (int) GameConfig.NORMAL_T;
+        }
         // 远征限时（V12.0）：非拼写选择题用逐层收紧限时；拼写在基线之上加逐层额外秒。
         // 无尽/快刷不经过此覆盖，逻辑保持不变。
         if ("campaign".equals(a.mode)) {
@@ -229,6 +258,27 @@ public class QuizEngine {
         if (!"spell".equals(qtype)) return qtype;
         if (rs != null && Boolean.TRUE.equals(rs.exposed.get(word))) return qtype;
         return "cn2en";
+    }
+
+    /**
+     * V13.4 一词多形：为本词挑一个可考察的形名（plural/past/ing/third/comparative/superlative）。
+     * 门控：① 间隔已满（formGap>=FORM_REVIEW_GAP）；② 概率掷骰；③ 该词性确有此形数据；
+     * ④ 本局已考过的形不再重复。返回 null 表示本次不升级。
+     */
+    private String pickFormKey(String word, RunState runState) {
+        WordEntry e = bank.entry(word);
+        if (e == null || e.x == null) return null;
+        if (runState.formGap < GameConfig.FORM_REVIEW_GAP) return null;
+        if (rnd.nextDouble() >= GameConfig.FORM_QUESTION_PROB) return null;
+        List<String> candidates = new ArrayList<>();
+        for (String key : GameConfig.formKeysForPos(e.p)) {
+            String val = e.x.optString(key, "");
+            if (val.isEmpty()) continue;
+            if (Boolean.TRUE.equals(runState.formSeen.get(word + "|" + key))) continue;
+            candidates.add(key);
+        }
+        if (candidates.isEmpty()) return null;
+        return candidates.get(rnd.nextInt(candidates.size()));
     }
 
     /** V12.1 单局冷却：本局已答对过、且非本局答错词的候选不再短期回归（错词仍按 cap 重现）。 */
