@@ -87,7 +87,6 @@ public class BattleView extends FrameLayout {
     // V11.7 对齐 V7.0：心流/凝神/微目标/词魂/层间泉与商店
     private int wrongStreak = 0;           // 连错计数（凝神触发：≥2）
     private boolean flowOn = false;        // 当前是否在心流状态
-    private TextView goalLab;              // 本场微目标文案
     private String goalKind = "";           // none / combo4 / correct5 / flawless
     private boolean lastGoalDone = false;   // UI-iteration-07：记录目标达成跳变帧，只跳一次
     private int lastHp = 100;               // UI-iteration-12：记录上次玩家血量，判断是否受扣血
@@ -109,7 +108,6 @@ public class BattleView extends FrameLayout {
     private FrameLayout feedbackBar;          // V12.6 底部反馈条（连击⇄对错）
     private LinearLayout comboBox, resultBox; // V12.6 连击态 / 对错态容器
     private TextView resultBig, resultMsg;    // V12.6 对错反馈大字与文案
-    private Runnable restoreComboRunnable;    // V12.6 反馈结束后恢复连击态
     private FrameLayout answerArea;
     private LinearLayout timerTrack;
     private View timerFill;
@@ -458,13 +456,6 @@ public class BattleView extends FrameLayout {
     /** UI-iteration-12：玩家血量数字闪红后恢复常规色（方法引用作 Runnable，避免前向引用）。 */
     private void hpLabReset() { if (hpLab != null) hpLab.setTextColor(Ui.TXT); }
 
-    /** V12.6 弹性空隙：占满剩余空间，用于答题区垂直居中。 */
-    private View flexSpacer() {
-        View v = new View(getContext());
-        v.setLayoutParams(new LinearLayout.LayoutParams(1, 1, 1f));
-        return v;
-    }
-
     /** 答题反馈条：浮在屏幕正中，先高不透明度停留约 1 秒后快速淡出。 */
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
@@ -769,12 +760,6 @@ public class BattleView extends FrameLayout {
         if (enemy != null && enemy.optBoolean("boss", false)) return "boss";
         if (enemy != null && enemy.optBoolean("elite", false)) return "elite";
         return "normal";
-    }
-
-    private String modeLabel() {
-        if ("endless".equals(mode)) return "无尽";
-        if ("quick".equals(mode)) return "快刷";
-        return "远征";
     }
 
     private void nextQuiz() {

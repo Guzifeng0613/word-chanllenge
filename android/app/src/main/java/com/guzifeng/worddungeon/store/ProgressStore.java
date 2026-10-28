@@ -181,19 +181,6 @@ public class ProgressStore extends SQLiteOpenHelper {
         getWritableDatabase().update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
     }
 
-    /** 词魂余额增减（店铺/击杀奖励），返回最新余额。 */
-    public int addSouls(int delta) {
-        SQLiteDatabase db = getWritableDatabase();
-        db.execSQL("UPDATE users SET souls = souls + ? WHERE id=?",
-                new Object[]{delta, LOCAL_USER_ID});
-        Cursor c = db.rawQuery("SELECT souls FROM users WHERE id=?",
-                new String[]{String.valueOf(LOCAL_USER_ID)});
-        int s = 0;
-        if (c.moveToFirst()) s = c.getInt(0);
-        c.close();
-        return s;
-    }
-
     /** 读取全部学习记录。 */
     public Map<String, WordRec> loadProgress() {
         Map<String, WordRec> out = new HashMap<>();
@@ -327,13 +314,6 @@ public class ProgressStore extends SQLiteOpenHelper {
         db.update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
     }
 
-    /** 今日是否已打卡（按自然日）。 */
-    public boolean todayActive(long today0Sec) {
-        JSONObject m = getMeta();
-        long last = m.optLong("last_day", 0);
-        return last == today0Sec;
-    }
-
     /** 累计掌握（MASTERED）词数。 */
     public int masteredCount() {
         SQLiteDatabase db = getReadableDatabase();
@@ -349,17 +329,6 @@ public class ProgressStore extends SQLiteOpenHelper {
     public int dailyRun(long today0Sec) {
         SQLiteDatabase db = getReadableDatabase();
         Cursor c = db.rawQuery("SELECT COUNT(*) FROM answers WHERE user_id=? AND ts>=? AND word='__run__' AND correct=1",
-                new String[]{String.valueOf(LOCAL_USER_ID), String.valueOf(today0Sec)});
-        int n = 0;
-        if (c.moveToFirst()) n = c.getInt(0);
-        c.close();
-        return n;
-    }
-
-    /** 今日新词上限内的计数（answers 中 word='__new__'）。 */
-    public int dailyNewToday(long today0Sec) {
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery("SELECT COUNT(*) FROM answers WHERE user_id=? AND ts>=? AND word='__new__' AND correct=1",
                 new String[]{String.valueOf(LOCAL_USER_ID), String.valueOf(today0Sec)});
         int n = 0;
         if (c.moveToFirst()) n = c.getInt(0);

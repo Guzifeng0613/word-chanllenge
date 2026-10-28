@@ -23,14 +23,6 @@ public class SrsEngine {
         return 1;
     }
 
-    public static String gradeLabel(int wrongCount) {
-        switch (gradeOf(wrongCount)) {
-            case 3: return "顽固";
-            case 2: return "易错";
-            default: return "生疏";
-        }
-    }
-
     // ---------------- θ 自适应 ----------------
     public static double updateTheta(double theta, boolean correct, boolean fast) {
         if (correct) theta += fast ? GameConfig.THETA_FAST_GAIN : GameConfig.THETA_GAIN;

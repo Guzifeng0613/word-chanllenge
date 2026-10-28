@@ -63,21 +63,6 @@ public class WordBank {
         parse(readAsset(am, "data/wordbooks.json"), readAsset(am, "data/confuse-groups.json"));
     }
 
-    /** 纯 JVM 测试入口：从文件系统目录加载（不依赖 Android AssetManager）。 */
-    public static WordBank loadForTest(String dir) {
-        WordBank bank = get();
-        if (bank.words.isEmpty()) {
-            try {
-                byte[] wb = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(dir, "wordbooks.json"));
-                byte[] gp = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(dir, "confuse-groups.json"));
-                bank.parse(new String(wb, StandardCharsets.UTF_8), new String(gp, StandardCharsets.UTF_8));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return bank;
-    }
-
     void parse(String wordbooksJson, String groupsJson) {
         try {
             JSONObject root = new JSONObject(wordbooksJson);
@@ -117,12 +102,6 @@ public class WordBank {
 
     public WordEntry entry(String word) {
         return byWord.get(word);
-    }
-
-    public List<WordEntry> wordsByTier(int tier) {
-        List<WordEntry> out = new ArrayList<>();
-        for (WordEntry e : words) if (e.t == tier) out.add(e);
-        return out;
     }
 
     public List<WordEntry> wordsByBook(String book) {

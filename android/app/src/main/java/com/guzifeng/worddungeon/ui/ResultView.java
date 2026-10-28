@@ -25,7 +25,7 @@ public class ResultView extends FrameLayout {
     private final MainActivity act;
     private LinearLayout body;
     private TextView bigTitle, bigSub, bestTxt;
-    private LinearLayout statGridHost, wordCardHost;
+    private LinearLayout wordCardHost;
     private TextView againBtn;
     private boolean win = false;
     private String mode = "campaign";
@@ -307,12 +307,6 @@ public class ResultView extends FrameLayout {
                         .withEndAction(() -> { try { removeView(p); } catch (Throwable ignore) {} }).start();
             }
         } catch (Throwable ignore) {}
-    }
-
-    private TextView chipsOf(String text, int color) {
-        TextView t = Ui.text(getContext(), text, 12, color, false);
-        t.setPadding(0, dp(4), 0, 0);
-        return t;
     }
 
     /** V7.0 词 pill chips：一排圆角描边小胶囊，空则显示「无」。 */

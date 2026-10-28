@@ -33,8 +33,6 @@ public final class Ui {
     public static final int ORANGE = 0xFFFB923C;
     public static final int TEAL = 0xFF2DD4BF;
     public static final int PURPLE = 0xFFC084FC;
-    public static final int BLUE = 0xFF3B82F6;
-    public static final int PINK = 0xFFDB2777;
     public static final int BG_PILL = 0xFF0E2238;
 
     private Ui() {}
@@ -194,15 +192,6 @@ public final class Ui {
         t.setPadding(dp(c, 7), dp(c, 2), dp(c, 7), dp(c, 2));
         t.setBackground(pill(BG_PILL, color));
         return t;
-    }
-
-    /** 横分隔线 */
-    public static View divider(Context c) {
-        View v = new View(c);
-        v.setBackgroundColor(LINE);
-        v.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 1));
-        return v;
     }
 
     /** 占位 View：固定宽高（垂直容器里作竖向间距，水平容器里作横向间距） */
