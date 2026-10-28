@@ -39,8 +39,10 @@ public class SpringView extends FrameLayout {
         setBackgroundColor(0xDD08111F);
 
         ScrollView sv = new ScrollView(c);
+        sv.setFillViewport(true);   // V12.7.11 复习之泉整体上下居中
         col = new LinearLayout(c);
         col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_VERTICAL);   // V12.7.11 整列垂直居中；内容超出时正常滚动
         col.setPadding(dp(16), dp(20), dp(16), dp(20));
         sv.addView(col);
         addView(sv, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));

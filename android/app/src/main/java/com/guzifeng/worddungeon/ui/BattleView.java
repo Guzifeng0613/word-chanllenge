@@ -396,7 +396,7 @@ public class BattleView extends FrameLayout {
         summonBanner.setVisibility(GONE);
         summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
         addView(summonBanner, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT));
-        placeAt(summonBanner, 50, 17);
+        placeAt(summonBanner, 50, 34);   // V12.7.11 与错误提示同位置（y34）
     }
 
     /** 自由元素按百分比定位：x/y 为相对屏幕的百分比（x 为元素中心，y 为元素顶部）。
@@ -489,7 +489,7 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** 词魔出现提示：弹出时背景由透明快速增强到清晰，停留 2 秒后快速淡出。 */
+    /** 词魔出现提示：弹出后高不透明度停留 0.5s，再快速淡出（V12.7.11 与错误提示节奏一致）。 */
     private void showSummonBanner() {
         try {
             if (summonBanner == null) return;
@@ -500,9 +500,9 @@ public class BattleView extends FrameLayout {
             summonBanner.setScaleY(0.8f);
             summonBanner.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200).start();
             main.removeCallbacks(hideSummonBanner);
-            hideSummonBanner = () -> summonBanner.animate().alpha(0f).setDuration(280)
+            hideSummonBanner = () -> summonBanner.animate().alpha(0f).setDuration(250)
                     .withEndAction(() -> summonBanner.setVisibility(GONE)).start();
-            main.postDelayed(hideSummonBanner, 2000);
+            main.postDelayed(hideSummonBanner, 500);
         } catch (Throwable ignore) {}
     }
 
