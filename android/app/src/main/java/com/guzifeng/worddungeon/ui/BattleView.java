@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
 import android.view.inputmethod.EditorInfo;
@@ -404,9 +405,12 @@ public class BattleView extends FrameLayout {
         resultMsg.setGravity(Gravity.CENTER);
         resultV.addView(resultMsg);
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-        addView(feedbackBar, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT));
+        // V12.9.1 修复：feedbackBar 用 CENTER_HORIZONTAL 天然水平居中，不再手算 leftMargin
+        //   （旧实现以 rootView 宽度计算，宿主宽度不一致时提示框偶发偏右）
+        FrameLayout.LayoutParams barLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        addView(feedbackBar, barLp);
         resultBox = resultV;
-        placeAt(feedbackBar, 50, 34);
+        placeAtY(feedbackBar, 34);
 
         // 词魔出现提示（V12.7.11：同样修复 MATCH_PARENT 尺寸 bug，紧凑内容尺寸）
         summonBanner = new TextView(getContext());
@@ -416,27 +420,24 @@ public class BattleView extends FrameLayout {
         summonBanner.setPadding(dp(10), dp(5), dp(10), dp(5));
         summonBanner.setVisibility(GONE);
         summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
-        addView(summonBanner, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT));
-        placeAt(summonBanner, 50, 34);   // V12.7.11 与错误提示同位置（y34）
+        // V12.9.1 修复：summonBanner 同步改为水平居中（旧版手算 leftMargin 偶发偏右）
+        addView(summonBanner, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        placeAtY(summonBanner, 34);   // V12.7.11 与错误提示同位置（y34）
     }
 
-    /** 自由元素按百分比定位：x/y 为相对屏幕的百分比（x 为元素中心，y 为元素顶部）。
-     *  V12.7.10 基准改为 getRootView()（屏幕），避免宿主布局高度不等于屏高时（WRAP_CONTENT）
-     *  百分比定位被内容高放大、浮层落到屏幕下部的问题。 */
-    private void placeAt(View v, double xPct, double yPct) {
+    /** V12.9.1 提示浮层定位：水平由 FrameLayout CENTER_HORIZONTAL 保证居中，
+     *  仅按百分比设置顶部距离（以 rootView 高度为基准，避免宿主高度放大问题）。 */
+    private void placeAtY(View v, double yPct) {
         post(() -> {
             try {
                 View rootView = getRootView();
-                int w = rootView.getWidth(), h = rootView.getHeight();
-                if (w <= 0 || h <= 0) return;
-                v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.AT_MOST),
-                        View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST));
-                int vw = v.getMeasuredWidth();
+                int h = rootView.getHeight();
+                if (h <= 0) return;
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
                 lp.width = FrameLayout.LayoutParams.WRAP_CONTENT;   // V12.7.11 防御：浮层必须内容自适应，防 MATCH_PARENT 铺满全屏
                 lp.height = FrameLayout.LayoutParams.WRAP_CONTENT;
-                lp.gravity = Gravity.TOP | Gravity.LEFT;
-                lp.leftMargin = (int) Math.round(w * xPct / 100.0) - vw / 2;
+                lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                lp.leftMargin = 0;
                 lp.topMargin = (int) Math.round(h * yPct / 100.0);
                 v.setLayoutParams(lp);
             } catch (Throwable ignore) {}
@@ -483,7 +484,7 @@ public class BattleView extends FrameLayout {
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
-            placeAt(feedbackBar, 50, 34);   // V12.7.11 每次显示强制定位（用户圈定区，y34 顶部≈中心40%，不遮单词）
+            placeAtY(feedbackBar, 34);   // V12.9.1 每次显示强制定位（水平恒居中 + y34，不再手算 leftMargin）
             resultBig.setText(ok ? "✓" : "✗");
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
@@ -1259,25 +1260,46 @@ public class BattleView extends FrameLayout {
         } catch (Throwable ignore) {}
     }
 
-    /** 选项题对错高亮：答对绿色放大，答错红色抖动；正确答案始终绿框，其余变暗。 */
+    /** 选项题对错高亮：答对绿色放大，答错红色抖动；正确答案始终绿框，其余变暗。
+     *  V12.9.1 修复：匹配改为 trim+忽略大小写（后端 correct_answer 与选项值可能有
+     *  大小写/空格差异），答对项与选中项的文字同步变色，保证答对=绿、答错=红。 */
     private void highlightOptions(String picked, String correct) {
+        String c = correct == null ? "" : correct.trim().toLowerCase();
+        String p = picked == null ? "" : picked.trim().toLowerCase();
         for (int i = 0; i < optionViews.size(); i++) {
             View v = optionViews.get(i);
             if (v == null) continue;
             String val = i < optionValues.size() ? optionValues.get(i) : "";
-            boolean isCorrect = val.equals(correct);
-            boolean isPicked = val.equals(picked);
+            String vv = val == null ? "" : val.trim().toLowerCase();
+            boolean isCorrect = vv.equals(c);
+            boolean isPicked = vv.equals(p);
             if (isCorrect) {
                 v.setBackground(Ui.card(12, 0x1434D399, 2, Ui.GREEN));
+                setOptionTextColor(v, Ui.GREEN);
                 v.animate().scaleX(1.06f).scaleY(1.06f).setDuration(180).start();
             } else if (isPicked) {
                 v.setBackground(Ui.card(12, 0x26F87171, 2, Ui.RED));
+                setOptionTextColor(v, Ui.RED);
                 shake(v, 320);
             } else {
                 v.setAlpha(0.42f);
             }
             v.setClickable(false);
         }
+    }
+
+    /** V12.9.1 选项内文字（字母徽章+单词）同步变色：答对整卡绿、答错整卡红。 */
+    private void setOptionTextColor(View v, int color) {
+        try {
+            if (v instanceof ViewGroup) {
+                ViewGroup g = (ViewGroup) v;
+                for (int i = 0; i < g.getChildCount(); i++) {
+                    View c = g.getChildAt(i);
+                    if (c instanceof TextView) ((TextView) c).setTextColor(color);
+                    else setOptionTextColor(c, color);
+                }
+            }
+        } catch (Throwable ignore) {}
     }
 
     /** 拼写答对：字母格从左到右逐个点亮为绿色（魔法铭刻感）。 */

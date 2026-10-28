@@ -248,8 +248,11 @@ public class BackendRouter {
         out.put("damage", dmg);
         out.put("detail", dr == null ? new JSONObject() : dr.detail);
         // V11.5 对错反馈一致性：judge 返回 "yes"/"no" 供前端高亮对/错按钮
+        // V12.9.1 修复：cn2en（选英文单词）必须返回正确单词 entry.w 与选项值一致，
+        //   否则前端 highlightOptions 的 equals 匹配失败，答对选项无法高亮为绿色
         String correctAnswerVal = "spell".equals(qtype) ? entry.w
-                : ("judge".equals(qtype) ? (entry.m.equals(shown) ? "yes" : "no") : entry.m);
+                : ("judge".equals(qtype) ? (entry.m.equals(shown) ? "yes" : "no")
+                : ("cn2en".equals(qtype) ? entry.w : entry.m));
         out.put("correct_answer", correctAnswerVal);
         // V12.4：判断题答错也要告诉正确释义——补充返回该词真实释义，前端展示"对/错：释义"
         if ("judge".equals(qtype)) out.put("correct_mean", entry.m);
