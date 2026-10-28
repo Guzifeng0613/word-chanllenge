@@ -27,6 +27,9 @@ public class HomeView extends LinearLayout {
     private TextView lvlBadge, streakTxt, xpLab;
     private TextView titleSub;   // V13.0：横幅副标题（称号动态名 + 4 阶样式）
     private TextView goalTxt;   // R3：banner 内「今日目标进度」行（无数据时 GONE，只读消费 /stats/daily）
+    private TextView reviewTxt; // V13.9：banner 内「今日复习建议」行（只读消费 /review/due，无到期时优雅隐藏）
+    /** V13.9：到期词超过此阈值时提示「量较大可分批」，不编造精确数字。 */
+    private static final int REVIEW_HEAVY_THRESHOLD = 60;
     private View fillView;
     private LinearLayout xpBarWrap;
     private TextView modeDescLab;
@@ -113,6 +116,12 @@ public class HomeView extends LinearLayout {
         singleLine(goalTxt);
         goalTxt.setVisibility(GONE);
         banner.addView(goalTxt);
+
+        // V13.9：今日复习建议行（只读 /review/due；dueNow=0 时隐藏，不占位）
+        reviewTxt = Ui.text(getContext(), "", 10.5f, Ui.CYAN, false);
+        reviewTxt.setPadding(0, dp(3), 0, 0);
+        reviewTxt.setVisibility(GONE);
+        banner.addView(reviewTxt);
         addView(banner);
         addView(spacer(12));
     }
@@ -426,6 +435,31 @@ public class HomeView extends LinearLayout {
                 goalTxt.setVisibility(VISIBLE);
             } else {
                 goalTxt.setVisibility(GONE);
+            }
+
+            // V13.9：今日复习建议——纯只读消费 /review/due。
+            // 口径：dueNow = learning_count（到期未毕业）+ review_count（到期已毕业），即此刻真正到期该复习的词。
+            // 阈值常量 REVIEW_HEAVY_THRESHOLD=60：超过则提示分批；不编造精确数字，只给量级建议。
+            try {
+                JSONObject dueBody = new JSONObject();
+                dueBody.put("book", act.book);
+                JSONObject due = act.router().dispatch("/review/due", "POST", dueBody);
+                int learning = due.optInt("learning_count", 0);
+                int graduated = due.optInt("review_count", 0);
+                int dueNow = learning + graduated;
+                if (dueNow > 0) {
+                    StringBuilder sb = new StringBuilder("📖 今日建议先复习 ")
+                            .append(dueNow).append(" 词（到期未学 ").append(learning)
+                            .append(" · 已毕业复习 ").append(graduated).append("）");
+                    if (dueNow > REVIEW_HEAVY_THRESHOLD) sb.append("，量较大，可分 2–3 批完成");
+                    reviewTxt.setText(sb.toString());
+                    reviewTxt.setVisibility(VISIBLE);
+                } else {
+                    reviewTxt.setText("✨ 暂无到期复习，去学新词吧");
+                    reviewTxt.setVisibility(VISIBLE);
+                }
+            } catch (Throwable t) {
+                reviewTxt.setVisibility(GONE);
             }
 
             lvlBadge.setText(String.valueOf(level));
