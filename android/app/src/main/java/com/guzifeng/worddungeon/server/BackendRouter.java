@@ -70,6 +70,7 @@ public class BackendRouter {
         if ("/card/draw".equals(route)) return cardDraw(body == null ? new JSONObject() : body);
         if ("/shop/buy".equals(route)) return shopBuy(body == null ? new JSONObject() : body);
         if ("/shop/souls".equals(route)) return shopSouls();
+        if ("/altar/upgrade".equals(route)) return altarUpgrade(body == null ? new JSONObject() : body);
         throw new RuntimeException("未知路由: " + route);
     }
 
@@ -176,13 +177,21 @@ public class BackendRouter {
         // 复仇倍率用单局错过次数（V7.0 G.wrongCount[word]），非累计 wrong_count
         int runMisses = runState.runMisses(word);
 
+        // V12.9 词魂祭坛：读永久祝福（词锋+基础伤害、贪婪+产出），账号级权威数据
+        JSONObject meta = store.getMeta();
+        JSONObject altar = meta.optJSONObject("altar");
+        if (altar == null) altar = new JSONObject();
+        int edgeLv = altar.optInt("edge", 0);
+        int greedLv = altar.optInt("greed", 0);
+        int baseDamage = GameConfig.BASE_DAMAGE + edgeLv;
+
         int dmg = 0;
         int healBack = 0;
         DamageCalc.Result dr = null;
         if (isCorrect) {
             if (!crit && critChance > 0 && WordBank.get().rnd.nextDouble() < critChance) crit = true;
             dr = DamageCalc.calc(word, state, combo, qtype, timeLimit, remain,
-                    runMisses, crit, critMult, cardMult);
+                    runMisses, crit, critMult, cardMult, baseDamage);
             dmg = dr.total;
             if (lifestealPct > 0) healBack = (int) Math.round(dmg * lifestealPct);
         }
@@ -193,6 +202,10 @@ public class BackendRouter {
         if (isCorrect && kill && !"quick".equals(mode)) {
             int reward = "boss".equals(killKind) ? 60 : "elite".equals(killKind) ? 35 : 15;
             if (champion) reward = Math.round(reward * 1.5f);
+            // V12.9 击杀质量加成：拼写击杀 ×1.2；3 秒内 PERFECT 击杀 ×1.3（不叠加）
+            double quality = "spell".equals(qtype) ? 1.2 : (fast ? 1.3 : 1.0);
+            // V12.9 贪婪：战魂产出 +8%/级
+            reward = (int) Math.round(reward * quality * (1.0 + 0.08 * greedLv));
             soulGain = reward;
             souls += reward;
         }
@@ -220,8 +233,7 @@ public class BackendRouter {
         store.upsertRec(word, newRec, nowSec);
         store.insertAnswer(word, qtype, isCorrect, dmg, nowSec);
 
-        // XP 与成就
-        JSONObject meta = store.getMeta();
+        // XP 与成就（meta 已在伤害计算前读取，含祭坛等级）
         boolean isNewWord = oldRec == null;
         int xpGain = isCorrect ? (XP_CORRECT + (isNewWord ? XP_NEW_WORD : 0)) : 0;
         if (isCorrect) {
@@ -448,6 +460,8 @@ public class BackendRouter {
         out.put("target_rate", 0.85);
         out.put("mastered_total", store.masteredCount());
         out.put("best_correct", store.bestRunCorrect());   // P0-4：成就 correct50 进度
+        out.put("essence", meta.optInt("essence", 0));
+        out.put("altar", meta.optJSONObject("altar") == null ? new JSONObject() : meta.optJSONObject("altar"));
         return out;
     }
 
@@ -496,13 +510,26 @@ public class BackendRouter {
         if (maxCombo >= 10) unlock(meta, "combo10");
         int correct = b.optInt("correct", 0);
         if (correct >= 50) unlock(meta, "correct50");
+
+        // V12.9 双轨词魂：局内战魂按比例凝为持久精华（一次性，杜绝双计）
+        int runSouls = b.optInt("souls", 0);
+        int essenceGain;
+        if ("quick".equals(mode)) {
+            int questions = b.optInt("questions", 0);
+            essenceGain = Math.min(15, questions / 10);
+        } else if ("endless".equals(mode)) {
+            essenceGain = (int) Math.round(runSouls * 0.25);
+        } else {
+            essenceGain = win ? (int) Math.round(runSouls * 0.30) : (int) Math.round(runSouls * 0.25);
+        }
+        int essence = meta.optInt("essence", 0) + essenceGain;
+        meta.put("essence", essence);
         store.saveMeta(meta);
 
         // V12.8 回顾系统：每局战绩落 runs 表（无论胜负都记）
         int questions = b.optInt("questions", 0);
         int wrong = b.optInt("wrong", 0);
         int kills = b.optInt("kills", 0);
-        int runSouls = b.optInt("souls", 0);
         store.insertRun(mode, win, layer, questions, correct, wrong, maxCombo, kills, runSouls, nowSec);
 
         JSONObject out = new JSONObject();
@@ -512,6 +539,8 @@ public class BackendRouter {
         out.put("xp", meta.optInt("xp", 0));
         out.put("streak", meta.optInt("streak", 0));
         out.put("souls", souls);
+        out.put("essence", essence);
+        out.put("essence_gained", essenceGain);
         out.put("ach", meta.optJSONArray("ach") == null ? new JSONArray() : meta.optJSONArray("ach"));
         return out;
     }
@@ -615,7 +644,10 @@ public class BackendRouter {
         JSONArray owned = b.optJSONArray("cards");
         List<String> ownedIds = new java.util.ArrayList<>();
         if (owned != null) for (int i = 0; i < owned.length(); i++) ownedIds.add(owned.optString(i));
-        JSONObject out = CardCatalog.draw(kind, layer, endless, pity, epicPity, ownedIds, WordBank.get().rnd);
+        // V12.9 先知：祭坛 seer 等级 → 翻牌额外槽位
+        JSONObject altarNow = store.getMeta().optJSONObject("altar");
+        int seerNow = altarNow == null ? 0 : altarNow.optInt("seer", 0);
+        JSONObject out = CardCatalog.draw(kind, layer, endless, pity, epicPity, ownedIds, seerNow, WordBank.get().rnd);
         out.put("catalog", CardCatalog.catalog());
         return out;
     }
@@ -627,6 +659,41 @@ public class BackendRouter {
         return o;
     }
 
+    /** V12.9 祭坛升级：校验精华、扣精华、对应祝福 +1，持久化 meta。 */
+    private JSONObject altarUpgrade(JSONObject b) throws Exception {
+        String id = b.optString("id", "");
+        JSONObject meta = store.getMeta();
+        JSONObject altar = meta.optJSONObject("altar");
+        if (altar == null) altar = new JSONObject();
+        int cur = altar.optInt(id, 0);
+        int max = CardCatalog.altarMax(id);
+        int cost = CardCatalog.altarCost(id, cur);
+        JSONObject out = new JSONObject();
+        if (max <= 0 || cost < 0) {
+            out.put("ok", false);
+            out.put("reason", "maxed");
+            return out;
+        }
+        int essence = meta.optInt("essence", 0);
+        if (essence < cost) {
+            out.put("ok", false);
+            out.put("reason", "essence_not_enough");
+            out.put("essence", essence);
+            return out;
+        }
+        essence -= cost;
+        altar.put(id, cur + 1);
+        meta.put("essence", essence);
+        meta.put("altar", altar);
+        store.saveMeta(meta);
+        out.put("ok", true);
+        out.put("id", id);
+        out.put("level", cur + 1);
+        out.put("essence", essence);
+        out.put("altar", altar);
+        return out;
+    }
+
     /** 商店购买：扣词魂并返回余额；血药/祝福为道具，卡按 rarity 发卡数据。价格支持前端随层数上浮（price 参数优先，缺省查表）。 */
     private JSONObject shopBuy(JSONObject b) throws Exception {
         String item = b.optString("item", "");
@@ -635,6 +702,7 @@ public class BackendRouter {
         switch (item) {
             case "potion": price = CardCatalog.PRICE_POTION; break;
             case "bless":  price = CardCatalog.PRICE_BLESS; break;
+            case "sacrifice": price = CardCatalog.PRICE_SACRIFICE; break;
             case "card":
                 price = rarity == 2 ? CardCatalog.PRICE_CARD_EPIC
                         : rarity == 1 ? CardCatalog.PRICE_CARD_RARE : CardCatalog.PRICE_CARD_COMMON;
@@ -658,6 +726,7 @@ public class BackendRouter {
         o.put("item", item);
         o.put("price", price);
         o.put("souls", souls);
+        if ("sacrifice".equals(item)) o.put("damage", CardCatalog.SACRIFICE_DAMAGE);
         if ("card".equals(item)) {
             // 商店直购卡：按稀有度从目录抽一张返回卡数据
             CardCatalog.Card c = CardCatalog.byId(randomCardId(rarity));

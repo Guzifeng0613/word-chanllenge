@@ -4,6 +4,7 @@ import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -36,7 +37,7 @@ public class RewardDrawView extends FrameLayout {
     private boolean done = false;
     private boolean refreshed = false;
 
-    public RewardDrawView(Context c, JSONObject drawRes, OnReward cb) {
+    public RewardDrawView(Context c, JSONObject drawRes, int rerollCost, int souls, OnReward cb) {
         super(c);
         this.callback = cb;
         setClickable(true);
@@ -64,24 +65,34 @@ public class RewardDrawView extends FrameLayout {
         panel.addView(epicBanner);
         panel.addView(Ui.spacer(c, 8));
 
+        // V12.9 先知：槽位可能多于 3 张，横向滚动容器容纳（卡片保持可读宽度）
+        HorizontalScrollView scroll = new HorizontalScrollView(c);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         row = new LinearLayout(c);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        panel.addView(row);
+        scroll.addView(row);
+        panel.addView(scroll);
 
         loadSlots(drawRes);
 
         panel.addView(Ui.spacer(c, 16));
-        refreshBtn = Ui.text(c, "刷新一组 · 25 词魂", 13, Ui.MUT, true);
+        boolean canRefresh = souls >= rerollCost;
+        refreshBtn = Ui.text(c, "刷新一组 · " + rerollCost + " 词魂", 13, canRefresh ? Ui.TXT : Ui.MUT, true);
         refreshBtn.setGravity(Gravity.CENTER);
         refreshBtn.setPadding(dp(14), dp(11), dp(14), dp(11));
-        refreshBtn.setBackground(Ui.card(12, Ui.CARD, 1, Ui.LINE));
-        Ui.pressable(refreshBtn);
-        refreshBtn.setOnClickListener(v -> {
-            if (done || refreshed) return;
-            refreshed = true;
-            callback.onReroll();   // BattleView 真实扣 25 词魂并重抽
-        });
+        refreshBtn.setBackground(Ui.card(12, Ui.CARD, 1, canRefresh ? Ui.LINE : Ui.BG_PILL));
+        refreshBtn.setClickable(canRefresh);
+        if (canRefresh) {
+            Ui.pressable(refreshBtn);
+            refreshBtn.setOnClickListener(v -> {
+                if (done || refreshed) return;
+                refreshed = true;
+                callback.onReroll();   // BattleView 真实扣刷新费并重抽
+            });
+        }
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         panel.addView(refreshBtn, rp);

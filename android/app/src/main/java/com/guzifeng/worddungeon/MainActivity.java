@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.guzifeng.worddungeon.server.BackendRouter;
 import com.guzifeng.worddungeon.ui.AchievementsView;
+import com.guzifeng.worddungeon.ui.AltarView;
 import com.guzifeng.worddungeon.ui.BattleView;
 import com.guzifeng.worddungeon.ui.HomeView;
 import com.guzifeng.worddungeon.ui.TopToast;
@@ -62,8 +63,9 @@ public class MainActivity extends AppCompatActivity {
     private SettingsView settings;
     private AchievementsView achievements;
     private StatsView stats;
+    private AltarView altar;
 
-    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS, STATS }
+    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS, STATS, ALTAR }
     private Screen screen = Screen.HOME;
 
     @Override
@@ -104,6 +106,7 @@ public class MainActivity extends AppCompatActivity {
         try { settings = new SettingsView(this); } catch (Throwable e) { Log.e(TAG, "SettingsView 构造失败", e); }
         try { achievements = new AchievementsView(this); } catch (Throwable e) { Log.e(TAG, "AchievementsView 构造失败", e); }
         try { stats = new StatsView(this); } catch (Throwable e) { Log.e(TAG, "StatsView 构造失败", e); }
+        try { altar = new AltarView(this); } catch (Throwable e) { Log.e(TAG, "AltarView 构造失败", e); }
 
         if (crash != null && !crash.isEmpty() && home != null) {
             try { home.onCrashInfo(crash); } catch (Throwable ignore) {}
@@ -241,6 +244,12 @@ public class MainActivity extends AppCompatActivity {
                     try { stats.refresh(); } catch (Throwable ignore) {}
                 }
                 break;
+            case ALTAR:
+                if (altar != null) {
+                    root.addView(altar);
+                    try { altar.refresh(); } catch (Throwable ignore) {}
+                }
+                break;
         }
     }
 
@@ -259,6 +268,7 @@ public class MainActivity extends AppCompatActivity {
             case SETTINGS:
             case ACHIEVEMENTS:
             case STATS:
+            case ALTAR:
                 show(Screen.HOME); return;
             case HOME:
             default:

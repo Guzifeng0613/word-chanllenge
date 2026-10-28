@@ -86,19 +86,51 @@ public final class CardCatalog {
 
     /** 商店价格（C.shop）：血药30 / 祝福40 / 卡 普通50/稀有85/史诗150；刷新一组25。 */
     public static final int PRICE_POTION = 30;
-    public static final int PRICE_BLESS = 40;
+    public static final int PRICE_BLESS = 35;
+    public static final int PRICE_SACRIFICE = 40;
+    public static final int SACRIFICE_DAMAGE = 45;
     public static final int PRICE_CARD_COMMON = 50;
     public static final int PRICE_CARD_RARE = 85;
     public static final int PRICE_CARD_EPIC = 150;
     public static final int REROLL_COST = 25;
 
     /**
-     * 商店价格层数系数（V12.8.3）：基础价 ×(1 + 0.04×层数差)，按 5 取整，封顶 2.0 倍。
+     * 商店价格层数系数（V12.9）：基础价 ×(1 + 0.06×层数差)，按 5 取整，封顶 2.0 倍。
      * 越到后面技能越难获取：高层同一张卡更贵。
      */
     public static int shopPrice(int base, int layer) {
-        double mult = Math.min(2.0, 1.0 + 0.04 * Math.max(0, layer - 1));
+        double mult = Math.min(2.0, 1.0 + 0.06 * Math.max(0, layer - 1));
         return (int) Math.ceil(base * mult / 5.0) * 5;
+    }
+
+    // ── V12.9 词魂祭坛（永久祝福，数据存 meta.essence / meta.altar）──
+    public static final String[] ALTAR_IDS = {"edge", "vigor", "magnet", "seer", "revive", "greed"};
+    public static final int[] ALTAR_MAX = {4, 5, 5, 3, 2, 5};
+    // 每项「从当前等级升到下一级」的精华价格（长度 = 上限）
+    private static final int[][] ALTAR_COSTS = {
+            {60, 102, 173, 295},         // edge 词锋（上限4，满级答题数降幅≤25%）
+            {80, 136, 231, 393, 668},    // vigor 体魄
+            {50, 75, 112, 169, 253},     // magnet 引力
+            {120, 240, 480},            // seer 先知
+            {250, 500},                 // revive 复苏
+            {100, 180, 324, 583, 1050}  // greed 贪婪
+    };
+
+    /** 祭坛某项等级上限。 */
+    public static int altarMax(String id) {
+        for (int i = 0; i < ALTAR_IDS.length; i++) if (ALTAR_IDS[i].equals(id)) return ALTAR_MAX[i];
+        return 0;
+    }
+
+    /** 从当前等级升到下一级所需精华；已满级返回 -1。 */
+    public static int altarCost(String id, int currentLevel) {
+        for (int i = 0; i < ALTAR_IDS.length; i++) {
+            if (ALTAR_IDS[i].equals(id)) {
+                if (currentLevel < 0 || currentLevel >= ALTAR_COSTS[i].length) return -1;
+                return ALTAR_COSTS[i][currentLevel];
+            }
+        }
+        return -1;
     }
 
     /**
@@ -163,29 +195,31 @@ public final class CardCatalog {
      * @return slots + 新的 pity/epicPity
      */
     public static JSONObject draw(String kind, int layer, boolean endless,
-                                  int pity, int epicPity, List<String> ownedCardIds, Random rnd) {
+                                  int pity, int epicPity, List<String> ownedCardIds, int extraSlots, Random rnd) {
         double[] t = rarityTable(kind, layer, endless);
         int force = 0;
         if (epicPity >= 6) force = 2;
         else if (pity >= 3) force = 1;
 
+        int n = 3 + Math.max(0, extraSlots);   // V12.9 先知：首节点翻牌多 1 张/级
         List<Card> taken = new ArrayList<>();
         List<Card> slots = new ArrayList<>();
-        int[] rars = new int[3];
-        for (int i = 0; i < 3; i++) {
+        int[] rars = new int[n];
+        for (int i = 0; i < n; i++) {
             int r = rollSlotRarity(t, rnd.nextDouble(), i == 0 ? force : 0);
             rars[i] = r;
             Card c = drawCardOfRarity(r, taken, ownedCardIds, rnd);
             if (c != null) taken.add(c);
             slots.add(c);
         }
-        int maxR = Math.max(Math.max(rars[0], rars[1]), rars[2]);
+        int maxR = 0;
+        for (int r : rars) maxR = Math.max(maxR, r);
         if (maxR == 0) { pity++; epicPity++; }
         else if (maxR == 1) { pity = 0; epicPity++; }
         else { pity = 0; epicPity = 0; }
 
         JSONArray arr = new JSONArray();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < n; i++) {
             JSONObject s = new JSONObject();
             try {
                 s.put("rare", rars[i]);

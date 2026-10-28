@@ -56,6 +56,15 @@ public class BattleView extends FrameLayout {
     private String layerName = "";        // 层名（后端下发）
     private AmbientBackground ambient;   // 氛围背景引用，用于按层切辉光色相
     private int hp = 100;
+    private int maxHp = 100;   // V12.9 体魄：最大生命（100 + 10×vigor）
+    // V12.9 祭坛永久祝福（开局读 meta.altar，局内只读）
+    private int edgeLv = 0;      // 词锋：基础伤害+1/级
+    private int seerLv = 0;      // 先知：首节点翻牌多1张/级
+    private int reviveLv = 0;    // 复苏：每局免死复活次数
+    private int reviveUsed = 0;  // 本局已用复活次数
+    private boolean sacrificeUsed = false;  // V12.9 献祭：每场限1
+    private boolean killViaSacrifice = false;  // V12.9 标记本次击杀来自献祭（不发击杀词魂）
+    private TextView sacrificeBtn = null;  // 献祭按钮引用（随敌人显隐）
     private int combo = 0;
     private int wrongInRun = 0;
     private int questionsInRun = 0;
@@ -78,7 +87,7 @@ public class BattleView extends FrameLayout {
     private double critMult = 2.0;         // 暴击倍率（致命一击改 ×3）
     private boolean comboHalved = false;   // 势如破竹：答错连击减半而非清零
     private int shield = 0;                // 错词护盾：开局 6 点，按次抵挡受击
-    private boolean soulMagnet = false;    // 词魂引力：胜利词魂 +40%
+    private boolean soulMagnet = false;    // 词魂引力：胜利词魂 +30%
     private double lifestealPct = 0.0;     // 汲词：答对按伤害 10% 回血
     private boolean immortal = false;      // 不朽：致命伤以 1 HP 存活一次
     private boolean immortalUsed = false;
@@ -224,6 +233,15 @@ public class BattleView extends FrameLayout {
         goalLp.topMargin = dp(8);
         ebox.addView(goalBoxV, goalLp);
         goalBox = goalBoxV;
+        // V12.9 献祭按钮（战斗中主动：40 战魂 → 45 伤害，每场限1），初始隐藏，spawnEnemy 时配置
+        TextView sac = Ui.text(getContext(), "🔥 献祭 · 40 魂 → 45 伤害", 12.5f, Ui.TXT, true);
+        sac.setGravity(Gravity.CENTER);
+        sac.setPadding(dp(12), dp(9), dp(12), dp(9));
+        sac.setVisibility(GONE);
+        LinearLayout.LayoutParams sacLp = new LinearLayout.LayoutParams(-1, -2);
+        sacLp.topMargin = dp(8);
+        ebox.addView(sac, sacLp);
+        sacrificeBtn = sac;
         enemyLevel = Ui.text(getContext(), "💠", 14, Ui.CYAN, false); // 保留引用，不显示
         enemyCard = ebox;
         col.addView(ebox);
@@ -432,7 +450,7 @@ public class BattleView extends FrameLayout {
         try {
             int newHp = Math.max(0, hp);
             if (hpLab != null) {
-                hpLab.setText("生命 " + newHp + "/100");
+                hpLab.setText("生命 " + newHp + "/" + maxHp);
                 // UI-iteration-12：受扣血（newHp<lastHp）时数字闪红，与敌人数受击弹跳 i11 对称的负面反馈；回血不闪
                 if (newHp < lastHp) {
                     hpLab.setTextColor(Ui.RED);
@@ -441,7 +459,7 @@ public class BattleView extends FrameLayout {
                 }
             }
             lastHp = newHp;
-            if (playerHp != null) playerHp.setRatio(newHp / 100f);
+            if (playerHp != null) playerHp.setRatio(maxHp > 0 ? newHp / (float) maxHp : 0f);
             // UI-iteration-16：词魂增加（答对获利）时计数器弹跳，赚到货币有获得感；消费不跳
             int newSouls = act.souls;
             if (soulNum != null) {
@@ -540,6 +558,22 @@ public class BattleView extends FrameLayout {
         immortal = false; immortalUsed = false;
         // 词魂局内制（V11.8）：闯关/无尽各自一局，开局清零、局内获得局内使用，不跨局
         act.souls = 0;
+        // V12.9 读祭坛永久祝福（账号级权威），应用体魄/引力/复苏/词锋/先知
+        JSONObject altar = new JSONObject();
+        try {
+            JSONObject stats = act.router().dispatch("/stats/daily", "GET", null);
+            if (stats != null) {
+                JSONObject a = stats.optJSONObject("altar");
+                if (a != null) altar = a;
+            }
+        } catch (Throwable ignore) {}
+        edgeLv = altar.optInt("edge", 0);
+        seerLv = altar.optInt("seer", 0);
+        reviveLv = altar.optInt("revive", 0);
+        reviveUsed = 0;
+        maxHp = 100 + 10 * altar.optInt("vigor", 0);
+        hp = maxHp;
+        act.souls = 15 * altar.optInt("magnet", 0);
         updateHud();
         lowHpVignette.setVisibility(GONE);
         flowBanner.setVisibility(GONE);
@@ -652,9 +686,62 @@ public class BattleView extends FrameLayout {
             pickGoal(boss, elite);
             soulNum.setText("词魂 " + act.souls);
             lowHpVignette.setVisibility(hp <= 30 ? VISIBLE : GONE);
+            sacrificeUsed = false;   // 每个新敌人重置献祭
+            setupSacrifice();
         } catch (Throwable e) {
             showFeed("敌人召唤失败", Ui.RED);
         }
+    }
+
+    /** V12.9 配置献祭按钮：非快刷、敌人存活时显示；40 魂以上可点，否则置灰；已用则隐藏。 */
+    private void setupSacrifice() {
+        if (sacrificeBtn == null) return;
+        if ("quick".equals(mode) || sacrificeUsed) {
+            sacrificeBtn.setVisibility(GONE);
+            return;
+        }
+        boolean afford = act.souls >= CardCatalog.PRICE_SACRIFICE;
+        sacrificeBtn.setVisibility(VISIBLE);
+        sacrificeBtn.setText("🔥 献祭 · " + CardCatalog.PRICE_SACRIFICE + " 魂 → " + CardCatalog.SACRIFICE_DAMAGE + " 伤害");
+        sacrificeBtn.setTextColor(afford ? Ui.TXT : Ui.MUT);
+        sacrificeBtn.setBackground(Ui.card(12, afford ? 0x33FB923C : Ui.BG_PILL, 1, afford ? Ui.ORANGE : Ui.LINE));
+        sacrificeBtn.setClickable(afford);
+        if (afford) {
+            Ui.pressable(sacrificeBtn);
+            sacrificeBtn.setOnClickListener(v -> doSacrifice());
+        }
+    }
+
+    /** V12.9 献祭：走 /shop/buy item=sacrifice（扣 40 魂），成功后对敌人造成 45 伤害（复用弹道/命中/击杀）。 */
+    private void doSacrifice() {
+        if (sacrificeUsed || act.souls < CardCatalog.PRICE_SACRIFICE) return;
+        new Thread(() -> {
+            JSONObject res = null;
+            try {
+                JSONObject b = new JSONObject();
+                b.put("item", "sacrifice");
+                b.put("souls", act.souls);
+                res = act.router().dispatch("/shop/buy", "POST", b);
+            } catch (Throwable ignore) {}
+            final JSONObject buy = res;
+            final boolean ok = res != null && res.optBoolean("ok", false);
+            main.post(() -> {
+                if (!ok) {
+                    showFeed("词魂不足，无法献祭", Ui.RED);
+                    return;
+                }
+                sacrificeUsed = true;
+                if (buy != null) {
+                    act.souls = buy.optInt("souls", act.souls);
+                    int dmg = buy.optInt("damage", CardCatalog.SACRIFICE_DAMAGE);
+                    soulNum.setText("💠 词魂 " + act.souls);
+                    // 献祭跳过答题：直接命中敌人；若击杀则 onKill 推进（该击杀不发基础词魂）
+                    killViaSacrifice = true;
+                    hitEnemy(dmg, false, false);
+                }
+                if (sacrificeBtn != null) sacrificeBtn.setVisibility(GONE);
+            });
+        }).start();
     }
 
     /** UI-iteration-05：连击数字三档成长——≤2 金24 / 3-4 橙28 / ≥5 青32（心流）。pulse 仍在其上叠加，互不冲突。 */
@@ -1294,7 +1381,8 @@ public class BattleView extends FrameLayout {
                 int runMiss = runState != null ? runState.runMisses(quiz.optString("word")) : 0;
                 DamageCalc.Result est = DamageCalc.calc(quiz.optString("word"), wstate, combo,
                         quiz.optString("qtype"), quiz.optDouble("timeLimit", 6), remainSec,
-                        runMiss, crit, critMultSend, bonusDamageMult);
+                        runMiss, crit, critMultSend, bonusDamageMult,
+                        GameConfig.BASE_DAMAGE + edgeLv);
                 body.put("kill", est.total >= enemyHp);
                 body.put("kill_kind", enemy.optBoolean("boss", false) ? "boss"
                         : (enemy.optBoolean("elite", false) ? "elite" : "normal"));
@@ -1422,10 +1510,10 @@ public class BattleView extends FrameLayout {
                     onLevelUp();
                 } else playerLevel = newLevel;
                 // R2-A：汲词 lifesteal——答对按造成伤害 10% 回血
-                if (lifestealPct > 0 && hp < 100) {
+                if (lifestealPct > 0 && hp < maxHp) {
                     int heal = (int) Math.round(damage * lifestealPct);
                     if (heal > 0) {
-                        hp = Math.min(100, hp + heal);
+                        hp = Math.min(maxHp, hp + heal);
                         updateHud();
                         showFeed("🩸 汲词：生命 +" + heal, Ui.GREEN);
                     }
@@ -1635,6 +1723,12 @@ public class BattleView extends FrameLayout {
             hp = 1;
             showFeed("✨ 不朽：致命伤害被抵挡，以 1 HP 存活！", Ui.GOLD);
         }
+        // V12.9 复苏——祭坛永久祝福，每局免死复活（1HP 存活），按等级计次
+        if (hp <= 0 && reviveUsed < reviveLv) {
+            reviveUsed++;
+            hp = 1;
+            showFeed("♾ 复苏：以 1 HP 重新站起（" + reviveUsed + "/" + reviveLv + "）", Ui.GOLD);
+        }
         updateHud();
         playerHp.flashHit();   // R2-5：玩家受击血条白闪反馈（独立于 160ms 平滑）
         flashRed(playerEmoji);
@@ -1766,6 +1860,7 @@ public class BattleView extends FrameLayout {
         killFlash();   // V12.5 击杀全屏白金光闪
         // R1-7：敌人消散演出（缩放+alpha 渐隐 ~300ms）
         dissolveEnemy();
+        if (sacrificeBtn != null) sacrificeBtn.setVisibility(GONE);   // 击杀后隐藏献祭按钮，避免残留
         // R1-7：击杀粒子比暴击更盛——金+青双层粒子（暴击仅单层 14 个，此处 22+14）
         try {
             int[] ec = new int[2];
@@ -1784,10 +1879,16 @@ public class BattleView extends FrameLayout {
         if (enemy != null && enemy.optBoolean("champion", false)) soulGain = Math.round(soulGain * 1.5f);
         // R4：基础击杀词魂已由后端 kill 入账、随 answer 响应返回权威 souls（submit 已同步 act.souls），
         // 此处不再重复累加基础值，避免双计与"内存+N 被下一响应覆盖归零"。
-        // 仅补前端独有、后端未建模的 soulMagnet ×1.4 差额（+40%）。
-        if (soulMagnet) act.souls += Math.round(soulGain * 0.4f);
-        soulNum.setText("词魂 " + act.souls);
-        showFeed("击杀入账 词魂 +" + (soulMagnet ? Math.round(soulGain * 1.4f) : soulGain), Ui.GOLD);
+        if (killViaSacrifice) {
+            // V12.9 献祭击杀：跳过答题、牺牲击杀词魂（基础与 magnet 差额都不发）
+            killViaSacrifice = false;
+            showFeed("献祭击杀 · 未获得词魂", Ui.MUT);
+        } else {
+            // 仅补前端独有、后端未建模的 soulMagnet 差额（+30%，V12.9 由 +40% 下调）。
+            if (soulMagnet) act.souls += Math.round(soulGain * 0.3f);
+            soulNum.setText("词魂 " + act.souls);
+            showFeed("击杀入账 词魂 +" + (soulMagnet ? Math.round(soulGain * 1.3f) : soulGain), Ui.GOLD);
+        }
         // 快刷持续模式（V12.2）：击杀后立刻召唤下一个敌人继续刷，不结算、不翻牌、不进层间，
         // 直到用户主动点「退出快刷」（快刷击杀不发词魂，后端 kill 入账已排除 quick）。
         if ("quick".equals(mode)) {
@@ -1840,7 +1941,7 @@ public class BattleView extends FrameLayout {
         layer++;
         enc = 0;   // V12.0：进入新层，本层场次归零
         if (pendingBless) {
-            bonusDamageMult = 1.25;   // V7.0 临时祝福：下一层伤害 +25%
+            bonusDamageMult = 1.30;   // V12.9 临时祝福：下一层伤害 +30%
             pendingBless = false;
         }
         showFeed("⚔ 层末守门者已破！进入第 " + layer + " 层", Ui.GOLD);
@@ -1868,7 +1969,7 @@ public class BattleView extends FrameLayout {
                     pity = drawRes.optInt("pity", pity);
                     epicPity = drawRes.optInt("epicPity", epicPity);
                 }
-                RewardDrawView rw = new RewardDrawView(getContext(), drawRes, new RewardDrawView.OnReward() {
+                RewardDrawView rw = new RewardDrawView(getContext(), drawRes, rerollCost(), act.souls, new RewardDrawView.OnReward() {
                     @Override public void onReward(JSONObject card) {
                         if (card != null) act.runCards++;   // GAP-05：本局选卡计数上报
                         applyCard(card);
@@ -1890,11 +1991,13 @@ public class BattleView extends FrameLayout {
 
     /** GAP-01：刷新一组——走真实 /shop/buy reroll（扣 25 词魂），成功后重抽三槽重建浮层。 */
     private void rerollRewardDraw(RewardDrawView[] holder) {
+        final int cost = rerollCost();
         new Thread(() -> {
             JSONObject res = null;
             try {
                 JSONObject b = new JSONObject();
                 b.put("item", "reroll");
+                b.put("price", cost);
                 b.put("souls", act.souls);
                 res = act.router().dispatch("/shop/buy", "POST", b);
             } catch (Throwable ignore) {}
@@ -1926,7 +2029,7 @@ public class BattleView extends FrameLayout {
                 }
                 // 用新槽位重建翻牌内容（复用同一浮层，先移除旧视图再换源重渲染）
                 if (holder[0] != null) removeView(holder[0]);
-                RewardDrawView rw = new RewardDrawView(getContext(), draw, new RewardDrawView.OnReward() {
+                RewardDrawView rw = new RewardDrawView(getContext(), draw, rerollCost(), act.souls, new RewardDrawView.OnReward() {
                     @Override public void onReward(JSONObject card) {
                         if (card != null) act.runCards++;
                         applyCard(card);
@@ -1951,8 +2054,8 @@ public class BattleView extends FrameLayout {
         final SpringView[] holder = new SpringView[1];
         SpringView sv = new SpringView(getContext(), layerWrong, hp, new SpringView.OnSpring() {
             @Override public void onHeal(int newHp) {
-                hp = Math.max(0, Math.min(100, newHp));
-                playerHp.setRatio(hp / 100f);
+                hp = Math.max(0, Math.min(maxHp, newHp));
+                playerHp.setRatio(maxHp > 0 ? hp / (float) maxHp : 0f);
             }
             @Override public void onDone() {
                 overlayView = null;
@@ -2007,13 +2110,13 @@ public class BattleView extends FrameLayout {
                         }
                         switch (kind) {
                             case "heal":
-                                hp = Math.min(100, hp + 30);
-                                playerHp.setRatio(hp / 100f);
+                                hp = Math.min(maxHp, hp + 30);
+                                playerHp.setRatio(maxHp > 0 ? hp / (float) maxHp : 0f);
                                 showFeed("❤️ 血药：生命 +30", Ui.GREEN);
                                 break;
                             case "bless":
                                 pendingBless = true;
-                                showFeed("🗡 祝福：下一层伤害 +25%", Ui.ORANGE);
+                                showFeed("🗡 祝福：下一层伤害 +30%", Ui.ORANGE);
                                 break;
                             case "card":
                                 act.runCards++;   // GAP-05：本局购卡也计入选卡计数
@@ -2042,11 +2145,17 @@ public class BattleView extends FrameLayout {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
     }
 
+    /** V12.9 刷新费：远征固定 25；无尽 25 + 2×层，封顶 60（后期通胀出口）。 */
+    private int rerollCost() {
+        if ("endless".equals(mode)) return Math.min(60, CardCatalog.REROLL_COST + 2 * layer);
+        return CardCatalog.REROLL_COST;
+    }
+
     /** V12.8.3 商店商品动态生成：血药/祝福固定价，三卡槽按当前难度（敌人类型+层数）抽稀有度，卡价随层数上浮。 */
     private java.util.List<ShopView.Item> buildShopItems() {
         java.util.List<ShopView.Item> out = new java.util.ArrayList<>();
-        out.add(new ShopView.Item("heal", "血药", "恢复 30 点生命", 30, null));
-        out.add(new ShopView.Item("bless", "临时祝福", "下一层伤害 +25%", 40, null));
+        out.add(new ShopView.Item("heal", "血药", "恢复 30 点生命", CardCatalog.PRICE_POTION, null));
+        out.add(new ShopView.Item("bless", "临时祝福", "下一层伤害 +30%", CardCatalog.PRICE_BLESS, null));
         JSONArray slots = CardCatalog.shopSlots(layerKind(), layer, "endless".equals(mode), WordBank.get().rnd);
         for (int i = 0; i < slots.length(); i++) {
             JSONObject s = slots.optJSONObject(i);
@@ -2063,13 +2172,15 @@ public class BattleView extends FrameLayout {
         return out;
     }
 
-    /** V12.8.3 商店刷新：扣 25 词魂（/shop/buy reroll）成功后重建商店浮层，重抽商品。 */
+    /** V12.9 商店刷新：扣刷新费（无尽随层数涨）成功后重建商店浮层，重抽商品。 */
     private void rerollShop(ShopView[] holder) {
+        final int cost = rerollCost();
         new Thread(() -> {
             JSONObject res = null;
             try {
                 JSONObject b = new JSONObject();
                 b.put("item", "reroll");
+                b.put("price", cost);
                 b.put("souls", act.souls);
                 res = act.router().dispatch("/shop/buy", "POST", b);
             } catch (Throwable ignore) {}
@@ -2099,10 +2210,16 @@ public class BattleView extends FrameLayout {
             bonusDamageMult = 1.25;
             showFeed("🌟 稀有卡：本场伤害 ×1.25", Ui.GOLD);
         } else {
-            hp = Math.min(100, hp + 15);
-            playerHp.setRatio(hp / 100f);
+            hp = Math.min(maxHp, hp + 15);
+            playerHp.setRatio(maxHp > 0 ? hp / (float) maxHp : 0f);
             showFeed("🌟 普通卡：生命 +15", Ui.CYAN);
         }
+    }
+
+    /** V12.9 统一回血：不超过最大生命（体魄），同步血条。 */
+    private void healAdd(int add) {
+        hp = Math.min(maxHp, hp + add);
+        playerHp.setRatio(maxHp > 0 ? hp / (float) maxHp : 0f);
     }
 
     /** GAP-01：应用后端词典卡（card={id,name,rarity,effect}），按 id 接线战斗效果。 */
@@ -2126,7 +2243,7 @@ public class BattleView extends FrameLayout {
                 // ── 护盾/吸血/词魂/不朽（R2-A：机制型卡）──
                 case "shield":       shield = 6; break;                        // 错词护盾：开局 6 盾
                 case "lifesteal":    lifestealPct = 0.10; break;                // 汲词：答对按伤害 10% 回血
-                case "soulmagnet":   soulMagnet = true; break;                  // 词魂引力：胜利词魂 +40%
+                case "soulmagnet":   soulMagnet = true; break;                  // 词魂引力：胜利词魂 +30%
                 case "immortal":     immortal = true; break;                    // 不朽：致命伤以 1 HP 存活一次
                 // ── 时间类 ──
                 case "warmup":      bonusTime += 2; break;                     // 热身：战斗前 3 题限时+2s
@@ -2135,14 +2252,14 @@ public class BattleView extends FrameLayout {
                 // ── 拼写/伤害类 ──
                 case "spellboost":   bonusDamageMult = Math.max(bonusDamageMult, 1.2); break;
                 case "spellmaster":  bonusDamageMult = Math.max(bonusDamageMult, 1.1);
-                                     hp = Math.min(100, hp + 4); playerHp.setRatio(hp / 100f); break;
+                                     healAdd(4); break;
                 case "spellchain":   bonusDamageMult = Math.max(bonusDamageMult, 1.2); break;
                 case "retreat":      bonusDamageMult = Math.max(bonusDamageMult, 1.15); break;
                 case "braver":       bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
                 case "firstblood":   bonusDamageMult = Math.max(bonusDamageMult, 1.2); break;
                 case "speednote":    bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
                 case "buildup":      bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
-                case "steady":       hp = Math.min(100, hp + 5); playerHp.setRatio(hp / 100f); break;
+                case "steady":       healAdd(5); break;
                 case "doubleedged":  bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
                 case "wordfire":     bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
                 case "glasscannon":  bonusDamageMult = Math.max(bonusDamageMult, 1.5); break;
@@ -2150,7 +2267,7 @@ public class BattleView extends FrameLayout {
                     // 未识别 id：按稀有度给温和本局增益（不静默拍平为零效果）
                     if (rarity >= 2) bonusDamageMult = Math.max(bonusDamageMult, 1.3);
                     else if (rarity == 1) bonusDamageMult = Math.max(bonusDamageMult, 1.1);
-                    else { hp = Math.min(100, hp + 5); playerHp.setRatio(hp / 100f); }
+                    else healAdd(5);
                     break;
             }
         } catch (Throwable ignore) {}

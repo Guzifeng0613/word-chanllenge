@@ -51,8 +51,8 @@ public class DamageCalc {
 
     public static Result calc(String word, String state, int combo, String qtype,
                               double timeLimit, double remain, int runMisses,
-                              boolean crit, double critMult, double cardMult) {
-        double base = GameConfig.BASE_DAMAGE;
+                              boolean crit, double critMult, double cardMult, int baseDamage) {
+        double base = baseDamage > 0 ? baseDamage : GameConfig.BASE_DAMAGE;
         double sm = speedMult(qtype, timeLimit, remain);
         double cm = comboMult(combo);
         double pm = GameConfig.proficiencyOf(state);
