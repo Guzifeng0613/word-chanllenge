@@ -1561,6 +1561,13 @@ public class BattleView extends FrameLayout {
             shake(enemyEmoji, 260);
             if (enemyCard != null) shake(enemyCard, 220);
             shakePlayer(true);
+            // UI-iteration-20（收官）：答对出击时玩家头像前扑缩放（1→1.15→1），与受击 scale 对称，强化"挥剑攻击"发力感
+            if (playerEmoji != null) {
+                playerEmoji.animate().cancel();
+                playerEmoji.setScaleX(1f); playerEmoji.setScaleY(1f);
+                playerEmoji.animate().scaleX(1.15f).scaleY(1.15f).setDuration(80)
+                        .withEndAction(() -> playerEmoji.animate().scaleX(1f).scaleY(1f).setDuration(200).start()).start();
+            }
             pulse(comboNum);
             popDmg((crit ? "💥" : "") + "+" + damage, revenge ? Ui.PURPLE : Ui.GOLD);
             int[] ec = new int[2];
