@@ -3,6 +3,7 @@ package com.guzifeng.worddungeon.ui;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -252,6 +253,7 @@ public class StatsView extends FrameLayout {
         soulsTxt.setText("总词魂 " + String.format(Locale.US, "%,d", ov.totalSouls));
 
         lineChart.setData(s);
+        lineChart.setPeriodName(period == 0 ? "本周" : period == 1 ? "本月" : "本年");   // P0-3：日均线标签区间名
         barChart.setData(s);
         donut.setData(share, ov.totalRuns);
         buildDonutLegend(share);
@@ -387,8 +389,11 @@ public class StatsView extends FrameLayout {
         private interface F { float f(float x); }
         private String[] labels = new String[0];
         private int[] q = new int[0], acc = new int[0];
+        private String periodName = "本周";   // P0-3：区间名（本周/本月/本年），用于日均虚线标签
 
         LineChartView(Context c) { super(c); }
+
+        void setPeriodName(String n) { periodName = n == null ? "本周" : n; invalidate(); }
 
         void setData(ProgressStore.RunSeries s) {
             labels = s.labels;
@@ -469,6 +474,23 @@ public class StatsView extends FrameLayout {
                 p.setColor(Ui.GOLD);
                 cv.drawCircle(xAt.f(i), yA.f(acc[i]), Ui.dp(getContext(), 2.4f), p);
             }
+            // P0-3：区间日均参考虚线（与蓝线同 questions 量纲，N=round(Σq/桶数)）
+            long qsum = 0;
+            for (int v : q) qsum += v;
+            float avgQ = qsum / (float) q.length;
+            if (avgQ > 0) {
+                float ay = yQ.f(avgQ);
+                p.setColor(0xAAFFFFFF);
+                p.setStrokeWidth(Ui.dp(getContext(), 1));
+                p.setStyle(Paint.Style.STROKE);
+                p.setPathEffect(new DashPathEffect(new float[]{Ui.dp(getContext(), 4), Ui.dp(getContext(), 4)}, 0));
+                cv.drawLine(pl, ay, w - pr, ay, p);
+                p.setPathEffect(null);
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Ui.MUT);
+                p.setTextSize(Ui.dp(getContext(), 9f));
+                cv.drawText(periodName + "日均 " + Math.round(avgQ), pl + Ui.dp(getContext(), 2), ay - Ui.dp(getContext(), 2), p);
+            }
             // x 标签
             p.setColor(Ui.MUT);
             p.setTextSize(Ui.dp(getContext(), 9.5f));
@@ -484,6 +506,7 @@ public class StatsView extends FrameLayout {
     // 柱状图：总闯关（蓝底）+ 胜利段（绿），峰值金
     // ════════════════════════════════════════════════════════════════
     private static class BarChartView extends View {
+        private static final int DAILY_GOAL = 40;   // P0-3：每日目标题数（对齐 BackendRouter.DAILY_QUESTIONS=40）
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private String[] labels = new String[0];
         private int[] runs = new int[0], wins = new int[0];
@@ -538,6 +561,19 @@ public class StatsView extends FrameLayout {
                 // x 标签
                 cv.drawText(labels[i], cx, h - Ui.dp(getContext(), 5), p);
             }
+            // P0-3：每日目标参考虚线（琥珀色，frac=min(1,40/maxR) 作视觉目标位，不改柱体）
+            float goalFrac = Math.min(1f, DAILY_GOAL / (float) (maxR > 0 ? maxR : 1));
+            float gy = pt + ih - goalFrac * ih;
+            p.setColor(0xAAFFD166);
+            p.setStrokeWidth(Ui.dp(getContext(), 1));
+            p.setStyle(Paint.Style.STROKE);
+            p.setPathEffect(new DashPathEffect(new float[]{Ui.dp(getContext(), 4), Ui.dp(getContext(), 4)}, 0));
+            cv.drawLine(pl, gy, w - pr, gy, p);
+            p.setPathEffect(null);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Ui.MUT);
+            p.setTextSize(Ui.dp(getContext(), 9f));
+            cv.drawText("每日目标 " + DAILY_GOAL + "题", pl + Ui.dp(getContext(), 2), gy - Ui.dp(getContext(), 2), p);
         }
     }
 
