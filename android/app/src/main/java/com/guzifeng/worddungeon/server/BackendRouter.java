@@ -626,7 +626,7 @@ public class BackendRouter {
         return o;
     }
 
-    /** 商店购买：扣词魂并返回余额；血药/祝福为道具，卡按 rarity 发卡数据。 */
+    /** 商店购买：扣词魂并返回余额；血药/祝福为道具，卡按 rarity 发卡数据。价格支持前端随层数上浮（price 参数优先，缺省查表）。 */
     private JSONObject shopBuy(JSONObject b) throws Exception {
         String item = b.optString("item", "");
         int rarity = b.optInt("rarity", 0);
@@ -641,6 +641,7 @@ public class BackendRouter {
             case "reroll": price = CardCatalog.REROLL_COST; break;
             default: throw new RuntimeException("未知商品: " + item);
         }
+        if (b.has("price")) price = b.optInt("price", price);   // V12.8.3 商店价格随层数上浮，前端计算并传回
         // 局内制：余额由前端请求携带，后端只做校验与扣减，不持久化
         int souls = b.optInt("souls", 0);
         if (souls < price) {

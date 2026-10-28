@@ -92,6 +92,37 @@ public final class CardCatalog {
     public static final int PRICE_CARD_EPIC = 150;
     public static final int REROLL_COST = 25;
 
+    /**
+     * 商店价格层数系数（V12.8.3）：基础价 ×(1 + 0.04×层数差)，按 5 取整，封顶 2.0 倍。
+     * 越到后面技能越难获取：高层同一张卡更贵。
+     */
+    public static int shopPrice(int base, int layer) {
+        double mult = Math.min(2.0, 1.0 + 0.04 * Math.max(0, layer - 1));
+        return (int) Math.ceil(base * mult / 5.0) * 5;
+    }
+
+    /**
+     * 商店三卡槽（V12.8.3）：按当前节点稀有度权重（难度越高越容易出稀有/史诗）抽 3 张不重复卡。
+     * 返回 JSONArray，每项 {rare, card:{id,name,rarity,effect}}。
+     */
+    public static JSONArray shopSlots(String kind, int layer, boolean endless, Random rnd) {
+        double[] t = rarityTable(kind, layer, endless);
+        List<Card> taken = new ArrayList<>();
+        JSONArray arr = new JSONArray();
+        for (int i = 0; i < 3; i++) {
+            int r = rollSlotRarity(t, rnd.nextDouble(), 0);
+            Card c = drawCardOfRarity(r, taken, null, rnd);
+            if (c != null) taken.add(c);
+            JSONObject s = new JSONObject();
+            try {
+                s.put("rare", r);
+                if (c != null) s.put("card", c.toJson());
+            } catch (Exception ignore) {}
+            arr.put(s);
+        }
+        return arr;
+    }
+
     /** 节点类型基础稀有度概率表 [common,rare,epic]。 */
     private static double[] rarityTable(String kind, int layer, boolean endless) {
         double[][] base = {

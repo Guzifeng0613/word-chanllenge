@@ -8,25 +8,43 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.json.JSONObject;
+
+import java.util.List;
+
 /**
- * 词境商店（V7.0 startShop 行 2467；截图 11-shop）：
- * 每层固定节点 —— 血药 30 / 临时祝福 40（下一层伤害+25%）/ 普通卡 50 / 稀有卡 85 / 史诗卡 150，
- * 用「词魂」购买。纯前端展示层；词魂钱包与效果由 BattleView 落地。
+ * 词境商店（V12.8.3 动态刷新版）：
+ * 商品列表由 BattleView 按难度/层数生成（血药/祝福固定，三卡槽按稀有度权重随机），
+ * 支持「刷新商品 · 25 词魂」重抽；词魂不足置灰不可购买。纯前端展示层，钱包与效果由 BattleView 落地。
  */
 public class ShopView extends FrameLayout {
 
+    /** 单个商品。card 为卡数据（含 id/name/rarity/effect），仅卡槽非空。 */
+    public static class Item {
+        public final String kind, name, desc;
+        public final int price;
+        public final JSONObject card;
+        public Item(String kind, String name, String desc, int price, JSONObject card) {
+            this.kind = kind; this.name = name; this.desc = desc;
+            this.price = price; this.card = card;
+        }
+    }
+
     public interface OnShop {
-        void onBuy(String kind, int price);
+        void onBuy(String kind, int price, JSONObject card);
+        void onReroll();
         void onLeave();
     }
 
     private final OnShop cb;
+    private final List<Item> items;
     private int souls;
     private TextView soulLab;
 
-    public ShopView(Context c, int startSouls, OnShop callback) {
+    public ShopView(Context c, int startSouls, List<Item> shopItems, OnShop callback) {
         super(c);
         this.cb = callback;
+        this.items = shopItems;
         this.souls = startSouls;
         setClickable(true);
         setBackgroundColor(0xDD08111F);
@@ -56,12 +74,26 @@ public class ShopView extends FrameLayout {
         col.addView(head);
         col.addView(spacer(12));
 
-        // 商品行（kind, 名, 描述, 价格）
-        col.addView(item("heal", "血药", "恢复 30 点生命", 30));
-        col.addView(item("bless", "临时祝福", "下一层伤害 +25%", 40));
-        col.addView(item("card", "普通卡 · 连击大师", "连击 ≥8 时，伤害 +50%（展示侧）", 50));
-        col.addView(item("card", "稀有卡 · 灵光乍现", "每题 15% 概率暴击，造成双倍伤害（展示侧）", 85));
-        col.addView(item("card", "史诗卡 · 致命一击", "暴击伤害 ×3，获得 50 XP（展示侧）", 150));
+        // 商品行
+        if (items != null) {
+            for (Item it : items) col.addView(item(it));
+        }
+        col.addView(spacer(10));
+
+        // 刷新商品（25 词魂，重抽卡槽与价格）
+        final boolean canReroll = souls >= 25;
+        final TextView reroll = Ui.text(c, "刷新商品 · 25 词魂", 13, canReroll ? 0xFF081326 : 0xFF7A8494, true);
+        reroll.setGravity(Gravity.CENTER);
+        reroll.setPadding(dp(14), dp(12), dp(14), dp(12));
+        reroll.setBackground(canReroll ? Ui.gradient(999, 0xFF4DD0E1, 0xFF2B9BC0, 0)
+                : Ui.card(999, 0xFF2A3442, 0, 0));
+        reroll.setClickable(canReroll);
+        reroll.setOnClickListener(v -> {
+            if (souls < 25) return;
+            souls -= 25;
+            cb.onReroll();
+        });
+        col.addView(reroll);
         col.addView(spacer(14));
 
         TextView leave = Ui.text(c, "离开商店", 14.5f, Ui.TXT, true);
@@ -75,7 +107,7 @@ public class ShopView extends FrameLayout {
         refreshSouls();
     }
 
-    private LinearLayout item(String kind, String name, String desc, int price) {
+    private LinearLayout item(Item it) {
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -83,14 +115,19 @@ public class ShopView extends FrameLayout {
         row.setBackground(Ui.card(12, Ui.CARD, 1, Ui.LINE));
         LinearLayout tx = new LinearLayout(getContext());
         tx.setOrientation(LinearLayout.VERTICAL);
-        TextView n = Ui.text(getContext(), name, 13.5f, Ui.TXT, true);
-        TextView d = Ui.text(getContext(), desc, 10.5f, Ui.MUT, false);
+        int nameColor = Ui.TXT;
+        if (it.card != null) {
+            int rare = it.card.optInt("rarity", 0);
+            nameColor = rare >= 2 ? Ui.PURPLE : rare == 1 ? Ui.GOLD : Ui.CYAN;
+        }
+        TextView n = Ui.text(getContext(), it.name, 13.5f, nameColor, true);
+        TextView d = Ui.text(getContext(), it.desc, 10.5f, Ui.MUT, false);
         tx.addView(n);
         tx.addView(d);
         tx.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         row.addView(tx);
-        final boolean afford = souls >= price;   // V12.7.11 词魂不足置灰：灰底灰字、不可购买
-        final TextView buy = Ui.text(getContext(), price + " 词魂", 12.5f,
+        final boolean afford = souls >= it.price;   // V12.7.11 词魂不足置灰：灰底灰字、不可购买
+        final TextView buy = Ui.text(getContext(), it.price + " 词魂", 12.5f,
                 afford ? 0xFF081326 : 0xFF7A8494, true);
         buy.setGravity(Gravity.CENTER);
         buy.setPadding(dp(12), dp(9), dp(12), dp(9));
@@ -98,9 +135,9 @@ public class ShopView extends FrameLayout {
                 : Ui.card(999, 0xFF2A3442, 0, 0));
         buy.setClickable(afford);
         buy.setOnClickListener(v -> {
-            if (souls < price) return;
-            souls -= price;
-            cb.onBuy(kind, price);
+            if (souls < it.price) return;
+            souls -= it.price;
+            cb.onBuy(it.kind, it.price, it.card);
             refreshSouls();
             buy.setEnabled(false);
             buy.setAlpha(0.5f);

@@ -24,6 +24,8 @@ import com.guzifeng.worddungeon.MainActivity;
 import com.guzifeng.worddungeon.core.RunState;
 import com.guzifeng.worddungeon.core.DamageCalc;
 import com.guzifeng.worddungeon.core.GameConfig;
+import com.guzifeng.worddungeon.core.CardCatalog;
+import com.guzifeng.worddungeon.core.WordBank;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -1919,18 +1921,20 @@ public class BattleView extends FrameLayout {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
     }
 
-    /** V7.0 词境商店：每层固定节点，用词魂买补给与卡牌。 */
+    /** V7.0 词境商店：每层固定节点，用词魂买补给与卡牌。V12.8.3 商品按难度动态刷新、价格随层数上浮。 */
     private void openShop() {
         final ShopView[] holder = new ShopView[1];
-        ShopView sv = new ShopView(getContext(), act.souls, new ShopView.OnShop() {
-            @Override public void onBuy(String kind, int price) {
-                // GAP-01：真实扣词魂走后端 /shop/buy（item/potion|bless|card）
+        java.util.List<ShopView.Item> items = buildShopItems();
+        ShopView sv = new ShopView(getContext(), act.souls, items, new ShopView.OnShop() {
+            @Override public void onBuy(String kind, int price, JSONObject card) {
+                // GAP-01 + V12.8.3：真实扣词魂走后端 /shop/buy（item/potion|bless|card），必须携带 souls 与前端价格
                 final String item;
                 final int rarity;
                 switch (kind) {
                     case "heal":  item = "potion"; rarity = 0; break;
                     case "bless": item = "bless";  rarity = 0; break;
-                    default:      item = "card";   rarity = price >= 150 ? 2 : price >= 85 ? 1 : 0; break;
+                    default:      item = "card";   rarity = card != null ? card.optInt("rarity", 0)
+                            : price >= 150 ? 2 : price >= 85 ? 1 : 0; break;
                 }
                 new Thread(() -> {
                     JSONObject res = null;
@@ -1939,6 +1943,8 @@ public class BattleView extends FrameLayout {
                         JSONObject b = new JSONObject();
                         b.put("item", item);
                         if ("card".equals(item)) b.put("rarity", rarity);
+                        b.put("price", price);              // V12.8.3 前端价格（随层数上浮）
+                        b.put("souls", act.souls);          // 修复：漏传 souls 导致后端恒判余额不足
                         res = act.router().dispatch("/shop/buy", "POST", b);
                         ok = res.optBoolean("ok", false);
                     } catch (Throwable t) { ok = false; }
@@ -1965,12 +1971,18 @@ public class BattleView extends FrameLayout {
                                 break;
                             case "card":
                                 act.runCards++;   // GAP-05：本局购卡也计入选卡计数
-                                JSONObject c = buy != null ? buy.optJSONObject("card") : null;
-                                if (c != null) applyCard(c); else applyShopCard(price);
+                                if (card != null) applyCard(card);
+                                else {
+                                    JSONObject c = buy != null ? buy.optJSONObject("card") : null;
+                                    if (c != null) applyCard(c); else applyShopCard(price);
+                                }
                                 break;
                         }
                     });
                 }).start();
+            }
+            @Override public void onReroll() {
+                rerollShop(holder);
             }
             @Override public void onLeave() {
                 overlayView = null;
@@ -1982,6 +1994,54 @@ public class BattleView extends FrameLayout {
         overlayView = sv;
         addView(sv, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    }
+
+    /** V12.8.3 商店商品动态生成：血药/祝福固定价，三卡槽按当前难度（敌人类型+层数）抽稀有度，卡价随层数上浮。 */
+    private java.util.List<ShopView.Item> buildShopItems() {
+        java.util.List<ShopView.Item> out = new java.util.ArrayList<>();
+        out.add(new ShopView.Item("heal", "血药", "恢复 30 点生命", 30, null));
+        out.add(new ShopView.Item("bless", "临时祝福", "下一层伤害 +25%", 40, null));
+        JSONArray slots = CardCatalog.shopSlots(layerKind(), layer, "endless".equals(mode), WordBank.get().rnd);
+        for (int i = 0; i < slots.length(); i++) {
+            JSONObject s = slots.optJSONObject(i);
+            JSONObject c = s != null ? s.optJSONObject("card") : null;
+            if (c == null) continue;
+            int rare = c.optInt("rarity", 0);
+            int base = rare >= 2 ? CardCatalog.PRICE_CARD_EPIC
+                    : rare == 1 ? CardCatalog.PRICE_CARD_RARE : CardCatalog.PRICE_CARD_COMMON;
+            int price = CardCatalog.shopPrice(base, layer);
+            String prefix = rare >= 2 ? "史诗卡" : rare == 1 ? "稀有卡" : "普通卡";
+            out.add(new ShopView.Item("card", prefix + " · " + c.optString("name", "词典卡"),
+                    c.optString("effect", "战斗加成"), price, c));
+        }
+        return out;
+    }
+
+    /** V12.8.3 商店刷新：扣 25 词魂（/shop/buy reroll）成功后重建商店浮层，重抽商品。 */
+    private void rerollShop(ShopView[] holder) {
+        new Thread(() -> {
+            JSONObject res = null;
+            try {
+                JSONObject b = new JSONObject();
+                b.put("item", "reroll");
+                b.put("souls", act.souls);
+                res = act.router().dispatch("/shop/buy", "POST", b);
+            } catch (Throwable ignore) {}
+            final JSONObject buyRes = res;
+            final boolean bought = res != null && res.optBoolean("ok", false);
+            main.post(() -> {
+                if (!bought) {
+                    showFeed("词魂不足，无法刷新", Ui.RED);
+                    return;
+                }
+                if (buyRes != null) {
+                    act.souls = buyRes.optInt("souls", act.souls);
+                    soulNum.setText("词魂 " + act.souls);
+                }
+                if (holder[0] != null) { try { removeView(holder[0]); } catch (Throwable ignore) {} }
+                openShop();
+            });
+        }).start();
     }
 
     /** GAP-01：商店买卡真实效果（普通=回血15 / 稀有=攻击增益+25% / 史诗=攻击增益+50%）。 */
