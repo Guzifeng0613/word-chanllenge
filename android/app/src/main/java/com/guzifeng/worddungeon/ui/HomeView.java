@@ -1,6 +1,7 @@
 package com.guzifeng.worddungeon.ui;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.LinearGradient;
 import android.graphics.Shader;
 import android.graphics.Typeface;
@@ -36,6 +37,7 @@ public class HomeView extends LinearLayout {
     private LinearLayout launchWrap;
     private TextView wrongCntTxt, achCntTxt;
     private TextView[] quickBtns = new TextView[3];
+    private View examCard;   // V13.3 考试倒计时卡：仅开启时创建，关闭即移除（无残留）
     private String[] quickIds = {"normal", "hard", "hell"};
     private String[] quickNames = {"普通", "困难", "地狱"};
 
@@ -451,6 +453,7 @@ public class HomeView extends LinearLayout {
 
             wrongCntTxt.setText(wrongCnt + " 词待复习");
             achCntTxt.setText(achCnt + "/" + AchievementsView.ACH_DEFS.length);
+            refreshExamCard();   // V13.3：开启才插入倒计时卡，关闭/非法日期则彻底移除
             updateLaunchCard();
         } catch (Throwable e) {
             View old = findViewWithTag("meta_err");
@@ -548,6 +551,75 @@ public class HomeView extends LinearLayout {
     private static void singleLine(TextView t) {
         t.setMaxLines(1);
         t.setEllipsize(TextUtils.TruncateAt.END);
+    }
+
+    // ── V13.3 考试倒计时：开关关闭/日期缺失时完全不创建 View，先移除旧卡保证无残留 ──
+    private void refreshExamCard() {
+        if (examCard != null) { removeView(examCard); examCard = null; }
+        try {
+            SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+            boolean on = sp.getBoolean("exam_on", false);
+            String date = sp.getString("exam_date", "");
+            if (!on) return;                       // 关闭：主页无任何倒计时痕迹
+            java.util.Calendar exam = SettingsView.examCalendar(date);
+            if (exam == null) return;              // 空/非法日期：不渲染（防重装/重置崩溃）
+
+            long days = daysToExam(exam);
+            String head; int color;
+            if (days > 0) { head = "📅 距考试还有 " + days + " 天"; color = Ui.GOLD; }
+            else if (days == 0) { head = "🔥 今天考试，加油！"; color = 0xFF34D399; }
+            else { head = "🗓 考试已结束（已过期 " + (-days) + " 天）"; color = Ui.MUT; }
+
+            LinearLayout card = new LinearLayout(getContext());
+            card.setOrientation(VERTICAL);
+            card.setPadding(dp(14), dp(11), dp(14), dp(11));
+            card.setBackground(Ui.card(14, Ui.BG1, 1, Ui.GOLD));
+            TextView h = Ui.text(getContext(), head, 14, color, true);
+            card.addView(h);
+            String hint = roundHint(exam, days);
+            if (!hint.isEmpty()) {
+                TextView t = Ui.text(getContext(), hint, 10.5f, Ui.MUT, false);
+                t.setPadding(0, dp(4), 0, 0);
+                card.addView(t);
+            }
+            examCard = card;
+            addView(card, 2);   // 插在 banner 之后、发射卡之前
+        } catch (Throwable ignore) {}
+    }
+
+    /** 本地自然日差：两个日期的时分秒毫秒清零后按天求差（minSdk22 用 Calendar，不用 LocalDate）。 */
+    private static long daysToExam(java.util.Calendar exam) {
+        java.util.Calendar today = java.util.Calendar.getInstance();
+        today.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        today.set(java.util.Calendar.MINUTE, 0);
+        today.set(java.util.Calendar.SECOND, 0);
+        today.set(java.util.Calendar.MILLISECOND, 0);
+        java.util.Calendar e = (java.util.Calendar) exam.clone();
+        e.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        e.set(java.util.Calendar.MINUTE, 0);
+        e.set(java.util.Calendar.SECOND, 0);
+        e.set(java.util.Calendar.MILLISECOND, 0);
+        return Math.round((e.getTimeInMillis() - today.getTimeInMillis()) / 86400000.0);
+    }
+
+    /** 轻量提示：按当前词书已学 seen / 总词数 total / 每日新学目标 15（=DAILY_NEW_WORDS）/ 剩余天数，推算能否考前过完一轮。 */
+    private String roundHint(java.util.Calendar exam, long days) {
+        try {
+            if (days <= 0) return "";
+            JSONObject bs = act.router().dispatch("/stats/book", "POST", new JSONObject().put("book", act.book));
+            int total = bs.optInt("total", 0);
+            int seen = bs.optInt("seen", 0);
+            int remain = Math.max(0, total - seen);
+            int dailyNew = 15;   // = BackendRouter.DAILY_NEW_WORDS / daily.new_words_goal
+            if (remain <= 0) return "当前词书已学完一轮，保持间隔复习即可。";
+            long canCover = days * (long) dailyNew;
+            if (canCover >= remain)
+                return "还剩 " + remain + " 词 · 按每日新学 " + dailyNew + " 词，考前可过完一轮。";
+            long need = (long) Math.ceil(remain / (double) days);
+            return "还剩 " + remain + " 词 · 每天需约 " + need + " 词（目标 " + dailyNew + "），时间偏紧。";
+        } catch (Throwable t) {
+            return "";
+        }
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }

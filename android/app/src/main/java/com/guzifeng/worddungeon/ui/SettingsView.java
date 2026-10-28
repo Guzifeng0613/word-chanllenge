@@ -14,6 +14,8 @@ import com.guzifeng.worddungeon.core.GameConfig;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.Calendar;
+
 /** 设置页（V7.0：词书网格 + 难度网格 + 声音开关 + 数据 + 错词本 + 成就墙 + 玩法/关于 + 清空） */
 public class SettingsView extends LinearLayout {
 
@@ -26,6 +28,8 @@ public class SettingsView extends LinearLayout {
     private TextView wrongCntTxt;
     private LinearLayout achHost;
     private TextView achTitle;
+    private LinearLayout examConfigArea;
+    private TextView examDateTxt;
 
     private String[] bookIds = {"gaokao", "cet4", "cet6", "kaoyan"};
     private String[] bookNames = {"高考", "四级", "六级", "考研"};
@@ -49,6 +53,7 @@ public class SettingsView extends LinearLayout {
         buildSubhead(body);
         buildBookCard(body);
         buildSoundCard(body);
+        buildExamCard(body);
         buildDataCard(body);
         buildStatsCard(body);
         buildAltarCard(body);
@@ -94,7 +99,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.2", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.3", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -200,6 +205,139 @@ public class SettingsView extends LinearLayout {
         card.addView(volumeRow("音效音量", "vol_sfx", sp, 85));
         body.addView(card);
         body.addView(spacer(10));
+    }
+
+    /** V13.3 考试倒计时：默认关闭；开启后主页显示距考试天数。状态与日期存 SharedPreferences "wd_ui"。 */
+    private void buildExamCard(LinearLayout body) {
+        final SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("考试倒计时 ⓘ", "默认关闭；开启后主页显示距考试天数，并按当前词书进度提示能否考前过完一轮。"));
+
+        // 开关行（默认关）
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(7), 0, dp(7));
+        LinearLayout lab = new LinearLayout(getContext());
+        lab.setOrientation(VERTICAL);
+        TextView n = Ui.text(getContext(), "考试倒计时", 14, Ui.TXT, false);
+        TextView s = Ui.text(getContext(), "在主页显示距考试天数（默认关闭）", 10.5f, Ui.MUT, false);
+        lab.addView(n); lab.addView(s);
+        lab.setLayoutParams(lp(0, -2, 1f));
+        row.addView(lab);
+        boolean on = sp.getBoolean("exam_on", false);   // 默认关闭
+        final View sw = Ui.switchBtn(getContext(), on);
+        row.addView(sw);
+        sw.setOnClickListener(v -> {
+            boolean next = !sp.getBoolean("exam_on", false);
+            sp.edit().putBoolean("exam_on", next).apply();
+            Ui.applySwitch((LinearLayout) sw, next);
+            refreshExamCard();
+        });
+        card.addView(row);
+
+        // 配置区（仅开启时可见）
+        examConfigArea = new LinearLayout(getContext());
+        examConfigArea.setOrientation(VERTICAL);
+
+        // 快捷预设（四级/六级/考研）：点击填入合理默认日期（最近一次对应考期），仍可手动改
+        LinearLayout chips = new LinearLayout(getContext());
+        chips.setOrientation(HORIZONTAL);
+        String[][] presets = {{"四级", "6", "14"}, {"六级", "12", "13"}, {"考研", "12", "21"}};
+        for (String[] p : presets) {
+            final int pm = Integer.parseInt(p[1]), pd = Integer.parseInt(p[2]);
+            LinearLayout chip = new LinearLayout(getContext());
+            chip.setOrientation(VERTICAL);
+            chip.setGravity(Gravity.CENTER);
+            chip.setPadding(dp(8), dp(8), dp(8), dp(8));
+            chip.setBackground(Ui.card(10, Ui.BG_PILL, 1, Ui.LINE));
+            chip.addView(Ui.text(getContext(), p[0], 12.5f, Ui.TXT, true));
+            chip.addView(Ui.text(getContext(), nextOccur(pm, pd), 9.5f, Ui.MUT, false));
+            Ui.pressable(chip);
+            chip.setOnClickListener(v -> {
+                sp.edit().putString("exam_date", nextOccur(pm, pd)).apply();
+                refreshExamCard();
+            });
+            chips.addView(chip, lp(0, -2, 1f));
+        }
+        examConfigArea.addView(chips);
+        examConfigArea.addView(spacer(8));
+
+        // 当前日期 + 手动设置（DatePickerDialog 选年/月/日）
+        LinearLayout drow = new LinearLayout(getContext());
+        drow.setOrientation(HORIZONTAL);
+        drow.setGravity(Gravity.CENTER_VERTICAL);
+        drow.setPadding(dp(10), dp(9), dp(10), dp(9));
+        drow.setBackground(Ui.card(10, Ui.BG_PILL, 1, Ui.LINE));
+        examDateTxt = Ui.text(getContext(), "未设置日期", 12.5f, Ui.TXT, false);
+        drow.addView(examDateTxt, lp(0, -2, 1f));
+        TextView setBtn = Ui.text(getContext(), "设置日期", 12.5f, Ui.CYAN, true);
+        drow.addView(setBtn);
+        Ui.pressable(drow);
+        drow.setOnClickListener(v -> {
+            Calendar c = examCalendar(sp.getString("exam_date", ""));
+            if (c == null) c = Calendar.getInstance();
+            new android.app.DatePickerDialog(getContext(), (v2, yr, mo, dy) -> {
+                java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+                Calendar cc = Calendar.getInstance();
+                cc.set(yr, mo, dy, 0, 0, 0);
+                cc.set(Calendar.MILLISECOND, 0);
+                sp.edit().putString("exam_date", fmt.format(cc.getTime())).apply();
+                refreshExamCard();
+            }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+        });
+        examConfigArea.addView(drow);
+
+        card.addView(examConfigArea);
+        body.addView(card);
+        body.addView(spacer(10));
+        refreshExamCard();
+    }
+
+    /** 最近一次 (月,日) 考期：今年已过则顺延到明年；返回 yyyy-MM-dd。 */
+    private String nextOccur(int month, int day) {
+        java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        Calendar now = Calendar.getInstance();
+        Calendar c = Calendar.getInstance();
+        c.set(now.get(Calendar.YEAR), month - 1, day, 0, 0, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        if (c.before(dayStart(now))) c.add(Calendar.YEAR, 1);
+        return fmt.format(c.getTime());
+    }
+
+    private static Calendar dayStart(Calendar c) {
+        Calendar x = (Calendar) c.clone();
+        x.set(Calendar.HOUR_OF_DAY, 0);
+        x.set(Calendar.MINUTE, 0);
+        x.set(Calendar.SECOND, 0);
+        x.set(Calendar.MILLISECOND, 0);
+        return x;
+    }
+
+    /** 解析 yyyy-MM-dd（lenient 关闭）；空/非法返回 null（防重装/重置后崩溃）。 */
+    public static Calendar examCalendar(String s) {
+        if (s == null || s.isEmpty()) return null;
+        try {
+            java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            fmt.setLenient(false);
+            Calendar c = Calendar.getInstance();
+            c.setTime(fmt.parse(s));
+            return c;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private void refreshExamCard() {
+        if (examConfigArea == null || examDateTxt == null) return;
+        SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+        boolean on = sp.getBoolean("exam_on", false);
+        examConfigArea.setVisibility(on ? VISIBLE : GONE);
+        String date = sp.getString("exam_date", "");
+        examDateTxt.setText(on ? (date.isEmpty() ? "未设置日期" : "考试日期：" + date) : "");
     }
 
     private LinearLayout volumeRow(String name, String key, SharedPreferences sp, int def) {
@@ -382,7 +520,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.2 · 全原生快速刷题（7388 词已内置）",
+                        + "版本：V13.3 · 全原生快速刷题（7388 词已内置）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);
@@ -391,6 +529,7 @@ public class SettingsView extends LinearLayout {
 
     public void refresh() {
         if (act.router() == null) return;
+        refreshExamCard();
         try {
             JSONObject meta = act.router().dispatch("/bank/meta", "GET", null);
             JSONObject counts = meta.getJSONObject("counts");
