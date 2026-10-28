@@ -367,7 +367,8 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
-        // 答题反馈条（V12.7.9：浮在词魔区域 y26 处，纯黑实底高对比）
+        // 答题反馈条（V12.7.11：紧凑内容尺寸 WRAP_CONTENT——修复无参数 addView 默认 MATCH_PARENT
+        //  导致黑框铺满全屏的尺寸 bug；位置放用户圈定区 y34 顶部，中心≈40% 不遮单词）
         feedbackBar = new FrameLayout(getContext());
         feedbackBar.setVisibility(GONE);
         feedbackBar.setBackground(Ui.card(12, 0xFF000000, 2, Ui.GOLD));
@@ -382,11 +383,11 @@ public class BattleView extends FrameLayout {
         resultMsg.setGravity(Gravity.CENTER);
         resultV.addView(resultMsg);
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-        addView(feedbackBar);
+        addView(feedbackBar, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT));
         resultBox = resultV;
-        placeAt(feedbackBar, 50, 23);
+        placeAt(feedbackBar, 50, 34);
 
-        // 词魔出现提示（V12.7.11：浮在词魔区域 y17 处，半透明小尺寸）
+        // 词魔出现提示（V12.7.11：同样修复 MATCH_PARENT 尺寸 bug，紧凑内容尺寸）
         summonBanner = new TextView(getContext());
         summonBanner.setTextSize(13);
         summonBanner.setTypeface(Typeface.DEFAULT_BOLD);
@@ -394,7 +395,7 @@ public class BattleView extends FrameLayout {
         summonBanner.setPadding(dp(10), dp(5), dp(10), dp(5));
         summonBanner.setVisibility(GONE);
         summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
-        addView(summonBanner);
+        addView(summonBanner, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT));
         placeAt(summonBanner, 50, 17);
     }
 
@@ -411,6 +412,8 @@ public class BattleView extends FrameLayout {
                         View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST));
                 int vw = v.getMeasuredWidth();
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
+                lp.width = FrameLayout.LayoutParams.WRAP_CONTENT;   // V12.7.11 防御：浮层必须内容自适应，防 MATCH_PARENT 铺满全屏
+                lp.height = FrameLayout.LayoutParams.WRAP_CONTENT;
                 lp.gravity = Gravity.TOP | Gravity.LEFT;
                 lp.leftMargin = (int) Math.round(w * xPct / 100.0) - vw / 2;
                 lp.topMargin = (int) Math.round(h * yPct / 100.0);
@@ -466,7 +469,7 @@ public class BattleView extends FrameLayout {
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
-            placeAt(feedbackBar, 50, 23);   // V12.7.11 每次显示强制定位（词魔区域，上移）
+            placeAt(feedbackBar, 50, 34);   // V12.7.11 每次显示强制定位（用户圈定区，y34 顶部≈中心40%，不遮单词）
             resultBig.setText(ok ? "✓" : "✗");
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
