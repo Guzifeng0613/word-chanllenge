@@ -384,9 +384,9 @@ public class BattleView extends FrameLayout {
         feedbackBar.addView(resultV, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         addView(feedbackBar);
         resultBox = resultV;
-        placeAt(feedbackBar, 50, 26);
+        placeAt(feedbackBar, 50, 23);
 
-        // 词魔出现提示（V12.7.9：浮在词魔区域 y20 处，半透明小尺寸）
+        // 词魔出现提示（V12.7.11：浮在词魔区域 y17 处，半透明小尺寸）
         summonBanner = new TextView(getContext());
         summonBanner.setTextSize(13);
         summonBanner.setTypeface(Typeface.DEFAULT_BOLD);
@@ -395,7 +395,7 @@ public class BattleView extends FrameLayout {
         summonBanner.setVisibility(GONE);
         summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
         addView(summonBanner);
-        placeAt(summonBanner, 50, 20);
+        placeAt(summonBanner, 50, 17);
     }
 
     /** 自由元素按百分比定位：x/y 为相对屏幕的百分比（x 为元素中心，y 为元素顶部）。
@@ -466,7 +466,7 @@ public class BattleView extends FrameLayout {
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
-            placeAt(feedbackBar, 50, 26);   // V12.7.9 每次显示强制定位（词魔区域）
+            placeAt(feedbackBar, 50, 23);   // V12.7.11 每次显示强制定位（词魔区域，上移）
             resultBig.setText(ok ? "✓" : "✗");
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
