@@ -1376,8 +1376,10 @@ public class BattleView extends FrameLayout {
                     showFeed("+" + damage, Ui.GOLD);
                 }
                 // V12.7.11 连击/答对反馈条：显示 0.25s 快速淡出切题（用户调短）
-                // judge 题答案为「错」且答对时：补正确释义学习提示，停留延长到 1.2s 可读，切题同步延后
+                // V12.7.12 反馈学习闭环：judge 题答案为「错」答对提示正确释义；
+                //  选择题答对返回正确词条（中文题→英文单词，英文题→中文释义），1.2s 可读、切题同步延后
                 boolean judgeWrongOk = "judge".equals(quiz.optString("qtype")) && "no".equals(correctAnswer);
+                boolean choiceOk = "en2cn".equals(quiz.optString("qtype")) || "cn2en".equals(quiz.optString("qtype"));
                 String jmOk = judgeWrongOk ? res.optString("correct_mean", "") : "";
                 int okHold = 250;
                 String okTxt = "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : "");
@@ -1385,6 +1387,10 @@ public class BattleView extends FrameLayout {
                     okTxt += "\n正确释义：" + jmOk;
                     okHold = 1200;
                     meanHold = true;   // 切题延后，释义读完后新题再入场
+                } else if (choiceOk && !correctAnswer.isEmpty()) {
+                    okTxt += "\n正确" + ("en2cn".equals(quiz.optString("qtype")) ? "释义：" : "单词：") + correctAnswer;
+                    okHold = 1200;
+                    meanHold = true;
                 }
                 showAnswerResult(true, okTxt, okHold);
                 // V12.5 快答判定：越快越华丽（拼写按剩余比例/选择按耗时）
