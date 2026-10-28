@@ -23,6 +23,8 @@ public class Quiz {
     public int stage;
     public int wrongCount;
     public boolean revEngaged;
+    /** V13.1：本题是否为「错词消化闭环」按比例穿插重现的本局错词（答对即触发「已攻克」反馈） */
+    public boolean wrongReplay;
     public RunState runState;
 
     public List<String> options;
@@ -50,6 +52,7 @@ public class Quiz {
             o.put("stage", stage);
             o.put("wrongCount", wrongCount);
             o.put("revEngaged", revEngaged);
+            o.put("wrongReplay", wrongReplay);
             o.put("timeLimit", timeLimit);
             o.put("correct", correct);
             if (options != null) {

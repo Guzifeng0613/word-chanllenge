@@ -261,6 +261,8 @@ public class BackendRouter {
         out.put("state", newRec.state);
         out.put("wrong_count", newRec.wrongCount);
         out.put("grade", newRec.wrongCount > 0 ? SrsEngine.gradeOf(newRec.wrongCount) : 0);
+        // V13.1 错词消化闭环：本局错词在主循环中被重新答对（复仇/攻克）的权威信号，前端据此给「已攻克」反馈
+        out.put("digested", isCorrect && Boolean.TRUE.equals(runState.wrong.get(word)));
         out.put("theta", newTheta);
         out.put("due_min", intervalMin);
         out.put("step", newRec.step);

@@ -883,6 +883,10 @@ public class BattleView extends FrameLayout {
                 body.put("enemy_confuse", true);
             }
             quiz = act.router().dispatch("/quiz/draw", "POST", body);
+            // V13.1：同步出题后端回传的 run_state（含错词穿插计数 replay_gap 与重现计数 seen/drawn），
+            // 保证穿插比例上限与单局重现上限跨题一致（此前 draw 的 run_state 被丢弃）。
+            JSONObject drs = quiz.optJSONObject("run_state");
+            if (drs != null) runState = RunState.fromJson(drs);
             renderQuiz();
         } catch (Throwable e) {
             showFeed("出题失败：" + e.getMessage(), Ui.RED);
@@ -1423,6 +1427,8 @@ public class BattleView extends FrameLayout {
             boolean ok = res.optBoolean("correct", false);
             int damage = res.optInt("damage", 0);
             int wrongCnt = res.optInt("wrong_count", 0);
+            // V13.1：本题是否为「错词消化闭环」按比例穿插的错词；答对则给绿色「已攻克」反馈（与紫色复仇区分）
+            boolean wasReplay = quiz.optBoolean("wrongReplay", false);
             // P0-2 凝神复仇：连错2次挂的"下一题"标记是一次性——无论本题对错都消耗；答对则伤害额外+25%
             boolean focusRevengeHit = false;
             if (focusRevenge) {
@@ -1502,7 +1508,11 @@ public class BattleView extends FrameLayout {
                 if (spellInput != null) { spellInput.setText(""); }
                 hideKeyboard();
                 // 复仇提示
-                if (focusRevengeHit) {
+                boolean digested = ok && wasReplay && res.optBoolean("digested", false);
+                if (digested) {
+                    // V13.1：错词在主循环中被重新答对——绿色「已攻克」反馈，与紫色复仇区分，不阻塞下一题
+                    showFeed("✅ 已攻克错词！伤害 +" + damage, Ui.GREEN);
+                } else if (focusRevengeHit) {
                     showFeed("⚔ 凝神复仇！伤害+25% +" + damage, Ui.PURPLE);
                 } else if (wrongCnt > 0) {
                     showFeed("⚡ 复仇！伤害 ×" + (wrongCnt >= 2 ? 2.0 : 1.5) + " +" + damage, Ui.PURPLE);

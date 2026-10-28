@@ -23,6 +23,8 @@ public class RunState {
     public Map<String, Boolean> correctOnce = new HashMap<>();
     /** V12.7.14 局内进阶队列：答对且未毕业的词排队，在同一局内出更高阶梯题（识→认→写→拼） */
     public java.util.List<String> advQueue = new java.util.ArrayList<>();
+    /** V13.1 错词消化闭环：距上一次错词穿插已过的普通题数；达到 WRONG_REVIEW_GAP 且有错词待消化时穿插 1 个错词，随后归零。 */
+    public int replayGap = 0;
 
     public RunState() {}
 
@@ -77,6 +79,7 @@ public class RunState {
                 for (int i = 0; i < aq.length(); i++) r.advQueue.add(aq.getString(i));
             } catch (Exception ignored) {}
         }
+        r.replayGap = o.optInt("replay_gap", 0);
         return r;
     }
 
@@ -121,6 +124,7 @@ public class RunState {
             for (Map.Entry<String, Boolean> e : correctOnce.entrySet()) co.put(e.getKey(), e.getValue());
             o.put("correct_once", co);
             o.put("adv_queue", new JSONArray(advQueue));
+            o.put("replay_gap", replayGap);
         } catch (Exception e) {
             // 内部结构固定
         }

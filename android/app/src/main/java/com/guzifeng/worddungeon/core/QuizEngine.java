@@ -93,13 +93,46 @@ public class QuizEngine {
         List<String> due = new ArrayList<>();
         due.addAll(dl); due.addAll(dg);
 
+        // V13.1 错词消化闭环：本局错词待消化池（无需手动进错词本）。
+        // 仍受单局重现上限 cap(w) 约束（seen>=1 者排除，避免同一词刷屏）；
+        // 顽固度在数据层参与排序/调度：gradeOf(wrongCount) 高者优先（连错>=2 顽固 > 偶发1次），同档按 wrongCount desc。
+        List<String> replay = new ArrayList<>();
+        for (String w : runState.wrong.keySet()) {
+            if (!bookSet.contains(w)) continue;
+            if (!runState.cap(w)) continue;
+            replay.add(w);
+        }
+        Collections.sort(replay, new Comparator<String>() {
+            public int compare(String x, String y) {
+                WordRec rx = progress.get(x);
+                WordRec ry = progress.get(y);
+                int wx = rx == null ? 0 : rx.wrongCount;
+                int wy = ry == null ? 0 : ry.wrongCount;
+                // 顽固度数据层分级：wrongCount >= WRONG_STUBBORN（连错>=2）为顽固，排在偶发（仅错1次）之前；
+                // 同档再按 wrongCount 降序。gradeOf 口径与之一致（1→1, 2→2, ≥3→3）。
+                boolean stubbornX = wx >= GameConfig.WRONG_STUBBORN;
+                boolean stubbornY = wy >= GameConfig.WRONG_STUBBORN;
+                if (stubbornX != stubbornY) return stubbornX ? -1 : 1;
+                return Integer.compare(wy, wx);
+            }
+        });
+
         boolean canNew = a.newToday < GameConfig.NEW_CAP;
         boolean tryNew = canNew && (due.isEmpty() || rnd.nextDouble() < 0.35);
 
         String word = null;
         boolean fromReview = false;
+        boolean wrongReplay = false;
 
-        if (tryNew) {
+        // V13.1：距上一次错词穿插已过 WRONG_REVIEW_GAP 个普通题时，硬性穿插 1 个本局错词（顽固优先）。
+        // 比例上限=每 GAP+1 题至多 1 个错词；其余题目仍走既有新词/到期逻辑，不挤占新词节奏。
+        if (runState.replayGap >= GameConfig.WRONG_REVIEW_GAP && !replay.isEmpty()) {
+            word = replay.get(0);
+            fromReview = true;
+            wrongReplay = true;
+        }
+
+        if (tryNew && !wrongReplay) {
             List<String> unseen = collectUnseen(bookWords, progress, tier);
             if (unseen.isEmpty()) unseen = collectUnseen(bookWords, progress, null);
             if (!unseen.isEmpty()) word = unseen.get(rnd.nextInt(unseen.size()));
@@ -156,6 +189,8 @@ public class QuizEngine {
         }
         // V12.1：本局出题计数（单局去重依据）
         runState.drawn.put(word, runState.drawn.getOrDefault(word, 0) + 1);
+        // V13.1：穿插比例计数——本次穿插了错词则归零，否则普通题 +1（达到 GAP 后下一次才允许再插）
+        runState.replayGap = wrongReplay ? 0 : runState.replayGap + 1;
 
         // 题型：force 覆盖；否则按阶梯；超长词不拼写
         WordRec rec = progress.get(word);
@@ -173,6 +208,7 @@ public class QuizEngine {
         if (!"spell".equals(qtype)) runState.exposed.put(word, true);
 
         Quiz quiz = buildQuiz(qtype, word, rec, runState, fromReview, null, a.book, a.confuse);
+        quiz.wrongReplay = wrongReplay;   // V13.1：标记本题为错词消化穿插题，答对触发「已攻克」反馈
         // 远征限时（V12.0）：非拼写选择题用逐层收紧限时；拼写在基线之上加逐层额外秒。
         // 无尽/快刷不经过此覆盖，逻辑保持不变。
         if ("campaign".equals(a.mode)) {

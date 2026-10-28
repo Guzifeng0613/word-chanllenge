@@ -148,4 +148,10 @@ public final class GameConfig {
             default: return PROF_NEW;
         }
     }
+
+    // ── V13.1 错词消化闭环（仅追加，不改动既有数值）──
+    /** 主循环错词穿插比例上限：每连续 WRONG_REVIEW_GAP 个普通题之后，至多穿插 1 个本局错词（即每 GAP+1 题 ≤1 个错词），新词仍按既有节奏出现。 */
+    public static final int WRONG_REVIEW_GAP = 4;
+    /** 顽固度阈值：累计 wrongCount >= WRONG_STUBBORN（即 gradeOf>=2）为「顽固」，仅 1 次为「偶发」；顽固词在错词重现队列中排序更靠前。 */
+    public static final int WRONG_STUBBORN = 2;
 }
