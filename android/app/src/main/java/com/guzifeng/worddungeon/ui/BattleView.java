@@ -127,6 +127,7 @@ public class BattleView extends FrameLayout {
     private boolean meanHold = false;   // V12.7.11 judge-错答对：释义可读，切题延时
     private FrameLayout answerArea;
     private LinearLayout timerTrack;
+    private LinearLayout qbox;   // V13.16：题目卡（反馈时绿/红 tint）
     private View timerFill;
     private ValueAnimator fillAnim;
     private TextView feedbackLayer;
@@ -300,7 +301,7 @@ public class BattleView extends FrameLayout {
         col.addView(spacer(spc(4)));
 
         // 题目卡（qhead 大字 + 词性徽章 + 复仇徽章 + 提示 + 阶梯 + 计时）
-        LinearLayout qbox = new LinearLayout(getContext());
+        qbox = new LinearLayout(getContext());
         qbox.setOrientation(LinearLayout.VERTICAL);
         qbox.setPadding(dpc(14), dpc(6), dpc(14), dpc(6));
         qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));   // UI-iteration-10：题干盒提亮 CARD2，与选项区同级
@@ -507,8 +508,8 @@ public class BattleView extends FrameLayout {
     private void showAnswerResult(boolean ok, String text, int holdMs) {
         try {
             if (feedbackBar == null || resultBox == null) return;
-            placeAtY(feedbackBar, 34);   // V12.9.1 每次显示强制定位（水平恒居中 + y34，不再手算 leftMargin）
-            resultBig.setText(ok ? "✓" : "✗");
+            placeAtY(feedbackBar, 34);
+            resultBig.setText(ok ? "✓ 答对" : "✗ 答错");
             resultBig.setTextColor(ok ? Ui.GREEN : Ui.RED);
             resultMsg.setText(text);
             resultMsg.setTextColor(ok ? Ui.GREEN : Ui.RED);
@@ -518,9 +519,14 @@ public class BattleView extends FrameLayout {
             feedbackBar.setScaleX(0.85f);
             feedbackBar.setScaleY(0.85f);
             feedbackBar.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+            // V13.16：题目卡整体绿/红底色反馈（反馈结束后 nextQuiz 复位）
+            if (qbox != null) {
+                int tint = ok ? 0x3322C55E : 0x33EF4444;
+                qbox.setBackground(Ui.card(14, tint, 2, ok ? Ui.GREEN : Ui.RED));
+            }
             main.removeCallbacks(hideFeedbackBar);
             hideFeedbackBar = () -> {
-                try { feedbackBar.animate().alpha(0f).setDuration(250)
+                try { feedbackBar.animate().alpha(0f).setDuration(200)
                         .withEndAction(() -> feedbackBar.setVisibility(GONE)).start(); } catch (Throwable ignore) {}
             };
             main.postDelayed(hideFeedbackBar, holdMs);
@@ -887,6 +893,8 @@ public class BattleView extends FrameLayout {
         answering = true;
         meanHold = false;   // V12.7.11 释义延时标记随切题复位
         quiz = null;
+        // V13.16：复位题目卡底色（反馈时绿/红 tint）
+        if (qbox != null) qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
         hideKeyboard();   // 切题时先收键盘（拼写题会在 renderQuiz 里重新请求弹出）
         try {
             JSONObject body = new JSONObject();
@@ -1605,15 +1613,13 @@ public class BattleView extends FrameLayout {
                         || "en2en".equals(quiz.optString("qtype"))
                         || "sense".equals(quiz.optString("qtype"));
                 String jmOk = judgeWrongOk ? res.optString("correct_mean", "") : "";
-                int okHold = 250;
+                int okHold = 600;
                 String okTxt = "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : "");
                 if (judgeWrongOk && !jmOk.isEmpty()) {
                     okTxt += "\n正确释义：" + jmOk;
-                    okHold = 1200;
-                    meanHold = true;   // 切题延后，释义读完后新题再入场
+                    meanHold = true;
                 } else if (choiceOk && !correctAnswer.isEmpty()) {
                     okTxt += "\n正确" + ("en2cn".equals(quiz.optString("qtype")) ? "释义：" : "单词：") + correctAnswer;
-                    okHold = 1200;
                     meanHold = true;
                 }
                 showAnswerResult(true, okTxt, okHold);
@@ -1690,8 +1696,8 @@ public class BattleView extends FrameLayout {
                 // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
-                    // V12.7.7 答错反馈停留 1.5s（UI-iteration-15：补生命 -X 代价）
-                    showAnswerResult(false, hurtPre + "正确答案：" + correctAnswer, 1500);
+                    // V13.16：答错反馈停留 800ms
+                    showAnswerResult(false, hurtPre + "正确答案：" + correctAnswer, 800);
                     // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
                     spellTilesWrong(correctAnswer);
                     try {
@@ -1719,8 +1725,8 @@ public class BattleView extends FrameLayout {
                     } else {
                         display = correctAnswer;
                     }
-                    // V12.7.7 答错反馈停留 1.5s（UI-iteration-15：补生命 -X 代价）
-                    showAnswerResult(false, hurtPre + "正确答案：" + display, 1500);
+                    // V13.16：答错反馈停留 800ms
+                    showAnswerResult(false, hurtPre + "正确答案：" + display, 800);
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
@@ -2415,8 +2421,8 @@ public class BattleView extends FrameLayout {
             }, 900);
             return;
         }
-        // V12.7.7 答错：反馈停留 1.5s 后统一切下一题
-        main.postDelayed(this::nextQuiz, 1500);
+        // V13.16：答错反馈停留 800ms 后切下一题
+        main.postDelayed(this::nextQuiz, 800);
     }
 
     /** V7.0 返回键：战斗内浮层（翻牌/泉/商店）打开时先关浮层并推进流程，再弹「放弃本层战斗？」二次确认。 */
