@@ -27,6 +27,7 @@ public class HomeView extends LinearLayout {
     private TextView lvlBadge, streakTxt, xpLab;
     private TextView titleSub;   // V13.0：横幅副标题（称号动态名 + 4 阶样式）
     private TextView goalTxt;   // R3：banner 内「今日目标进度」行（无数据时 GONE，只读消费 /stats/daily）
+    private android.animation.ObjectAnimator goalPulse;   // V13.19：全完成金色脉冲
     private TextView reviewTxt; // V13.9：banner 内「今日复习建议」行（只读消费 /review/due，无到期时优雅隐藏）
     /** V13.9：到期词超过此阈值时提示「量较大可分批」，不编造精确数字。 */
     private static final int REVIEW_HEAVY_THRESHOLD = 60;
@@ -428,13 +429,42 @@ public class HomeView extends LinearLayout {
                 float pct = (Math.min(q, qg) / (float) qg
                         + Math.min(nw, nwg) / (float) nwg
                         + Math.min(run, rg) / (float) rg) / 3f * 100f;
-                goalTxt.setText("🎯 今日目标 答对 " + q + "/" + qg
-                        + " · 新学 " + nw + "/" + nwg
-                        + " · 远征 " + run + "/" + rg
-                        + " · " + Math.round(pct) + "%");
+                // V13.19：完成度视觉强化——单项 ✓ 绿、超额数字金粗、全完成整行金+脉冲
+                boolean qDone = q >= qg, nwDone = nw >= nwg, runDone = run >= rg;
+                boolean allDone = qDone && nwDone && runDone;
+                android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+                int baseColor = allDone ? 0xFFFCD34D : 0xFF94A3B8;
+                sb.append("🎯 今日目标 ");
+                appendGoalItem(sb, "答对", q, qg, qDone, allDone);
+                sb.append(" · ");
+                appendGoalItem(sb, "新学", nw, nwg, nwDone, allDone);
+                sb.append(" · ");
+                appendGoalItem(sb, "远征", run, rg, runDone, allDone);
+                sb.append(" · " + Math.round(pct) + "%");
+                if (allDone) {
+                    // V13.19：全完成时整行替换为完成文案（避免追加导致 ellipsis 截断）
+                    sb = new android.text.SpannableStringBuilder("🎯 ✓ 今日目标已完成");
+                }
+                goalTxt.setText(sb);
                 goalTxt.setVisibility(VISIBLE);
+                // 全完成：整行金色脉冲
+                if (allDone) {
+                    goalTxt.setTextColor(0xFFFCD34D);
+                    if (goalPulse == null) {
+                        goalPulse = android.animation.ObjectAnimator.ofPropertyValuesHolder(goalTxt,
+                                android.animation.PropertyValuesHolder.ofFloat("alpha", 1f, 0.55f, 1f));
+                        goalPulse.setDuration(1200);
+                        goalPulse.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+                        goalPulse.setRepeatMode(android.animation.ObjectAnimator.REVERSE);
+                    }
+                    goalPulse.start();
+                } else {
+                    goalTxt.setTextColor(baseColor);
+                    if (goalPulse != null) { goalPulse.cancel(); goalPulse = null; goalTxt.setAlpha(1f); }
+                }
             } else {
                 goalTxt.setVisibility(GONE);
+                if (goalPulse != null) { goalPulse.cancel(); goalPulse = null; }
             }
 
             // V13.9：今日复习建议——纯只读消费 /review/due。
@@ -663,5 +693,25 @@ public class HomeView extends LinearLayout {
                 w == -2 ? LinearLayout.LayoutParams.WRAP_CONTENT : w,
                 h == -2 ? LinearLayout.LayoutParams.WRAP_CONTENT : (h == -1 ? LinearLayout.LayoutParams.MATCH_PARENT : h),
                 wgt);
+    }
+
+    /** V13.19：追加单个目标项——完成项前缀 ✓ 绿，超额数字金粗。 */
+    private void appendGoalItem(android.text.SpannableStringBuilder sb, String label, int cur, int goal, boolean done, boolean allDone) {
+        int start = sb.length();
+        String mark = done ? "✓ " : "";
+        sb.append(mark).append(label).append(" ").append(String.valueOf(cur)).append("/").append(String.valueOf(goal));
+        if (done) {
+            sb.setSpan(new android.text.style.ForegroundColorSpan(0xFF34D399),
+                    start, start + mark.length(), android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        if (cur > goal) {
+            // 超额数字金色加粗
+            int numStart = start + mark.length() + label.length() + 1;
+            int numEnd = numStart + String.valueOf(cur).length();
+            sb.setSpan(new android.text.style.ForegroundColorSpan(0xFFFCD34D),
+                    numStart, numEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                    numStart, numEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
     }
 }
