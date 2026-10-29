@@ -334,7 +334,8 @@ public class BattleView extends FrameLayout {
         // 计时条（金色渐变填充）
         timerTrack = new LinearLayout(getContext());
         timerTrack.setOrientation(LinearLayout.HORIZONTAL);
-        timerTrack.setBackground(Ui.card(999, Ui.CARD2, 0, 0));
+        // V13.18：轨道底色改为可见深槽，倒计时条占题目卡全宽（填充随时间消耗缩短）
+        timerTrack.setBackground(Ui.card(999, 0xFF0F1B30, 0, 0));
         timerFill = new View(getContext());
         timerFill.setBackground(Ui.gradient(999, Ui.GOLD, Ui.ORANGE, 0));
         timerTrack.addView(timerFill, new LinearLayout.LayoutParams(-1, dpc(6)));
@@ -2621,7 +2622,7 @@ public class BattleView extends FrameLayout {
                     return;
                 }
                 float pct = (float) Math.max(0, remainSec / timeLimit);
-                boolean danger = remainSec <= 3;   // V12.5 最后 3 秒危机
+                boolean danger = remainSec <= 2;   // V13.18：最后 2 秒危机（红+脉冲）
                 if (danger) {
                     if (!dangerStarted) {   // UI-iteration-02：首次进入危机，整条填充切红橙
                         dangerStarted = true;
@@ -2643,8 +2644,8 @@ public class BattleView extends FrameLayout {
 
     private String secText(double s) {
         if (s <= 0) return "0.0 秒";
-        if (s > 3) return (int) Math.ceil(s) + " 秒";   // 前段整数秒，简洁不跳
-        return String.format("%.1f", s) + " 秒";          // 最后 3 秒显示小数，制造紧迫
+        if (s > 2) return (int) Math.ceil(s) + " 秒";   // V13.18：前段整数秒，简洁不跳
+        return String.format("%.1f", s) + " 秒";          // 最后 2 秒显示小数，制造紧迫
     }
 
     private void setTimerFill(float pct) {
