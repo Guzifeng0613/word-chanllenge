@@ -39,6 +39,8 @@ public class Quiz {
     public String d2;
     /** V13.10 熟词生义题干（sense 题型展示：一个非首词性的中文义项）。 */
     public String senseMean = "";
+    /** V13.15 CS 缩写英文全称（如 CPU -> Central Processing Unit）；非缩写为空。 */
+    public String fa = "";
 
     public JSONObject toJson() {
         JSONObject o = new JSONObject();
@@ -73,6 +75,7 @@ public class Quiz {
             if (formLabel != null) o.put("formLabel", formLabel);
             if (d2 != null && !d2.isEmpty()) o.put("d2", d2);
             if (senseMean != null && !senseMean.isEmpty()) o.put("senseMean", senseMean);
+            if (fa != null && !fa.isEmpty()) o.put("fa", fa);
             if (runState != null) o.put("run_state", runState.toJson());
         } catch (Exception e) {
             // 内部结构固定

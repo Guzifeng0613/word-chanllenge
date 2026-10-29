@@ -438,6 +438,7 @@ public class QuizEngine {
         q.word = word;
         q.pos = e.p;
         q.mean = e.effM(book);
+        q.fa = e.fa;
         q.t = e.t;
         q.b = e.b.toArray(new String[0]);
         q.review = fromReview;

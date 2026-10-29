@@ -90,6 +90,7 @@ public class WordBank {
                 e.s = o.optJSONObject("s");
                 e.cm = o.optString("cm", "");
                 e.cd2 = o.optString("cd2", "");
+                e.fa = o.optString("fa", "");
                 words.add(e);
                 byWord.put(e.w, e);
                 // V13.4：按形名收集全库真实变形，作为 form 题干扰项素材

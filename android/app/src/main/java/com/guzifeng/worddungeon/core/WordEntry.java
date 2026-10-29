@@ -30,6 +30,8 @@ public class WordEntry {
     public String cm = "";
     /** V13.13 CS 专用英文义项（跨书词，活动词书=cs 时英英题用 cd2 替代 d2）；CS 独占词无此字段。 */
     public String cd2 = "";
+    /** V13.15 CS 缩写英文全称（如 CPU -> Central Processing Unit）；非缩写词为空串。 */
+    public String fa = "";
 
     public WordEntry() {}
 

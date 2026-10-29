@@ -119,7 +119,7 @@ public class BattleView extends FrameLayout {
     private LinearLayout topRight;
     private TextView comboTag;   // V12.7 顶栏连击数（手绘框架：顶部圆形徽+连击数）
     private HpBar enemyHp, playerHp;
-    private TextView posTag, revTag, promptTxt, ladderTxt, qBody, timerTxt;
+    private TextView posTag, revTag, promptTxt, ladderTxt, qBody, timerTxt, faTxt;
     private TextView enemyLevel;              // V12.6 敌人等级图标行（替代名字）
     private FrameLayout feedbackBar;          // V12.6 底部反馈条（连击⇄对错）
     private LinearLayout comboBox, resultBox; // V12.6 连击态 / 对错态容器
@@ -319,6 +319,10 @@ public class BattleView extends FrameLayout {
         revTag = Ui.text(getContext(), "", 12, Ui.PURPLE, true);
         headRow.addView(revTag);
         qbox.addView(headRow);
+        faTxt = Ui.text(getContext(), "", 11, Ui.GOLD, false);
+        faTxt.setGravity(Gravity.CENTER);
+        faTxt.setVisibility(GONE);
+        qbox.addView(faTxt);
         promptTxt = Ui.text(getContext(), "", 12, Ui.MUT, false);
         promptTxt.setGravity(Gravity.CENTER);
         qbox.addView(promptTxt);
@@ -927,6 +931,9 @@ public class BattleView extends FrameLayout {
         String word = quiz.optString("word", "");
         String pos = quiz.optString("pos", "");
         String mean = quiz.optString("mean", "");
+        String fa = quiz.optString("fa", "");
+        if (fa.isEmpty()) faTxt.setVisibility(GONE);
+        else { faTxt.setText(fa); faTxt.setVisibility(VISIBLE); }
         boolean review = quiz.optBoolean("review", false);
         int step = quiz.optInt("step", 0);
         boolean graduated = quiz.optBoolean("graduated", false);
