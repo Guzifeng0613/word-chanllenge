@@ -231,7 +231,10 @@ public class StatsView extends FrameLayout {
                 final ProgressStore.RunSeries series = store.runSeries(period);
                 final int[] share = store.modeShare();
                 final List<ProgressStore.RunRow> recent = store.recentRuns(8);
-                post(() -> render(ov, series, share, recent));
+                // V13.12：每日目标跟随用户偏好 wd_ui/daily_q（默认 40）
+                final int dq = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE)
+                        .getInt("daily_q", 40);
+                post(() -> { barChart.setDailyGoal(dq); render(ov, series, share, recent); });
             } catch (Throwable e) {
                 post(() -> {
                     TextView e2 = Ui.text(getContext(), "数据加载失败", 12, Ui.MUT, false);
@@ -506,7 +509,7 @@ public class StatsView extends FrameLayout {
     // 柱状图：总闯关（蓝底）+ 胜利段（绿），峰值金
     // ════════════════════════════════════════════════════════════════
     private static class BarChartView extends View {
-        private static final int DAILY_GOAL = 40;   // P0-3：每日目标题数（对齐 BackendRouter.DAILY_QUESTIONS=40）
+        private int dailyGoal = 40;   // V13.12：跟随 wd_ui/daily_q（默认 40）
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private String[] labels = new String[0];
         private int[] runs = new int[0], wins = new int[0];
@@ -519,6 +522,8 @@ public class StatsView extends FrameLayout {
             wins = s.wins;
             invalidate();
         }
+
+        void setDailyGoal(int g) { this.dailyGoal = Math.max(5, g); invalidate(); }
 
         @Override
         protected void onDraw(Canvas cv) {
@@ -553,7 +558,7 @@ public class StatsView extends FrameLayout {
                     cv.drawRoundRect(wseg, r, r, p);
                 }
                 // 金仅作描边：达标（runs>=DAILY_GOAL）或当日有胜利才画；纯失败且未达标不画
-                boolean gold = runs[i] >= DAILY_GOAL || wins[i] > 0;
+                boolean gold = runs[i] >= dailyGoal || wins[i] > 0;
                 if (gold) {
                     p.setColor(Ui.GOLD);
                     p.setStyle(Paint.Style.STROKE);
@@ -568,7 +573,7 @@ public class StatsView extends FrameLayout {
                 cv.drawText(labels[i], cx, h - Ui.dp(getContext(), 5), p);
             }
             // P0-3：每日目标参考虚线（琥珀色，frac=min(1,40/maxR) 作视觉目标位，不改柱体）
-            float goalFrac = Math.min(1f, DAILY_GOAL / (float) (maxR > 0 ? maxR : 1));
+            float goalFrac = Math.min(1f, dailyGoal / (float) (maxR > 0 ? maxR : 1));
             float gy = pt + ih - goalFrac * ih;
             p.setColor(0xAAFFD166);
             p.setStrokeWidth(Ui.dp(getContext(), 1));
@@ -579,7 +584,7 @@ public class StatsView extends FrameLayout {
             p.setStyle(Paint.Style.FILL);
             p.setColor(Ui.MUT);
             p.setTextSize(Ui.dp(getContext(), 9f));
-            cv.drawText("每日目标 " + DAILY_GOAL + "题", pl + Ui.dp(getContext(), 2), gy - Ui.dp(getContext(), 2), p);
+            cv.drawText("每日目标 " + dailyGoal + "题", pl + Ui.dp(getContext(), 2), gy - Ui.dp(getContext(), 2), p);
         }
     }
 

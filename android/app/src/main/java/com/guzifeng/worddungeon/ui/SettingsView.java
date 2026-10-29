@@ -56,6 +56,7 @@ public class SettingsView extends LinearLayout {
         buildExamCard(body);
         buildEn2EnCard(body);
         buildTimeLimitCard(body);
+        buildDailyGoalCard(body);
         buildDataCard(body);
         buildBackupCard(body);
         buildStatsCard(body);
@@ -102,7 +103,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.11", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.12", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -361,6 +362,52 @@ public class SettingsView extends LinearLayout {
             sp.edit().putBoolean("time_limit_on", next).apply();
             Ui.applySwitch((LinearLayout) sw, next);
         });
+        card.addView(row);
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
+    /** V13.12 每日目标：三档单选（轻松 20/10、标准 40/15、高强度 60/25）。持久化 wd_ui/daily_q + daily_n。 */
+    private void buildDailyGoalCard(LinearLayout body) {
+        final SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("每日目标 ⓘ", "主页今日进度与统计图达标虚线跟随此目标；不限制实际答题数。"));
+
+        int curQ = sp.getInt("daily_q", 40);
+        final int[][] presets = {{20, 10}, {40, 15}, {60, 25}};
+        final String[] names = {"轻松", "标准", "高强度"};
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        for (int i = 0; i < presets.length; i++) {
+            final int q = presets[i][0], n = presets[i][1];
+            LinearLayout btn = new LinearLayout(getContext());
+            btn.setOrientation(VERTICAL);
+            btn.setGravity(Gravity.CENTER);
+            btn.setPadding(dp(10), dp(10), dp(10), dp(10));
+            boolean active = (curQ == q);
+            btn.setBackground(Ui.card(12, active ? 0xFF14304D : Ui.CARD2, active ? 2 : 1, active ? Ui.CYAN : Ui.LINE));
+            TextView t1 = Ui.text(getContext(), names[i], 13, active ? Ui.CYAN : Ui.TXT, true);
+            TextView t2 = Ui.text(getContext(), q + "题 / " + n + "新词", 10.5f, Ui.MUT, false);
+            btn.addView(t1); btn.addView(t2);
+            final int idx = i;
+            btn.setOnClickListener(v -> {
+                sp.edit().putInt("daily_q", q).putInt("daily_n", n).apply();
+                // 刷新按钮高亮
+                for (int j = 0; j < ((LinearLayout) row).getChildCount(); j++) {
+                    LinearLayout b = (LinearLayout) ((LinearLayout) row).getChildAt(j);
+                    boolean on = (j == idx);
+                    b.setBackground(Ui.card(12, on ? 0xFF14304D : Ui.CARD2, on ? 2 : 1, on ? Ui.CYAN : Ui.LINE));
+                    ((TextView) b.getChildAt(0)).setTextColor(on ? Ui.CYAN : Ui.TXT);
+                }
+            });
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -2, 1f);
+            if (i > 0) bp.leftMargin = dp(8);
+            row.addView(btn, bp);
+        }
         card.addView(row);
         body.addView(card);
         body.addView(spacer(10));
@@ -636,7 +683,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.11 · 小屏适配 + 答题倒计时开关 + 柱状图颜色修正",
+                        + "版本：V13.12 · 每日目标可自定义（20/40/60 三档）",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);

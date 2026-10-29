@@ -461,6 +461,21 @@ public class BackendRouter {
         store.saveMeta(meta);
     }
 
+    /** V13.12：读取用户自定义每日目标（wd_ui/daily_q、daily_n），非法值回退默认 40/15。 */
+    private int[] readDailyGoal() {
+        try {
+            android.content.SharedPreferences sp =
+                    ctx.getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+            int q = sp.getInt("daily_q", DAILY_QUESTIONS);
+            int n = sp.getInt("daily_n", DAILY_NEW_WORDS);
+            if (q < 5 || q > 200) q = DAILY_QUESTIONS;
+            if (n < 1 || n > 100) n = DAILY_NEW_WORDS;
+            return new int[]{q, n};
+        } catch (Throwable t) {
+            return new int[]{DAILY_QUESTIONS, DAILY_NEW_WORDS};
+        }
+    }
+
     private JSONObject statsDaily() throws Exception {
         long nowSec = System.currentTimeMillis() / 1000;
         long today0Sec = nowSec / 86400 * 86400;
@@ -472,15 +487,16 @@ public class BackendRouter {
         int dueLearning = SrsEngine.dueLearning(progress, nowMs).size();
         int dueGraduated = SrsEngine.dueGraduated(progress, nowMs).size();
         int newToday = store.newToday(today0Sec);
+        int[] goal = readDailyGoal();   // V13.12：用户自定义每日目标
 
         JSONObject daily = new JSONObject();
         daily.put("questions", s[0]);
         daily.put("correct", s[1]);
         daily.put("accuracy", s[0] > 0 ? Math.round((double) s[1] / s[0] * 1000.0) / 10.0 : 0);
-        daily.put("new_words", Math.min(newToday, DAILY_NEW_WORDS));
+        daily.put("new_words", newToday);   // V13.12：实际新词不截断（目标值仅用于 goal 字段与达标线，避免超目标时主页误显）
         daily.put("run", store.dailyRun(today0Sec));
-        daily.put("questions_goal", DAILY_QUESTIONS);
-        daily.put("new_words_goal", DAILY_NEW_WORDS);
+        daily.put("questions_goal", goal[0]);
+        daily.put("new_words_goal", goal[1]);
         daily.put("run_goal", 1);
 
         JSONObject out = new JSONObject();
