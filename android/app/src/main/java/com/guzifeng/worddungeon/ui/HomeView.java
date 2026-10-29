@@ -120,7 +120,9 @@ public class HomeView extends LinearLayout {
 
         // V13.9：今日复习建议行（只读 /review/due；dueNow=0 时隐藏，不占位）
         reviewTxt = Ui.text(getContext(), "", 10.5f, Ui.CYAN, false);
-        reviewTxt.setPadding(0, dp(3), 0, 0);
+        // V13.20：浅蓝圆角卡片底（边框 0x223B82F6 + 填充 0x113B82F6）
+        reviewTxt.setBackground(Ui.card(10, 0x113B82F6, 1, 0x223B82F6));
+        reviewTxt.setPadding(dp(8), dp(4), dp(8), dp(4));
         reviewTxt.setVisibility(GONE);
         banner.addView(reviewTxt);
         addView(banner);
