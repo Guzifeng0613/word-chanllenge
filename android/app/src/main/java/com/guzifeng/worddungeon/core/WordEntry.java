@@ -24,6 +24,8 @@ public class WordEntry {
     /** V13.6 核心词标记：o=牛津3000(1=是)；c=柯林斯星级1-5(越大越常用)。0/缺失=无标记。 */
     public int o = 0;
     public int c = 0;
+    /** V13.10 熟词生义：{词性短码: [义项…]}，只收非首词性的生义；无则 null。 */
+    public JSONObject s;
 
     public WordEntry() {}
 

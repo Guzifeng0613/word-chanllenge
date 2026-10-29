@@ -31,6 +31,10 @@ public class RunState {
     public Map<String, Boolean> formSeen = new HashMap<>();
     /** V13.5 英英模式：距上一次 en2en 题已过的普通题数；达到 EN2EN_REVIEW_GAP 且抽中概率时才偶发出 1 个，随后归零。 */
     public int en2enGap = 0;
+    /** V13.10 熟词生义：距上一次 sense 题已过的普通题数；达到 SENSE_GAP 且抽中概率时才偶发出 1 个。 */
+    public int senseGap = 0;
+    /** V13.10 熟词生义：本局已考察过的「词|义」去重。 */
+    public Map<String, Boolean> senseSeen = new HashMap<>();
 
     public RunState() {}
 
@@ -88,6 +92,14 @@ public class RunState {
         r.replayGap = o.optInt("replay_gap", 0);
         r.formGap = o.optInt("form_gap", 0);
         r.en2enGap = o.optInt("en2en_gap", 0);
+        r.senseGap = o.optInt("sense_gap", 0);
+        JSONObject ss = o.optJSONObject("sense_seen");
+        if (ss != null) {
+            for (java.util.Iterator<String> it = ss.keys(); it.hasNext(); ) {
+                String k = it.next();
+                r.senseSeen.put(k, ss.optBoolean(k));
+            }
+        }
         JSONObject fs = o.optJSONObject("form_seen");
         if (fs != null) {
             for (java.util.Iterator<String> it = fs.keys(); it.hasNext(); ) {
@@ -142,6 +154,10 @@ public class RunState {
             o.put("replay_gap", replayGap);
             o.put("form_gap", formGap);
             o.put("en2en_gap", en2enGap);
+            o.put("sense_gap", senseGap);
+            JSONObject ss = new JSONObject();
+            for (Map.Entry<String, Boolean> e : senseSeen.entrySet()) ss.put(e.getKey(), e.getValue());
+            o.put("sense_seen", ss);
             JSONObject fs = new JSONObject();
             for (Map.Entry<String, Boolean> e : formSeen.entrySet()) fs.put(e.getKey(), e.getValue());
             o.put("form_seen", fs);

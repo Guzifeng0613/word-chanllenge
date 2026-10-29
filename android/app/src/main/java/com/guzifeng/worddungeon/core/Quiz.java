@@ -37,6 +37,8 @@ public class Quiz {
     public String formLabel;
     /** V13.5 英英释义题干（en2en 题型展示）。 */
     public String d2;
+    /** V13.10 熟词生义题干（sense 题型展示：一个非首词性的中文义项）。 */
+    public String senseMean = "";
 
     public JSONObject toJson() {
         JSONObject o = new JSONObject();
@@ -70,6 +72,7 @@ public class Quiz {
             if (formKey != null) o.put("formKey", formKey);
             if (formLabel != null) o.put("formLabel", formLabel);
             if (d2 != null && !d2.isEmpty()) o.put("d2", d2);
+            if (senseMean != null && !senseMean.isEmpty()) o.put("senseMean", senseMean);
             if (runState != null) o.put("run_state", runState.toJson());
         } catch (Exception e) {
             // 内部结构固定

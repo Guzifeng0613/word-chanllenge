@@ -236,6 +236,42 @@ public class QuizEngine {
         if (toEn2en) runState.en2enGap = 0; else runState.en2enGap++;
         if (toEn2en) qtype = "en2en";
 
+        // V13.10 熟词生义：仅当 form/en2en 都没命中、本词已毕业、s 非空，按间隔+概率偶发升级。
+        // 与 form/en2en 互斥（前面已命中则不进入）；不占新词/错词槽；门控保证毕业 → gradStep 调度。
+        String senseText = null;
+        if (formKey == null && !toEn2en && a.force == null && !wrongReplay && rec != null && rec.graduated) {
+            WordEntry eS = bank.entry(word);
+            if (eS != null && eS.s != null && eS.s.length() > 0
+                    && runState.senseGap >= GameConfig.SENSE_GAP
+                    && rnd.nextDouble() < GameConfig.SENSE_PROB) {
+                // 收集所有 (词性, 义项) 候选，排除本局已考过的
+                List<String[]> senseOpts = new ArrayList<>();
+                org.json.JSONObject sObj = eS.s;
+                java.util.Iterator<String> pit = sObj.keys();
+                while (pit.hasNext()) {
+                    String posK = pit.next();
+                    org.json.JSONArray arr = sObj.optJSONArray(posK);
+                    if (arr == null) continue;
+                    for (int i = 0; i < arr.length(); i++) {
+                        String mean = arr.optString(i, "");
+                        if (mean.isEmpty()) continue;
+                        if (Boolean.TRUE.equals(runState.senseSeen.get(word + "|" + mean))) continue;
+                        senseOpts.add(new String[]{mean});
+                    }
+                }
+                if (!senseOpts.isEmpty()) {
+                    senseText = senseOpts.get(rnd.nextInt(senseOpts.size()))[0];
+                }
+            }
+        }
+        if (senseText != null) {
+            runState.senseGap = 0;
+            runState.senseSeen.put(word + "|" + senseText, true);
+            qtype = "sense";
+        } else {
+            runState.senseGap++;
+        }
+
         // 先见后拼记录：本题为非拼写题型 → 该词本局已“见过”，下次允许拼写
         if (!"spell".equals(baseQtype)) runState.exposed.put(word, true);
 
@@ -266,6 +302,17 @@ public class QuizEngine {
             quiz.options = opts2;
             quiz.correct = word;
             quiz.timeLimit = GameConfig.EN2EN_TIME;
+        }
+        // V13.10：覆盖为 sense 题——题干=一个中文生义，选项=正确单词+3 个英文干扰词（与 en2en 同机制）
+        if (senseText != null) {
+            List<String> opts3 = new ArrayList<>(bank.distractorWords(word, 3, a.book, a.confuse));
+            opts3.add(word);
+            Collections.shuffle(opts3, bank.rnd);
+            quiz.qtype = "sense";
+            quiz.senseMean = senseText;
+            quiz.options = opts3;
+            quiz.correct = word;
+            quiz.timeLimit = (int) GameConfig.NORMAL_T;
         }
         // 远征限时（V12.0）：非拼写选择题用逐层收紧限时；拼写在基线之上加逐层额外秒。
         // 无尽/快刷不经过此覆盖，逻辑保持不变。

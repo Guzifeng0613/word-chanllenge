@@ -167,6 +167,11 @@ public final class GameConfig {
     public static final double EN2EN_PROB = 0.4;
     /** en2en 题干较长，基础限时略宽于普通选择题（秒）。 */
     public static final int EN2EN_TIME = 9;
+    // ── V13.10 熟词生义（看中文生义选单词）：比 en2en 更轻量 ──
+    /** sense 最小间隔：每连续 SENSE_GAP 个普通题之后才偶发 1 道熟词生义题。 */
+    public static final int SENSE_GAP = 10;
+    /** 达到间隔后仍要掷骰才升级：约 0.3 概率。 */
+    public static final double SENSE_PROB = 0.3;
 
     /** 形名 → 中文标签（展示用；pastp 不单独出题，仅入库）。 */
     public static String formLabel(String key) {

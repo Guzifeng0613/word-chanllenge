@@ -280,8 +280,8 @@ public class BackendRouter {
             correctAnswerVal = entry.w;
         } else if ("judge".equals(qtype)) {
             correctAnswerVal = entry.m.equals(shown) ? "yes" : "no";
-        } else if ("cn2en".equals(qtype) || "en2en".equals(qtype)) {
-            // V13.5 en2en：题干是英文释义，正确答案仍是该单词本身
+        } else if ("cn2en".equals(qtype) || "en2en".equals(qtype) || "sense".equals(qtype)) {
+            // V13.5 en2en / V13.10 sense：题干是释义，正确答案仍是该单词本身
             correctAnswerVal = entry.w;
         } else {
             correctAnswerVal = entry.m;
