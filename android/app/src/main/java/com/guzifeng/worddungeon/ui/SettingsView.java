@@ -55,6 +55,7 @@ public class SettingsView extends LinearLayout {
         buildSoundCard(body);
         buildExamCard(body);
         buildEn2EnCard(body);
+        buildTimeLimitCard(body);
         buildDataCard(body);
         buildBackupCard(body);
         buildStatsCard(body);
@@ -101,7 +102,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.10", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.11", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -325,6 +326,39 @@ public class SettingsView extends LinearLayout {
         sw.setOnClickListener(v -> {
             boolean next = !sp.getBoolean("en2en_on", false);
             sp.edit().putBoolean("en2en_on", next).apply();
+            Ui.applySwitch((LinearLayout) sw, next);
+        });
+        card.addView(row);
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
+    /** V13.11 答题倒计时：默认开启；关闭后题目一直等待手动作答、不再超时自动扣血。状态存 wd_ui/time_limit_on。 */
+    private void buildTimeLimitCard(LinearLayout body) {
+        final SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("答题倒计时 ⓘ", "默认开启；关闭后题目一直等待你手动作答，不会因超时扣血。"));
+
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(7), 0, dp(7));
+        LinearLayout lab = new LinearLayout(getContext());
+        lab.setOrientation(VERTICAL);
+        TextView n = Ui.text(getContext(), "答题倒计时", 14, Ui.TXT, false);
+        TextView s = Ui.text(getContext(), "每题倒计时与超时扣血（默认开启；关闭则不计时）", 10.5f, Ui.MUT, false);
+        lab.addView(n); lab.addView(s);
+        lab.setLayoutParams(lp(0, -2, 1f));
+        row.addView(lab);
+        boolean on = sp.getBoolean("time_limit_on", true);   // 默认开启
+        final View sw = Ui.switchBtn(getContext(), on);
+        row.addView(sw);
+        sw.setOnClickListener(v -> {
+            boolean next = !sp.getBoolean("time_limit_on", true);
+            sp.edit().putBoolean("time_limit_on", next).apply();
             Ui.applySwitch((LinearLayout) sw, next);
         });
         card.addView(row);
@@ -602,7 +636,7 @@ public class SettingsView extends LinearLayout {
                 "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.10 · 熟词生义题型（看生义选单词）",
+                        + "版本：V13.11 · 小屏适配 + 答题倒计时开关 + 柱状图颜色修正",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);

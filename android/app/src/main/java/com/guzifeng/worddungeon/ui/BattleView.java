@@ -166,9 +166,22 @@ public class BattleView extends FrameLayout {
         EMOJI.put("boss1", "👑"); EMOJI.put("boss2", "🌫"); EMOJI.put("boss3", "🔥");
     }
 
+    // V13.11 小屏适配：按屏幕可用高度 dp 计算压缩因子（≤480dp 起压缩，越低越紧）；
+    // 高度充足时 =1、视觉无回退；压缩只作用于间距/内边距/怪物表情/字重，不动题目卡与对错按钮的可点尺寸。
+    private float compactF = 1f;
+    private int dpc(float v) { return Math.round(dp(v) * compactF); }
+    private int spc(int dp) { return Math.round(dp * compactF); }
+
     public BattleView(Context c) {
         super(c);
         act = (MainActivity) c;
+        // 按可用高度 dp 定压缩因子（320x480 这类小屏：480dp 高 → compact）
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        float heightDp = dm.heightPixels / dm.density;
+        if (heightDp <= 400) compactF = 0.55f;
+        else if (heightDp <= 480) compactF = 0.72f;
+        else if (heightDp <= 600) compactF = 0.86f;
+        else compactF = 1f;
         ambient = new AmbientBackground(34);   // V11.3 地下城氛围底（战斗页粒子略多）
         setBackground(ambient);              // V12.0：保留引用以便按层切辉光色相
         build();
@@ -177,7 +190,7 @@ public class BattleView extends FrameLayout {
     private void build() {
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(16), dp(14), dp(16), dp(16));
+        col.setPadding(dpc(16), dpc(12), dpc(16), dpc(12));
         addView(col, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
         // 顶栏（左「第 N 层 · 词境」，右 节点圆点 / 快刷退出）
@@ -191,79 +204,81 @@ public class BattleView extends FrameLayout {
         topRight.setGravity(Gravity.CENTER_VERTICAL);
         top.addView(topRight);
         col.addView(top);
-        col.addView(spacer(8));
+        col.addView(spacer(spc(6)));
 
         // 敌人卡（face 光晕 + emoji + 名字 + 等级 + 警告 + 血条 + 微目标）
         LinearLayout ebox = new LinearLayout(getContext());
         ebox.setOrientation(LinearLayout.VERTICAL);
         ebox.setGravity(Gravity.CENTER);
-        ebox.setPadding(dp(12), dp(10), dp(12), dp(10));
+        ebox.setPadding(dpc(12), dpc(6), dpc(12), dpc(6));
         ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.LINE));
         FrameLayout faceWrap = new FrameLayout(getContext());
         enemyGlow = new View(getContext());
-        int glowSize = dp(86);
+        int glowSize = dpc(48);
         enemyGlow.setLayoutParams(new FrameLayout.LayoutParams(glowSize, glowSize, Gravity.CENTER));
-        enemyEmoji = Ui.text(getContext(), "👹", 42, Ui.TXT, false);
+        enemyEmoji = Ui.text(getContext(), "👹", compactF < 1f ? 26f : 42f, Ui.TXT, false);
         faceWrap.addView(enemyGlow);
         faceWrap.addView(enemyEmoji, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         ebox.addView(faceWrap);
-        enemyName = Ui.text(getContext(), "", 18, Ui.TXT, true);
+        enemyName = Ui.text(getContext(), "", compactF < 1f ? 15f : 18f, Ui.TXT, true);
         enemyName.setGravity(Gravity.CENTER);
         ebox.addView(enemyName);
-        enemyTag = Ui.text(getContext(), "普通战", 12, Ui.CYAN, true);
+        enemyTag = Ui.text(getContext(), "普通战", 11, Ui.CYAN, true);
         enemyTag.setGravity(Gravity.CENTER);
         ebox.addView(enemyTag);
         warnTxt = Ui.text(getContext(), "答错 / 超时将受到 10 点伤害", 11, Ui.MUT, false);
         warnTxt.setGravity(Gravity.CENTER);
+        if (compactF < 1f) warnTxt.setVisibility(GONE);   // 小屏折叠非关键提示
         ebox.addView(warnTxt);
         enemyHp = new HpBar(getContext(), Ui.RED, Ui.CARD2);
-        enemyHp.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(8)));
+        enemyHp.setLayoutParams(new LinearLayout.LayoutParams(-1, dpc(6)));
         ebox.addView(enemyHp);
         hpNumTxt = Ui.text(getContext(), "100 / 100", 12, Ui.TXT, true);
         hpNumTxt.setGravity(Gravity.CENTER);
         ebox.addView(hpNumTxt);
-        // 微目标行（左目标 + 右状态）
+        // 微目标行（左目标 + 右状态）；小屏折叠为单行小卡
         LinearLayout goalBoxV = new LinearLayout(getContext());
         goalBoxV.setOrientation(LinearLayout.HORIZONTAL);
         goalBoxV.setGravity(Gravity.CENTER_VERTICAL);
-        goalBoxV.setPadding(dp(12), dp(8), dp(12), dp(8));
+        goalBoxV.setPadding(dpc(10), dpc(5), dpc(10), dpc(5));
         goalBoxV.setBackground(Ui.card(12, Ui.CARD2, 0, 0));
-        goalTxt = Ui.text(getContext(), "", 13, Ui.TXT, false);
-        goalState = Ui.text(getContext(), "", 13, Ui.GOLD, true);
+        goalTxt = Ui.text(getContext(), "", compactF < 1f ? 11f : 13f, Ui.TXT, false);
+        goalState = Ui.text(getContext(), "", compactF < 1f ? 11f : 13f, Ui.GOLD, true);
         goalBoxV.addView(goalTxt, new LinearLayout.LayoutParams(0, -2, 1f));
         goalBoxV.addView(goalState);
         LinearLayout.LayoutParams goalLp = new LinearLayout.LayoutParams(-1, -2);
-        goalLp.topMargin = dp(8);
+        goalLp.topMargin = dpc(6);
         ebox.addView(goalBoxV, goalLp);
         goalBox = goalBoxV;
+        if (compactF < 0.75f) goalBoxV.setVisibility(GONE);   // V13.11：超小屏折叠微目标行
         // V12.9 献祭按钮（战斗中主动：40 战魂 → 45 伤害，每场限1），初始隐藏，spawnEnemy 时配置
         TextView sac = Ui.text(getContext(), "🔥 献祭 · 40 魂 → 45 伤害", 12.5f, Ui.TXT, true);
         sac.setGravity(Gravity.CENTER);
-        sac.setPadding(dp(12), dp(9), dp(12), dp(9));
+        sac.setPadding(dpc(12), dpc(8), dpc(12), dpc(8));
         sac.setVisibility(GONE);
         LinearLayout.LayoutParams sacLp = new LinearLayout.LayoutParams(-1, -2);
-        sacLp.topMargin = dp(8);
+        sacLp.topMargin = dpc(6);
         ebox.addView(sac, sacLp);
         sacrificeBtn = sac;
         enemyLevel = Ui.text(getContext(), "💠", 14, Ui.CYAN, false); // 保留引用，不显示
         enemyCard = ebox;
         col.addView(ebox);
-        col.addView(spacer(8));
+        col.addView(spacer(spc(6)));
 
         // 连击行（独立：连击 + 数字 + 心流提示，下方心流圆点）
         LinearLayout comboBoxV = new LinearLayout(getContext());
         comboBoxV.setOrientation(LinearLayout.VERTICAL);
         comboBoxV.setGravity(Gravity.CENTER);
-        comboBoxV.setPadding(dp(10), dp(2), dp(10), dp(2));
+        comboBoxV.setPadding(dpc(10), 0, dpc(10), 0);
         LinearLayout comboRow = new LinearLayout(getContext());
         comboRow.setOrientation(LinearLayout.HORIZONTAL);
         comboRow.setGravity(Gravity.CENTER);
-        comboLab = Ui.text(getContext(), "连击", 13, Ui.MUT, true);
+        comboLab = Ui.text(getContext(), "连击", 12, Ui.MUT, true);
         comboRow.addView(comboLab);
-        comboNum = Ui.text(getContext(), "0", 24, Ui.GOLD, true);
-        comboNum.setPadding(dp(8), 0, dp(8), 0);
+        comboNum = Ui.text(getContext(), "0", compactF < 1f ? 19f : 24f, Ui.GOLD, true);
+        comboNum.setPadding(dpc(8), 0, dpc(8), 0);
         comboRow.addView(comboNum);
-        comboSub = Ui.text(getContext(), "", 13, Ui.GOLD, false);
+        comboSub = Ui.text(getContext(), "", 12, Ui.GOLD, false);
         comboRow.addView(comboSub);
         comboBoxV.addView(comboRow);
         LinearLayout dotRow = new LinearLayout(getContext());
@@ -271,27 +286,28 @@ public class BattleView extends FrameLayout {
         dotRow.setGravity(Gravity.CENTER);
         for (int i = 0; i < 5; i++) {
             TextView d = Ui.text(getContext(), "", 6, Ui.TEAL, false);
-            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(8), dp(8));
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dpc(7), dpc(7));
             d.setBackground(Ui.pill(0xFF0E2238, 0xFF33507A));
             d.setAlpha(0.55f);
-            if (i > 0) dl.leftMargin = dp(6);
+            if (i > 0) dl.leftMargin = dpc(5);
             dotRow.addView(d, dl);
             comboDots.add(d);
         }
+        if (compactF < 0.75f) dotRow.setVisibility(GONE);   // V13.11：超小屏折叠心流圆点行
         comboBoxV.addView(dotRow);
         col.addView(comboBoxV);
         comboBox = comboBoxV;
-        col.addView(spacer(6));
+        col.addView(spacer(spc(4)));
 
         // 题目卡（qhead 大字 + 词性徽章 + 复仇徽章 + 提示 + 阶梯 + 计时）
         LinearLayout qbox = new LinearLayout(getContext());
         qbox.setOrientation(LinearLayout.VERTICAL);
-        qbox.setPadding(dp(14), dp(10), dp(14), dp(10));
+        qbox.setPadding(dpc(14), dpc(6), dpc(14), dpc(6));
         qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));   // UI-iteration-10：题干盒提亮 CARD2，与选项区同级
         LinearLayout headRow = new LinearLayout(getContext());
         headRow.setOrientation(LinearLayout.HORIZONTAL);
         headRow.setGravity(Gravity.CENTER_VERTICAL);
-        qBody = Ui.text(getContext(), "", 22, Ui.TXT, true);
+        qBody = Ui.text(getContext(), "", compactF < 1f ? 19f : 22f, Ui.TXT, true);
         qBody.setGravity(Gravity.CENTER);
         headRow.addView(qBody, new LinearLayout.LayoutParams(0, -2, 1f));
         posTag = Ui.text(getContext(), "", 12, Ui.GOLD, true);
@@ -308,6 +324,7 @@ public class BattleView extends FrameLayout {
         qbox.addView(promptTxt);
         ladderTxt = Ui.text(getContext(), "", 10, Ui.MUT, true);
         ladderTxt.setGravity(Gravity.CENTER);
+        if (compactF < 0.75f) ladderTxt.setVisibility(GONE);   // V13.11：超小屏折叠阶梯提示
         qbox.addView(ladderTxt);
         // 计时条（金色渐变填充）
         timerTrack = new LinearLayout(getContext());
@@ -315,27 +332,27 @@ public class BattleView extends FrameLayout {
         timerTrack.setBackground(Ui.card(999, Ui.CARD2, 0, 0));
         timerFill = new View(getContext());
         timerFill.setBackground(Ui.gradient(999, Ui.GOLD, Ui.ORANGE, 0));
-        timerTrack.addView(timerFill, new LinearLayout.LayoutParams(-1, dp(8)));
-        qbox.addView(timerTrack, new LinearLayout.LayoutParams(-1, dp(8)));
+        timerTrack.addView(timerFill, new LinearLayout.LayoutParams(-1, dpc(6)));
+        qbox.addView(timerTrack, new LinearLayout.LayoutParams(-1, dpc(6)));
         timerTxt = Ui.text(getContext(), "", 13, Ui.GOLD, true);   // UI-iteration-08：秒数提级 13sp 金加粗
         timerTxt.setGravity(Gravity.CENTER);
         qbox.addView(timerTxt);
         col.addView(qbox);
-        col.addView(spacer(8));
+        col.addView(spacer(spc(6)));
 
         // 答题区（V11.5 动态填充：选项 / 判断 / 拼写）
         answerArea = new FrameLayout(getContext());
         answerArea.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
         col.addView(answerArea, new LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT));
-        col.addView(spacer(8));
+        col.addView(spacer(spc(6)));
 
         // 玩家 HUD（V7.0 playerhud：生命标签 + 绿血条 + 词魂计数）
         LinearLayout pbox = new LinearLayout(getContext());
         pbox.setOrientation(LinearLayout.HORIZONTAL);
         pbox.setGravity(Gravity.CENTER_VERTICAL);
-        pbox.setPadding(dp(10), dp(8), dp(10), dp(8));
+        pbox.setPadding(dpc(10), dpc(4), dpc(10), dpc(4));
         pbox.setBackground(Ui.card(12, Ui.CARD2, 0, 0));
-        playerEmoji = Ui.text(getContext(), "🧙", 26, Ui.TXT, false);
+        playerEmoji = Ui.text(getContext(), "🧙", compactF < 1f ? 22f : 26f, Ui.TXT, false);
         hpLab = Ui.text(getContext(), "生命 100/100", 13, Ui.TXT, true);
         hpLab.setTypeface(Typeface.DEFAULT_BOLD);
         playerHp = new HpBar(getContext(), Ui.GREEN, Ui.CARD);
@@ -1214,7 +1231,7 @@ public class BattleView extends FrameLayout {
                     LinearLayout b = new LinearLayout(getContext());
                     b.setOrientation(LinearLayout.HORIZONTAL);
                     b.setGravity(Gravity.CENTER_VERTICAL);
-                    b.setPadding(dp(8), dp(9), dp(8), dp(9));
+                    b.setPadding(dpc(8), dpc(6), dpc(8), dpc(6));   // V13.11 小屏：紧凑下压缩按钮垂直 padding
                     // V11.5 字母徽章：A/B/C/D 方徽章 + 圆角卡片，信息层次更强
                     // UI-iteration-01: 每选项独立持有 normal/pressed 两个 Drawable（不共用实例）
                     final GradientDrawable normalBg = Ui.card(12, Ui.BG1, 1, Ui.LINE);   // UI-iteration-09：常态提亮 BG1，按钮浮起
@@ -1267,7 +1284,7 @@ public class BattleView extends FrameLayout {
                             .setStartDelay(d).setDuration(260).start());
                 }
                 col.addView(row);
-                if (i + 2 < options.length()) col.addView(spacer(7));
+                if (i + 2 < options.length()) col.addView(spacer(spc(5)));
             }
         } catch (Exception e) { /* ignore */ }
     }
@@ -2554,10 +2571,22 @@ public class BattleView extends FrameLayout {
 
     private void startTimer() {
         if (quiz == null) return;
+        // V13.11：答题倒计时开关（wd_ui/time_limit_on，默认 true）。关闭时彻底不计时：
+        // 隐藏 timerTrack/timerTxt、不注册任何超时回调、绝不自动 submit("")。
+        boolean timeLimitOn = getContext().getSharedPreferences("wd_ui", android.content.Context.MODE_PRIVATE)
+                .getBoolean("time_limit_on", true);
+        stopTimer();
+        if (!timeLimitOn) {
+            timerOn = false;
+            if (timerTrack != null) timerTrack.setVisibility(GONE);
+            if (timerTxt != null) timerTxt.setVisibility(GONE);
+            return;
+        }
+        if (timerTrack != null) timerTrack.setVisibility(VISIBLE);
+        if (timerTxt != null) timerTxt.setVisibility(VISIBLE);
         // 先清掉上一题残留（timerTick + 自动提交匿名回调），再开启新循环；
         // 注意必须先 stopTimer() 再置 timerOn=true，否则旧顺序里 stopTimer() 会把
         // timerOn 重置为 false，导致首个 tick 因 !timerOn 直接 return，计时整条死掉。
-        stopTimer();
         timeLimit = quiz.optDouble("timeLimit", 6) + bonusTime;   // V11.3 战利品时间延长
         if (bonusTime > 0) bonusTime = 0;
         remainSec = timeLimit;

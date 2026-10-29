@@ -175,7 +175,7 @@ public class StatsView extends FrameLayout {
 
         // 柱状图卡
         barChart = new BarChartView(getContext());
-        body.addView(card("闯关对比", "胜利为绿 · 失败为蓝 · 高峰为金", barChart, dp(175)));
+        body.addView(card("闯关对比", "胜利为绿 · 失败为蓝 · 达标/胜利金描边", barChart, dp(175)));
 
         // 环形图卡
         LinearLayout donutRow = new LinearLayout(getContext());
@@ -541,19 +541,25 @@ public class StatsView extends FrameLayout {
                 float totalH = runs[i] / (float) maxR * ih;
                 float winH = wins[i] / (float) maxR * ih;
                 float top = pt + ih - totalH;
-                boolean peak = runs[i] == maxR && runs[i] > 0;
                 RectF bar = new RectF(cx - bw / 2, top, cx + bw / 2, pt + ih);
-                if (peak) {
+                // V13.11：始终先画蓝底（不再因峰值整柱填金）
+                p.setColor(Ui.CYAN);
+                p.setStyle(Paint.Style.FILL);
+                cv.drawRoundRect(bar, r, r, p);
+                // 顶部叠绿胜段
+                if (winH > 0) {
+                    RectF wseg = new RectF(cx - bw / 2, pt + ih - winH, cx + bw / 2, pt + ih);
+                    p.setColor(Ui.GREEN);
+                    cv.drawRoundRect(wseg, r, r, p);
+                }
+                // 金仅作描边：达标（runs>=DAILY_GOAL）或当日有胜利才画；纯失败且未达标不画
+                boolean gold = runs[i] >= DAILY_GOAL || wins[i] > 0;
+                if (gold) {
                     p.setColor(Ui.GOLD);
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(Ui.dp(getContext(), 1.6f));
                     cv.drawRoundRect(bar, r, r, p);
-                } else {
-                    p.setColor(Ui.CYAN);
-                    cv.drawRoundRect(bar, r, r, p);
-                    if (winH > 0) {
-                        RectF wseg = new RectF(cx - bw / 2, pt + ih - winH, cx + bw / 2, pt + ih);
-                        p.setColor(Ui.GREEN);
-                        cv.drawRoundRect(wseg, r, r, p);
-                    }
+                    p.setStyle(Paint.Style.FILL);
                 }
                 // 顶部数字
                 p.setColor(Ui.MUT);
