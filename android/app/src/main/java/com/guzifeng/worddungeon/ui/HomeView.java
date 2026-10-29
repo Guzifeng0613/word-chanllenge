@@ -102,6 +102,8 @@ public class HomeView extends LinearLayout {
         // 构造期一次性建好固定高度 XP 条容器；刷新只更新内部 fill 的 weight，
         // 禁止 removeAllViews() 重建，从根上消除条容器高度变化
         View[] barInit = Ui.bar(getContext(), 0f, 0xFF22C55E, 0xFF4ADE80, 7);
+        // V13.21：XP 进度条槽可见深蓝底（0xFF1E3A5F），与 banner 背景区分
+        barInit[0].setBackground(Ui.card(999, 0xFF1E3A5F, 0, 0));
         xpBarWrap.addView(barInit[0]);
         fillView = barInit[1];
         banner.addView(xpBarWrap);
