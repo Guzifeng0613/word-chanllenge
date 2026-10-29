@@ -1,3 +1,9 @@
+## V13.22 · 设置页关于区文案动态化（2026-10-29）
+- 关于区词数从硬编码 8873 改为从 /bank/meta 动态读取（当前 8920）。
+- 版本号两处（顶部小字 + 关于区）改为 BuildConfig.VERSION_NAME，build.gradle 成为唯一版本源。
+- BackendRouter fallback total 默认 7388→8920（防御性）。
+- versionCode 72 / versionName 13.22。
+
 ## V13.21 · 主页 XP 进度条槽可见化（2026-10-29）
 - XP 进度条槽背景从 BG_PILL(0xFF0E2238) 改为可见深蓝 0xFF1E3A5F，与 banner 背景区分。
 - 填充渐变保持不变；高度/位置不变；不破坏 banner 其他行。

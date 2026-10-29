@@ -26,6 +26,7 @@ public class SettingsView extends LinearLayout {
     private LinearLayout barHost;
     private TextView dataRows;
     private TextView wrongCntTxt;
+    private TextView aboutTxt;   // V13.22：关于区文案（refresh 时动态注入真实词数+版本）
     private LinearLayout achHost;
     private TextView achTitle;
     private LinearLayout examConfigArea;
@@ -103,7 +104,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.21", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V" + com.guzifeng.worddungeon.BuildConfig.VERSION_NAME, 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -685,15 +686,21 @@ public class SettingsView extends LinearLayout {
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
         card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
         card.addView(Ui.text(getContext(), "关于", 14, Ui.TXT, true));
-        TextView about = Ui.text(getContext(),
-                "词库：开源 ECDICT 词典（8873 词，高考/四级/六级/考研/计算机学术）\n"
-                        + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
-                        + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.21 · 新增第5本词书「计算机学术」",
-                12, Ui.MUT, false);
-        about.setLineSpacing(dp(4), 1f);
-        card.addView(about);
+        // V13.22：词数/版本动态化（refresh 时注入真实 total + BuildConfig.VERSION_NAME）
+        aboutTxt = Ui.text(getContext(), aboutText(0), 12, Ui.MUT, false);
+        aboutTxt.setLineSpacing(dp(4), 1f);
+        card.addView(aboutTxt);
         body.addView(card);
+    }
+
+    /** V13.22：关于区文案（词数与版本动态注入，避免硬编码过时）。 */
+    private String aboutText(int total) {
+        String ver = com.guzifeng.worddungeon.BuildConfig.VERSION_NAME;
+        String totalStr = total > 0 ? String.valueOf(total) : "—";
+        return "词库：开源 ECDICT 词典（" + totalStr + " 词，高考/四级/六级/考研/计算机学术）\n"
+                + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
+                + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
+                + "版本：V" + ver + " · 新增第5本词书「计算机学术」";
     }
 
     public void refresh() {
@@ -702,6 +709,9 @@ public class SettingsView extends LinearLayout {
         try {
             JSONObject meta = act.router().dispatch("/bank/meta", "GET", null);
             JSONObject counts = meta.getJSONObject("counts");
+            // V13.22：关于区词数动态注入（失败兜底 0，aboutText 显示 "—"）
+            int metaTotal = meta.optInt("total", 0);
+            if (aboutTxt != null) aboutTxt.setText(aboutText(metaTotal));
             JSONObject stats = act.router().dispatch("/stats/daily", "GET", null);
             JSONObject daily = stats.optJSONObject("daily");
             JSONObject wb = act.router().dispatch("/wrongbook", "GET", null);

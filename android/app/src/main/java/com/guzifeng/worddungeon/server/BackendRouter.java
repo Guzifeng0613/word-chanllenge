@@ -95,7 +95,7 @@ public class BackendRouter {
         o.put("books", meta.getJSONArray("books"));
         o.put("difficulties", meta.getJSONArray("difficulties"));
         o.put("counts", meta.getJSONObject("counts"));
-        o.put("total", meta.optInt("total", 7388));
+        o.put("total", meta.optInt("total", 8920));   // V13.22：防御性兜底，与当前词库规模对齐
         o.put("source", meta.optString("source", "ECDICT"));
         return o;
     }
