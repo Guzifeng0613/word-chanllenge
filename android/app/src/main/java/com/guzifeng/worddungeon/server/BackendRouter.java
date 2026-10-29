@@ -143,6 +143,7 @@ public class BackendRouter {
         String word = b.optString("word");
         String qtype = b.optString("qtype");
         String answer = b.optString("answer", "");
+        String book = b.optString("book", "");
         double timeLimit = b.optDouble("time_limit", 6);
         double remain = b.optDouble("remain", 0);
         int combo = b.optInt("combo", 0);
@@ -170,14 +171,14 @@ public class BackendRouter {
 
         boolean isCorrect;
         if ("judge".equals(qtype)) {
-            String truth = entry.m.equals(shown) ? "yes" : "no";
+            String truth = entry.effM(book).equals(shown) ? "yes" : "no";
             isCorrect = truth.equals(answer);
         } else if ("form".equals(qtype)) {
             String truth = entry.x == null ? "" : entry.x.optString(formKey, "");
             isCorrect = !truth.isEmpty()
                     && answer.trim().toLowerCase().equals(truth.trim().toLowerCase());
         } else {
-            String correctVal = "en2cn".equals(qtype) ? entry.m : entry.w;
+            String correctVal = "en2cn".equals(qtype) ? entry.effM(book) : entry.w;
             isCorrect = answer.trim().toLowerCase().equals(correctVal.trim().toLowerCase());
         }
 
@@ -279,16 +280,16 @@ public class BackendRouter {
         } else if ("spell".equals(qtype)) {
             correctAnswerVal = entry.w;
         } else if ("judge".equals(qtype)) {
-            correctAnswerVal = entry.m.equals(shown) ? "yes" : "no";
+            correctAnswerVal = entry.effM(book).equals(shown) ? "yes" : "no";
         } else if ("cn2en".equals(qtype) || "en2en".equals(qtype) || "sense".equals(qtype)) {
             // V13.5 en2en / V13.10 sense：题干是释义，正确答案仍是该单词本身
             correctAnswerVal = entry.w;
         } else {
-            correctAnswerVal = entry.m;
+            correctAnswerVal = entry.effM(book);
         }
         out.put("correct_answer", correctAnswerVal);
         // V12.4：判断题答错也要告诉正确释义——补充返回该词真实释义，前端展示"对/错：释义"
-        if ("judge".equals(qtype)) out.put("correct_mean", entry.m);
+        if ("judge".equals(qtype)) out.put("correct_mean", entry.effM(book));
         out.put("state", newRec.state);
         out.put("wrong_count", newRec.wrongCount);
         out.put("grade", newRec.wrongCount > 0 ? SrsEngine.gradeOf(newRec.wrongCount) : 0);

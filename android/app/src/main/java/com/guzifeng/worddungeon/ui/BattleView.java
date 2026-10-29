@@ -1463,6 +1463,7 @@ public class BattleView extends FrameLayout {
             body.put("card_mult", bonusDamageMult);   // V11.3 战利品伤害增益
             body.put("shown", quiz.isNull("judgeShown") ? JSONObject.NULL : quiz.optString("judgeShown"));
             body.put("form_key", quiz.optString("form_key", ""));   // V13.4：服务端按 word+形名权威判答
+            body.put("book", act.book);   // V13.13：活动词书（CS 书用 cm 判答）
             body.put("mode", mode);
             if ("quick".equals(mode)) body.put("quick_level", act.quickLevel);
             // R4：击杀词魂入账接线——非快刷才预测本题是否击杀敌人并下发 kill 标志，

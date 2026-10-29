@@ -26,6 +26,10 @@ public class WordEntry {
     public int c = 0;
     /** V13.10 熟词生义：{词性短码: [义项…]}，只收非首词性的生义；无则 null。 */
     public JSONObject s;
+    /** V13.13 CS 专用中文义项（跨书词，活动词书=cs 时用 cm 替代 m）；CS 独占词无此字段。 */
+    public String cm = "";
+    /** V13.13 CS 专用英文义项（跨书词，活动词书=cs 时英英题用 cd2 替代 d2）；CS 独占词无此字段。 */
+    public String cd2 = "";
 
     public WordEntry() {}
 
@@ -40,5 +44,20 @@ public class WordEntry {
 
     public boolean inBook(String book) {
         return b.contains(book);
+    }
+
+    /** V13.13 活动词书=cs 时返回计算机义 cm，否则返回普通义 m。 */
+    public String effM(String book) {
+        if ("cs".equals(book) && cm != null && !cm.isEmpty()) return cm;
+        return m;
+    }
+    /** V13.13 活动词书=cs 时返回计算机英文 cd2；跨书词无 cd2 时返回空串（不触发 en2en），否则返回普通 d2。 */
+    public String effD2(String book) {
+        if ("cs".equals(book)) {
+            if (cd2 != null && !cd2.isEmpty()) return cd2;
+            if (b != null && b.size() > 1) return "";
+            return d2;
+        }
+        return d2;
     }
 }

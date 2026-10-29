@@ -20,7 +20,7 @@ import java.util.Calendar;
 public class SettingsView extends LinearLayout {
 
     private final MainActivity act;
-    private TextView[] bookLines = new TextView[4];
+    private TextView[] bookLines = new TextView[5];
     private LinearLayout[] diffBoxes;   // V12.7 难度按钮引用（refresh 刷新选中高亮）
     private TextView rangeTxt, masteryTxt;
     private LinearLayout barHost;
@@ -31,8 +31,8 @@ public class SettingsView extends LinearLayout {
     private LinearLayout examConfigArea;
     private TextView examDateTxt;
 
-    private String[] bookIds = {"gaokao", "cet4", "cet6", "kaoyan"};
-    private String[] bookNames = {"高考", "四级", "六级", "考研"};
+    private String[] bookIds = {"gaokao", "cet4", "cet6", "kaoyan", "cs"};
+    private String[] bookNames = {"高考", "四级", "六级", "考研", "计算机"};
     private String[] diffIds = {"adaptive", "all", "easy", "normal", "hard"};
     private String[] diffNames = {"自适应", "全部", "简单", "中等", "困难"};
 
@@ -103,7 +103,7 @@ public class SettingsView extends LinearLayout {
         TextView st = Ui.text(getContext(), "设置", 19, Ui.TXT, true);
         LinearLayout.LayoutParams sl = lp(0, -2, 1f);
         row.addView(st, sl);
-        TextView smut = Ui.text(getContext(), "V13.12", 11, Ui.MUT, false);
+        TextView smut = Ui.text(getContext(), "V13.13", 11, Ui.MUT, false);
         row.addView(smut);
         body.addView(row);
         body.addView(spacer(10));
@@ -117,8 +117,11 @@ public class SettingsView extends LinearLayout {
         TextView secTitle = tipTitle("词书选择 ⓘ", "切换后即时过滤出题范围；一词可属多本词书。");
         card.addView(secTitle);
 
-        LinearLayout grid = new LinearLayout(getContext());
-        grid.setOrientation(HORIZONTAL);
+        // 5 个词书按钮：上排 3 个、下排 2 个，避免单行过挤
+        LinearLayout row1 = new LinearLayout(getContext());
+        row1.setOrientation(HORIZONTAL);
+        LinearLayout row2 = new LinearLayout(getContext());
+        row2.setOrientation(HORIZONTAL);
         for (int i = 0; i < bookIds.length; i++) {
             final int idx = i;
             LinearLayout box = new LinearLayout(getContext());
@@ -133,12 +136,15 @@ public class SettingsView extends LinearLayout {
             bookLines[idx] = ct;
             box.setOnClickListener(v -> {
                 act.book = bookIds[idx];
-                act.savePrefs();   // GAP-08：持久化词书选择
+                act.savePrefs();
                 refresh();
             });
-            grid.addView(box, lp(0, -2, 1f));
+            LinearLayout targetRow = (idx < 3) ? row1 : row2;
+            targetRow.addView(box, lp(0, -2, 1f));
         }
-        card.addView(grid);
+        card.addView(row1);
+        card.addView(spacer(6));
+        card.addView(row2);
         card.addView(spacer(8));
 
         TextView dh = tipTitle("难度选择 ⓘ", "自适应按能力 θ 抽词；选具体档则锁定 tier。");
@@ -680,10 +686,10 @@ public class SettingsView extends LinearLayout {
         card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
         card.addView(Ui.text(getContext(), "关于", 14, Ui.TXT, true));
         TextView about = Ui.text(getContext(),
-                "词库：开源 ECDICT 词典（7388 词，高考/四级/六级/考研）\n"
+                "词库：开源 ECDICT 词典（8873 词，高考/四级/六级/考研/计算机学术）\n"
                         + "学习算法：θ 自适应难度 + SM-2 间隔复习 + 题型阶梯（判断→认义→写义→拼写）\n"
                         + "模式：远征 5 层远征 · 无尽下潜挑战 · 错词 2 次封顶\n"
-                        + "版本：V13.12 · 每日目标可自定义（20/40/60 三档）",
+                        + "版本：V13.13 · 新增第5本词书「计算机学术」",
                 12, Ui.MUT, false);
         about.setLineSpacing(dp(4), 1f);
         card.addView(about);

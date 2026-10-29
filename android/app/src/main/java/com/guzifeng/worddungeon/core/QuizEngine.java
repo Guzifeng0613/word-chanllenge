@@ -227,7 +227,7 @@ public class QuizEngine {
         boolean toEn2en = false;
         if (formKey == null && a.en2en && a.force == null && !wrongReplay && rec != null) {
             WordEntry e0 = bank.entry(word);
-            if (e0 != null && !e0.d2.isEmpty()
+            if (e0 != null && !e0.effD2(a.book).isEmpty()
                     && runState.en2enGap >= GameConfig.EN2EN_REVIEW_GAP
                     && rnd.nextDouble() < GameConfig.EN2EN_PROB) {
                 toEn2en = true;
@@ -298,7 +298,7 @@ public class QuizEngine {
             opts2.add(word);
             Collections.shuffle(opts2, bank.rnd);
             quiz.qtype = "en2en";
-            quiz.d2 = e == null ? "" : e.d2;
+            quiz.d2 = e == null ? "" : e.effD2(a.book);
             quiz.options = opts2;
             quiz.correct = word;
             quiz.timeLimit = GameConfig.EN2EN_TIME;
@@ -437,7 +437,7 @@ public class QuizEngine {
         q.qtype = qtype;
         q.word = word;
         q.pos = e.p;
-        q.mean = e.m;
+        q.mean = e.effM(book);
         q.t = e.t;
         q.b = e.b.toArray(new String[0]);
         q.review = fromReview;
@@ -451,10 +451,10 @@ public class QuizEngine {
         switch (qtype) {
             case "en2cn": {
                 List<String> opts = bank.makeDistractors(word, 3, book, confuseEnemy);
-                opts.add(e.m);
+                opts.add(e.effM(book));
                 Collections.shuffle(opts, bank.rnd);
                 q.options = opts;
-                q.correct = e.m;
+                q.correct = e.effM(book);
                 q.timeLimit = (int) GameConfig.NORMAL_T;
                 break;
             }
@@ -480,7 +480,7 @@ public class QuizEngine {
                 boolean isFirst = rec == null || (!rec.graduated && rec.step == 0);
                 double correctBias = isFirst ? 0.60 : 0.45;
                 if (bank.rnd.nextDouble() < correctBias) {
-                    q.judgeShown = e.m; q.correct = "yes";
+                    q.judgeShown = e.effM(book); q.correct = "yes";
                 } else {
                     q.judgeShown = bank.judgeWrongMean(word, book);
                     q.correct = "no";
