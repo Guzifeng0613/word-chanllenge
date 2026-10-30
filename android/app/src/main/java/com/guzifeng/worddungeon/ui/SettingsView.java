@@ -588,7 +588,7 @@ public class SettingsView extends LinearLayout {
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(8), 0, dp(8));
-        TextView lab = Ui.text(getContext(), "战绩回顾", 13, Ui.MUT, false);
+        TextView lab = Ui.text(getContext(), "回顾看板", 13, Ui.MUT, false);
         row.addView(lab, lp(0, -2, 1f));
         TextView arrow = Ui.text(getContext(), "›", 20, Ui.GOLD, true);
         row.addView(arrow);
@@ -610,7 +610,7 @@ public class SettingsView extends LinearLayout {
         row.setOrientation(HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(8), 0, dp(8));
-        TextView lab = Ui.text(getContext(), "永久祝福", 13, Ui.MUT, false);
+        TextView lab = Ui.text(getContext(), "词魂祭坛", 13, Ui.MUT, false);
         row.addView(lab, lp(0, -2, 1f));
         TextView arrow = Ui.text(getContext(), "›", 20, Ui.GOLD, true);
         row.addView(arrow);
