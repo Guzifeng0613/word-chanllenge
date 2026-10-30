@@ -1,3 +1,8 @@
+## V13.26 · 双刃剑受击惩罚补全（2026-10-30）
+- 双刃剑卡（doubleedged）：之前只实现 bonusDamageMult=×1.3（伤害增益），卡面承诺的"受到伤害+20%"未实现。
+- 修复：hitPlayer 入口处若持有双刃剑，atk = round(atk × 1.2)，先放大再扣盾，与卡面一致；新局开始重置 doubleedged=false。
+- versionCode 76 / versionName 13.26。
+
 ## V13.25 · 拼写键盘/英英时限/技能卡修复（2026-10-30）
 - 拼写题输入框：从 VISIBLE_PASSWORD 密码键盘改普通 QWERTY 键盘（TYPE_CLASS_TEXT|NO_SUGGESTIONS，无 CAP_* 自动大写）。
 - 英英模式（en2en）答题时限：9s → 13s（+4s），其他题型不动。

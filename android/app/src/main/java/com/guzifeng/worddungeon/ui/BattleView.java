@@ -94,6 +94,7 @@ public class BattleView extends FrameLayout {
     private double lifestealPct = 0.0;     // 汲词：答对按伤害 10% 回血
     private boolean immortal = false;      // 不朽：致命伤以 1 HP 存活一次
     private boolean immortalUsed = false;
+    private boolean doubleedged = false;    // V13.26：双刃剑——受到的伤害 ×1.2
     // GAP-10：当前战斗内浮层（翻牌/泉/商店），返回键先关浮层而非弹退出确认
     private View overlayView = null;
     // GAP-01：抽卡 pity 计数（普通保底 / 史诗保底），由后端 /card/draw 返回值驱动
@@ -598,6 +599,7 @@ public class BattleView extends FrameLayout {
         critChance = 0.0; critMult = 2.0; comboHalved = false;
         shield = 0; soulMagnet = false; lifestealPct = 0.0;
         immortal = false; immortalUsed = false;
+        doubleedged = false;   // V13.26
         // V13.25：已生效卡状态行清空
         activeCardLabels.clear();
         if (activeCardsRow != null) { activeCardsRow.removeAllViews(); activeCardsRow.setVisibility(GONE); }
@@ -1839,6 +1841,8 @@ public class BattleView extends FrameLayout {
         }
     }
     private void hitPlayer(int atk) {
+        // V13.26：双刃剑——受到的伤害 ×1.2（先放大再扣盾，与卡面"受到伤害+20%"一致）
+        if (doubleedged) atk = (int) Math.round(atk * 1.2);
         // R2-A：错词护盾 shield——按点抵挡伤害（优先扣盾）
         if (shield > 0) {
             int absorbed = Math.min(shield, atk);
@@ -2398,7 +2402,7 @@ public class BattleView extends FrameLayout {
                 case "speednote":    bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
                 case "buildup":      bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
                 case "steady":       healAdd(5); break;
-                case "doubleedged":  bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
+                case "doubleedged":  bonusDamageMult = Math.max(bonusDamageMult, 1.3); doubleedged = true; break;
                 case "wordfire":     bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
                 case "glasscannon":  bonusDamageMult = Math.max(bonusDamageMult, 1.5); break;
                 default:
