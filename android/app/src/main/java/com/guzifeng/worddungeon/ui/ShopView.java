@@ -87,9 +87,14 @@ public class ShopView extends FrameLayout {
         reroll.setPadding(dp(14), dp(12), dp(14), dp(12));
         reroll.setBackground(canReroll ? Ui.gradient(999, 0xFF4DD0E1, 0xFF2B9BC0, 0)
                 : Ui.card(999, 0xFF2A3442, 0, 0));
-        reroll.setClickable(canReroll);
+        reroll.setClickable(true);   // V13.24：禁用态仍可点，点击只弹解释
         reroll.setOnClickListener(v -> {
-            if (souls < 25) return;
+            if (souls < 25) {
+                android.widget.Toast.makeText(getContext(),
+                        "词魂不足：需要 25，当前 " + souls + "；答对题目、连击可获得词魂",
+                        android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
             souls -= 25;
             cb.onReroll();
         });
@@ -133,9 +138,14 @@ public class ShopView extends FrameLayout {
         buy.setPadding(dp(12), dp(9), dp(12), dp(9));
         buy.setBackground(afford ? Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0)
                 : Ui.card(999, 0xFF2A3442, 0, 0));
-        buy.setClickable(afford);
+        buy.setClickable(true);   // V13.24：禁用态仍可点，点击只弹解释
         buy.setOnClickListener(v -> {
-            if (souls < it.price) return;
+            if (souls < it.price) {
+                android.widget.Toast.makeText(getContext(),
+                        "词魂不足：需要 " + it.price + "，当前 " + souls + "；答对题目、连击可获得词魂",
+                        android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
             souls -= it.price;
             cb.onBuy(it.kind, it.price, it.card);
             refreshSouls();

@@ -165,10 +165,14 @@ public class AltarView extends LinearLayout {
             btn.setGravity(Gravity.CENTER);
             btn.setPadding(dp(12), dp(10), dp(12), dp(10));
             btn.setBackground(Ui.card(10, afford ? Ui.GOLD : Ui.BG_PILL, 1, afford ? Ui.GOLD : Ui.LINE));
+            btn.setClickable(true);   // V13.24：禁用态仍可点，点击只弹解释
             if (afford) {
-                btn.setClickable(true);
                 Ui.pressable(btn);
                 btn.setOnClickListener(v -> doUpgrade(id));
+            } else {
+                btn.setOnClickListener(v -> android.widget.Toast.makeText(getContext(),
+                        "精华不足：需要 " + cost + "，当前 " + essence + "；局内战魂会在局末凝为精华",
+                        android.widget.Toast.LENGTH_SHORT).show());
             }
             card.addView(btn);
         }

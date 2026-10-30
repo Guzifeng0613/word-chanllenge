@@ -739,10 +739,15 @@ public class BattleView extends FrameLayout {
         sacrificeBtn.setText("🔥 献祭 · " + CardCatalog.PRICE_SACRIFICE + " 魂 → " + CardCatalog.SACRIFICE_DAMAGE + " 伤害");
         sacrificeBtn.setTextColor(afford ? Ui.TXT : Ui.MUT);
         sacrificeBtn.setBackground(Ui.card(12, afford ? 0x33FB923C : Ui.BG_PILL, 1, afford ? Ui.ORANGE : Ui.LINE));
-        sacrificeBtn.setClickable(afford);
+        sacrificeBtn.setClickable(true);   // V13.24：禁用态仍可点，点击只弹解释
         if (afford) {
             Ui.pressable(sacrificeBtn);
             sacrificeBtn.setOnClickListener(v -> doSacrifice());
+        } else {
+            // V13.24：资源不足时点击给解释，不执行购买
+            sacrificeBtn.setOnClickListener(v -> showFeed(
+                    "词魂不足：需要 " + CardCatalog.PRICE_SACRIFICE + "，当前 " + act.souls
+                    + "；答对题目、连击可获得词魂", Ui.RED));
         }
     }
 
