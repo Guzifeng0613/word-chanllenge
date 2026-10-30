@@ -28,6 +28,8 @@ public class ResultView extends FrameLayout {
     private TextView bigTitle, bigSub, bestTxt;
     private LinearLayout wordCardHost;
     private TextView againBtn;
+    // V13.30：本局收获卡异步字段
+    private TextView essenceGainTxt, streakRewardTxt, soulRewardTxt;
     private boolean win = false;
     private String mode = "campaign";
     private int layer = 1;
@@ -93,6 +95,19 @@ public class ResultView extends FrameLayout {
                 b.put("souls", act.souls);
                 b.put("cards", act.runCards);   // GAP-05：本局选卡数（成就 cards5/cards10 计数）
                 JSONObject res = act.router().dispatch("/progress/finish", "POST", b);
+                // V13.30：异步填充本局收获卡（精华/打卡/词魂）
+                try {
+                    final int eg = res == null ? 0 : res.optInt("essence_gained", 0);
+                    final int streak = res == null ? 0 : res.optInt("streak", 0);
+                    final int soulsNow = res == null ? act.souls : res.optInt("souls", act.souls);
+                    act.main().post(() -> {
+                        try {
+                            if (essenceGainTxt != null) essenceGainTxt.setText("精华 +" + eg);
+                            if (streakRewardTxt != null) streakRewardTxt.setText("连续打卡 " + streak + " 天");
+                            if (soulRewardTxt != null) soulRewardTxt.setText("词魂 " + soulsNow);
+                        } catch (Throwable ignore) {}
+                    });
+                } catch (Throwable ignore) {}
                 // V13.0 彩蛋：称号/火花双满首次触发，全屏圣辉动画（约 2s）
                 if (res != null && res.optBoolean("saint_triggered", false)) {
                     act.main().post(() -> {
@@ -189,7 +204,9 @@ public class ResultView extends FrameLayout {
         body.addView(lv);
         body.addView(spacer(10));
 
-        // statgrid（V7.0：2×2 统计格）
+        // statgrid（V7.0：2×2 统计格；V13.30 加小标题"战斗表现"）
+        body.addView(Ui.text(getContext(), "战斗表现", 12.5f, Ui.MUT, true));
+        body.addView(spacer(6));
         LinearLayout row1 = new LinearLayout(getContext());
         row1.setOrientation(HORIZONTAL);
         addStat(row1, questions + "", "答题数", true);
@@ -202,6 +219,24 @@ public class ResultView extends FrameLayout {
         if (!endless) addStat(row2, String.valueOf(act.runNewWords.size()), "新学词", false);   // GAP-14：与下方 chips 同一数据源
         if (endless) addStat(row2, kills + "", "击败敌人", true);
         body.addView(row2);
+        body.addView(spacer(12));
+
+        // V13.30：本局收获卡（精华/词魂/连续打卡/新学词）
+        LinearLayout reward = new LinearLayout(getContext());
+        reward.setOrientation(VERTICAL);
+        reward.setPadding(dp(14), dp(12), dp(14), dp(12));
+        reward.setBackground(Ui.card(14, Ui.CARD, 1, Ui.GOLD));
+        reward.addView(Ui.text(getContext(), "本局收获", 13, Ui.GOLD, true));
+        reward.addView(spacer(8));
+        essenceGainTxt = Ui.text(getContext(), "精华 +—", 15, Ui.GOLD, true);
+        soulRewardTxt = Ui.text(getContext(), "词魂 " + act.souls, 13, Ui.CYAN, true);
+        streakRewardTxt = Ui.text(getContext(), "打卡 — 天", 13, Ui.TXT, false);
+        reward.addView(essenceGainTxt);
+        reward.addView(spacer(4));
+        reward.addView(soulRewardTxt);
+        reward.addView(spacer(4));
+        reward.addView(streakRewardTxt);
+        body.addView(reward);
         body.addView(spacer(10));
 
         // 词卡（新学/错词 pill chips）
