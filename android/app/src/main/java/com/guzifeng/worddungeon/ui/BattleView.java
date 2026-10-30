@@ -148,7 +148,11 @@ public class BattleView extends FrameLayout {
     private TextView soulNum, hpLab;
     // V13.25：已生效技能卡常驻状态行（HUD 徽章）
     private LinearLayout activeCardsRow;
-    private final java.util.List<String> activeCardLabels = new java.util.ArrayList<>();
+    private android.widget.HorizontalScrollView activeCardsScroll;
+    // V13.29：按 id 聚合（同名即同 id），id→(name,count,rarityColor)
+    private final java.util.LinkedHashMap<String, String> activeCardNames = new java.util.LinkedHashMap<>();
+    private final java.util.HashMap<String, Integer> activeCardCounts = new java.util.HashMap<>();
+    private final java.util.HashMap<String, Integer> activeCardColors = new java.util.HashMap<>();
     // V11.8 投射打击：记录本次点击来源坐标（选项/判断/拼写框），发射攻击弹飞向敌人
     private float tapX = -1, tapY = -1;
     private View lowHpVignette;
@@ -306,13 +310,17 @@ public class BattleView extends FrameLayout {
         comboBox = comboBoxV;
         col.addView(spacer(spc(4)));
 
-        // V13.25：已生效技能卡常驻徽章行（无卡时 GONE，零残留）
+        // V13.25：已生效技能卡常驻徽章行（无卡时 GONE，零残留）；V13.29 包进 HSV 防溢出
         activeCardsRow = new LinearLayout(getContext());
         activeCardsRow.setOrientation(LinearLayout.HORIZONTAL);
         activeCardsRow.setGravity(Gravity.CENTER);
         activeCardsRow.setPadding(dpc(4), 0, dpc(4), 0);
         activeCardsRow.setVisibility(GONE);
-        col.addView(activeCardsRow);
+        activeCardsScroll = new android.widget.HorizontalScrollView(getContext());
+        activeCardsScroll.setHorizontalScrollBarEnabled(false);
+        activeCardsScroll.addView(activeCardsRow);
+        activeCardsScroll.setVisibility(GONE);
+        col.addView(activeCardsScroll);
 
         // 题目卡（qhead 大字 + 词性徽章 + 复仇徽章 + 提示 + 阶梯 + 计时）
         qbox = new LinearLayout(getContext());
@@ -601,9 +609,10 @@ public class BattleView extends FrameLayout {
         shield = 0; soulMagnet = false; lifestealPct = 0.0;
         immortal = false; immortalUsed = false;
         doubleedged = false;   // V13.26
-        // V13.25：已生效卡状态行清空
-        activeCardLabels.clear();
-        if (activeCardsRow != null) { activeCardsRow.removeAllViews(); activeCardsRow.setVisibility(GONE); }
+        // V13.25：已生效卡状态行清空（V13.29 改聚合结构）
+        activeCardNames.clear(); activeCardCounts.clear(); activeCardColors.clear();
+        if (activeCardsRow != null) activeCardsRow.removeAllViews();
+        if (activeCardsScroll != null) activeCardsScroll.setVisibility(GONE);
         // 词魂局内制（V11.8）：闯关/无尽各自一局，开局清零、局内获得局内使用，不跨局
         act.souls = 0;
         // V12.9 读祭坛永久祝福（账号级权威），应用体魄/引力/复苏/词锋/先知
@@ -2386,7 +2395,10 @@ public class BattleView extends FrameLayout {
             int rarity = card.optInt("rarity", 0);
             int color = rarity >= 2 ? Ui.PURPLE : rarity == 1 ? Ui.GOLD : Ui.CYAN;
             showFeed("🌟 获得卡：" + name, color);
-            activeCardLabels.add(name);
+            // V13.29：按 id 聚合（同名即同 id）
+            activeCardNames.putIfAbsent(id, name);
+            activeCardCounts.merge(id, 1, Integer::sum);
+            activeCardColors.putIfAbsent(id, color);
             refreshActiveCardsRow(color);
             switch (id) {
                 // ── 暴击类（R2-A：接暴击机制）──
@@ -2434,16 +2446,28 @@ public class BattleView extends FrameLayout {
     private void refreshActiveCardsRow(int lastColor) {
         if (activeCardsRow == null) return;
         activeCardsRow.removeAllViews();
-        if (activeCardLabels.isEmpty()) { activeCardsRow.setVisibility(GONE); return; }
-        for (int i = 0; i < activeCardLabels.size(); i++) {
-            TextView chip = Ui.text(getContext(), activeCardLabels.get(i), 10.5f, 0xFFC7D6E8, true);
+        if (activeCardNames.isEmpty()) {
+            activeCardsRow.setVisibility(GONE);
+            if (activeCardsScroll != null) activeCardsScroll.setVisibility(GONE);
+            return;
+        }
+        activeCardsRow.setVisibility(VISIBLE);
+        int i = 0;
+        for (java.util.Map.Entry<String, String> e : activeCardNames.entrySet()) {
+            String id = e.getKey();
+            String name = e.getValue();
+            int n = activeCardCounts.getOrDefault(id, 1);
+            int c = activeCardColors.getOrDefault(id, lastColor);
+            String label = n > 1 ? name + " ×" + n : name;
+            TextView chip = Ui.text(getContext(), label, 10.5f, 0xFFC7D6E8, true);
             chip.setPadding(dpc(8), dpc(3), dpc(8), dpc(3));
-            chip.setBackground(Ui.pill(0xFF0E2238, lastColor));
+            chip.setBackground(Ui.pill(0xFF0E2238, c));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             if (i > 0) lp.leftMargin = dpc(5);
             activeCardsRow.addView(chip, lp);
+            i++;
         }
-        activeCardsRow.setVisibility(VISIBLE);
+        if (activeCardsScroll != null) activeCardsScroll.setVisibility(VISIBLE);
     }
 
     /** 结算本局。 */
