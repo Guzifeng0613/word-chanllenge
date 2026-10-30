@@ -165,8 +165,8 @@ public final class GameConfig {
     public static final int EN2EN_REVIEW_GAP = 8;
     /** 达到间隔后仍要掷骰才升级为 en2en：约一半的候选复习题被升级，避免一上来全是英英题。 */
     public static final double EN2EN_PROB = 0.4;
-    /** en2en 题干较长，基础限时略宽于普通选择题（秒）。 */
-    public static final int EN2EN_TIME = 9;
+    /** en2en 题干较长，基础限时略宽于普通选择题（秒）。V13.25: 9→13，+4s。 */
+    public static final int EN2EN_TIME = 13;
     // ── V13.10 熟词生义（看中文生义选单词）：比 en2en 更轻量 ──
     /** sense 最小间隔：每连续 SENSE_GAP 个普通题之后才偶发 1 道熟词生义题。 */
     public static final int SENSE_GAP = 10;

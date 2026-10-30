@@ -1,3 +1,10 @@
+## V13.25 · 拼写键盘/英英时限/技能卡修复（2026-10-30）
+- 拼写题输入框：从 VISIBLE_PASSWORD 密码键盘改普通 QWERTY 键盘（TYPE_CLASS_TEXT|NO_SUGGESTIONS，无 CAP_* 自动大写）。
+- 英英模式（en2en）答题时限：9s → 13s（+4s），其他题型不动。
+- 英译英显示截断：未修，根因——qBody 位于横向 headRow（与词性标签/复习标签同行），英文释义 d2 较长时虽可换行但战斗页无 ScrollView，qbox 高度增长后选项区被挤出屏幕；后续需将 en2en 的 d2 改为独立全宽多行 TextView 置于 headRow 下方。
+- 技能卡生效修复：商店购买卡后 applyCard 写入 BattleView 局内字段（shield/critChance/lifestealPct/soulMagnet/bonusDamageMult 等），字段在答题结算/受击/击杀入账路径均有读取，全链路打通。
+- versionCode 75 / versionName 13.25。
+
 ## V13.24 · 资源不足禁用按钮点击给解释（2026-10-30）
 - 战斗页献祭按钮：词魂不足时仍可点，点击弹 Toast 说明缺口+获取方式，不执行献祭。
 - 商店购买/刷新按钮：词魂不足时点击弹 Toast，不执行购买/刷新。
