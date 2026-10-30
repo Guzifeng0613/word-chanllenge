@@ -1,3 +1,9 @@
+## V13.28 · 错词本空态补 CTA（2026-10-30）
+- 错词本空态（words.length()==0）原来只有"没有错词，继续远征！"文案卡，无任何可点击入口；补金色渐变"⚔ 去远征"按钮（与主页"开始远征"同入口：act.mode=campaign → Screen.BATTLE）。
+- 有数据分支布局一字未动；主页/成就墙空态已完整，不动。
+- en2en 长释义换行后选项被挤出屏幕、战斗页无 ScrollView 的根因继续记录（本轮明确不修截断）。
+- versionCode 78 / versionName 13.28。
+
 ## V13.27 · 拼写输入 InputFilter（2026-10-30）
 - 拼写题输入框加 InputFilter：仅允许 a-z/A-Z 英文字母，大写自动转小写；数字/空格/标点/中文一律丢弃；长度限词长。
 - 普通 QWERTY 键盘（TYPE_CLASS_TEXT|NO_SUGGESTIONS）保持不变；判定逻辑不动。

@@ -109,6 +109,22 @@ public class WrongbookView extends LinearLayout {
             empty.setPadding(0, dp(30), 0, dp(30));
             empty.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
             body.addView(empty);
+            // V13.28：空态补 CTA——直接开始一局远征（与主页"开始远征"同入口）
+            body.addView(spacer(12));
+            TextView go = Ui.text(getContext(), "⚔ 去远征", 15, 0xFF081326, true);
+            go.setGravity(Gravity.CENTER);
+            go.setPadding(dp(14), dp(13), dp(14), dp(13));
+            android.graphics.drawable.GradientDrawable goGd = new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    new int[]{0xFFFCD34D, 0xFFF59E0B});
+            goGd.setCornerRadius(dp(13));
+            go.setBackground(goGd);
+            Ui.ctaGlow(go);
+            go.setOnClickListener(v -> {
+                act.mode = "campaign";
+                act.show(MainActivity.Screen.BATTLE);
+            });
+            body.addView(go);
             return;
         }
 
