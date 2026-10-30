@@ -1,3 +1,8 @@
+## V13.27 · 拼写输入 InputFilter（2026-10-30）
+- 拼写题输入框加 InputFilter：仅允许 a-z/A-Z 英文字母，大写自动转小写；数字/空格/标点/中文一律丢弃；长度限词长。
+- 普通 QWERTY 键盘（TYPE_CLASS_TEXT|NO_SUGGESTIONS）保持不变；判定逻辑不动。
+- versionCode 77 / versionName 13.27。
+
 ## V13.26 · 双刃剑受击惩罚补全（2026-10-30）
 - 双刃剑卡（doubleedged）：之前只实现 bonusDamageMult=×1.3（伤害增益），卡面承诺的"受到伤害+20%"未实现。
 - 修复：hitPlayer 入口处若持有双刃剑，atk = round(atk × 1.2)，先放大再扣盾，与卡面一致；新局开始重置 doubleedged=false。

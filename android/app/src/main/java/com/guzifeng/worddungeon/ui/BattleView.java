@@ -6,6 +6,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.Typeface;
@@ -1165,6 +1166,20 @@ public class BattleView extends FrameLayout {
                 // 仅 TYPE_CLASS_TEXT | NO_SUGGESTIONS，不含 VISIBLE_PASSWORD/CAP_* 变体。
                 spellInput.setInputType(InputType.TYPE_CLASS_TEXT
                         | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                // V13.27：仅允许英文字母（大写自动转小写），过滤数字/空格/标点/中文；长度限词长
+                final int spellLen = word.length();
+                InputFilter letterLowerFilter = (source, start, end, dest, dstart, dend) -> {
+                    boolean changed = false;
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = start; i < end; i++) {
+                        char c = source.charAt(i);
+                        if (c >= 'A' && c <= 'Z') { sb.append(Character.toLowerCase(c)); changed = true; }
+                        else if (c >= 'a' && c <= 'z') { sb.append(c); }
+                        else { changed = true; } // 丢弃非字母
+                    }
+                    return changed ? sb.toString() : null;
+                };
+                spellInput.setFilters(new InputFilter[]{ letterLowerFilter, new InputFilter.LengthFilter(spellLen) });
                 spellInput.setFocusable(true);
                 spellInput.setFocusableInTouchMode(true);
                 spellInput.setTextColor(Ui.TXT);
