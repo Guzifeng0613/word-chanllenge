@@ -245,10 +245,10 @@ public class ResultView extends FrameLayout {
         wordCardHost.setPadding(dp(14), dp(12), dp(14), dp(12));
         wordCardHost.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
         wordCardHost.addView(Ui.text(getContext(), "本次新学的词", 13, Ui.TXT, true));
-        wordCardHost.addView(chipsRow(act.runNewWords, Ui.CYAN));
+        wordCardHost.addView(chipsRow(act.runNewWords, Ui.CYAN, "个"));
         wordCardHost.addView(spacer(8));
         wordCardHost.addView(Ui.text(getContext(), "仍需复习的错词", 13, Ui.TXT, true));
-        wordCardHost.addView(chipsRow(act.runWrongWords, Ui.RED));
+        wordCardHost.addView(chipsRow(act.runWrongWords, Ui.RED, "个错词"));
         // R3：有错词时提供直达错词本复习入口（MainActivity 路由 WRONGBOOK 已可达，直达）
         if (!act.runWrongWords.isEmpty()) {
             TextView toWrong = Ui.text(getContext(), "📕 去错词本复习", 13, Ui.CYAN, true);
@@ -287,7 +287,7 @@ public class ResultView extends FrameLayout {
         // 填充数据
         if (endless) {
             bigTitle.setText("无尽挑战 · 抵达第 " + layer + " 层");
-            bigSub.setText(win ? "新纪录！你比以往任何一次都潜得更深。" : "深渊终将吞噬所有词灵使，但错词已为你保留。");
+            bigSub.setText(win ? "新纪录！你比以往任何一次都潜得更深。" : "深渊吞噬了远征，但错词已为你保留。");
         } else if (quick) {
             bigTitle.setText(win ? "快刷完成！" : "快刷中断");
             bigSub.setText(win ? "高频词快速刷完一轮，继续巩固！" : "别灰心，错词已经全部保留。");
@@ -297,13 +297,21 @@ public class ResultView extends FrameLayout {
         }
         fillLevelCard(badge, ll, barl);
 
-        // V11.3 逐项入场
-        Ui.entrance(face, 60);
-        Ui.entrance(lv, 200);
-        Ui.entrance(row1, 230);   // UI-iteration-19：2×2 统计格补入场，补全错落节奏
-        Ui.entrance(row2, 260);
-        Ui.entrance(wordCardHost, 330);
-        Ui.entrance(againBtn, 460);
+        // V13.36：结算页用纯 alpha fadeIn（无 translationY/overshoot），杜绝入场瞬间顶部露出残留字
+        fadeIn(face, 60);
+        fadeIn(lv, 200);
+        fadeIn(row1, 230);
+        fadeIn(row2, 260);
+        fadeIn(wordCardHost, 330);
+        fadeIn(againBtn, 460);
+    }
+
+    /** V13.36：纯 alpha 淡入，不动位置，避免入场动画露出残留文字。 */
+    private void fadeIn(View v, long delay) {
+        try {
+            v.setAlpha(0f);
+            v.animate().alpha(1f).setStartDelay(delay).setDuration(420).start();
+        } catch (Throwable ignore) {}
     }
 
     private void addStat(LinearLayout row, String v, String l, boolean count) {
@@ -359,7 +367,7 @@ public class ResultView extends FrameLayout {
     }
 
     /** V7.0 词 pill chips：一排圆角描边小胶囊，空则显示「无」。 */
-    private LinearLayout chipsRow(java.util.List<String> words, int color) {
+    private LinearLayout chipsRow(java.util.List<String> words, int color, String overflowLabel) {
         LinearLayout wrap = new LinearLayout(getContext());
         wrap.setOrientation(HORIZONTAL);
         wrap.setPadding(0, dp(5), 0, dp(2));
@@ -367,15 +375,23 @@ public class ResultView extends FrameLayout {
             wrap.addView(Ui.text(getContext(), "无", 12, Ui.MUT, false));
             return wrap;
         }
-        for (int i = 0; i < words.size(); i++) {
+        int shown = Math.min(words.size(), 4);
+        for (int i = 0; i < shown; i++) {
             TextView chip = Ui.text(getContext(), words.get(i), 12, color, true);
-            chip.setSingleLine(true);   // V12.7.11 单词强制单行显示，不换行不折行
-            chip.setMaxWidth(dp(160));  // 防超长词撑破行；过长省略（ellipsize）
+            chip.setSingleLine(true);
+            chip.setMaxWidth(dp(160));
             chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
             chip.setPadding(dp(10), dp(4), dp(10), dp(4));
             chip.setBackground(Ui.pill(Ui.BG_PILL, color));
             wrap.addView(chip);
-            if (i < words.size() - 1) wrap.addView(Ui.spacer(getContext(), 6));
+            wrap.addView(Ui.spacer(getContext(), 6));
+        }
+        if (words.size() > 4) {
+            int rest = words.size() - 4;
+            TextView more = Ui.text(getContext(), "等 " + rest + " " + overflowLabel, 12, Ui.MUT, false);
+            more.setPadding(dp(10), dp(4), dp(10), dp(4));
+            more.setBackground(Ui.pill(Ui.BG_PILL, Ui.MUT));
+            wrap.addView(more);
         }
         return wrap;
     }

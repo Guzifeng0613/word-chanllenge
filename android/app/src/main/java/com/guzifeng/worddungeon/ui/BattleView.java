@@ -740,7 +740,8 @@ public class BattleView extends FrameLayout {
             enemyName.animate().alpha(1f).setDuration(230).start();
             enemyTag.animate().alpha(1f).setDuration(230).start();
             enemyLevel.animate().alpha(1f).setDuration(230).start();
-            warnTxt.setText("答错 / 超时将受到 " + atk + " 点伤害");
+            int shownAtk = doubleedged ? (int) Math.round(atk * 1.2) : atk;   // V13.36：双刃剑×1.2 同步展示
+            warnTxt.setText("答错 / 超时将受到 " + shownAtk + " 点伤害");
             enemyName.setTextColor(e.optBoolean("champion", false) ? Ui.GOLD : Ui.TXT);
             if (campaign) {
                 topTxt.setText("第 " + layer + " 层 · " + layerName + "  " + (enc + 1) + "/" + layerEncTotal);
@@ -1042,7 +1043,7 @@ public class BattleView extends FrameLayout {
             String prog = remain <= 0 ? "· MASTERED" : "距掌握 " + remain + "/" + masterStage;
             ladderTxt.setData(labs, stage, "复习", prog);
         } else {
-            String[] labs = {"识", "认", "写", "拼"};
+            String[] labs = {"识", "认", "选", "拼"};   // V13.36：cn2en 四选一标"选"原"写"误导
             ladderTxt.setData(labs, step, "", "");
         }
 
@@ -2450,7 +2451,13 @@ public class BattleView extends FrameLayout {
                 case "speednote":    bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
                 case "buildup":      bonusDamageMult = Math.max(bonusDamageMult, 1.1); break;
                 case "steady":       healAdd(5); break;
-                case "doubleedged":  bonusDamageMult = Math.max(bonusDamageMult, 1.3); doubleedged = true; break;
+                case "doubleedged":  bonusDamageMult = Math.max(bonusDamageMult, 1.3); doubleedged = true;
+                    // V13.36：买到双刃剑后同步刷新 warnTxt 显示含×1.2 的数值
+                    if (enemy != null && warnTxt != null) {
+                        int baseAtk = enemy.optInt("atk", 10);
+                        warnTxt.setText("答错 / 超时将受到 " + Math.round(baseAtk * 1.2f) + " 点伤害");
+                    }
+                    break;
                 case "wordfire":     bonusDamageMult = Math.max(bonusDamageMult, 1.3); break;
                 case "glasscannon":  bonusDamageMult = Math.max(bonusDamageMult, 1.5); break;
                 default:
