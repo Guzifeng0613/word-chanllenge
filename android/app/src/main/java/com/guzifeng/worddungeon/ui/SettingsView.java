@@ -889,6 +889,7 @@ public class SettingsView extends LinearLayout {
     private TextView tipTitle(String s, String tip) {
         TextView t = Ui.text(getContext(), s, 14, Ui.TXT, true);
         t.setClickable(true);
+        Ui.pressable(t);   // V13.32：可点击视觉反馈
         t.setOnClickListener(v -> android.widget.Toast.makeText(getContext(), tip, android.widget.Toast.LENGTH_LONG).show());
         return t;
     }
