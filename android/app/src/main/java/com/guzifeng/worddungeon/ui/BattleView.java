@@ -157,6 +157,7 @@ public class BattleView extends FrameLayout {
     private float tapX = -1, tapY = -1;
     private View lowHpVignette;
     private TextView flowBanner;
+    private TextView comboHintView;   // V13.31：独立心流引导 overlay
     private TextView summonBanner;              // 词魔出现提示（自由位置 x73 y30）
     private Runnable hideSummonBanner, hideFeedbackBar;
     // V11.5 答题反馈：选项引用（对错高亮）+ 拼写字母格
@@ -167,6 +168,7 @@ public class BattleView extends FrameLayout {
     private int tileLen = 0;
     // V11.8 连击心流槽：5 格青色 dots，答对点亮、满 5 触发心流时闪光（open loop 前瞻钩子）
     private final List<TextView> comboDots = new ArrayList<>();
+    private boolean comboHintShown = false;   // V13.31：首次3连击心流引导只弹一次
     // R1-1：上次已点亮格数，用于判定 off→on 的新点亮格触发轻微弹动
     private int dotFillApplied = 0;
 
@@ -435,6 +437,18 @@ public class BattleView extends FrameLayout {
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
 
+        // V13.31：心流引导独立 overlay（不被答对流程内其他 showFeed 覆盖）
+        comboHintView = new TextView(getContext());
+        comboHintView.setTextSize(15);
+        comboHintView.setTypeface(Typeface.DEFAULT_BOLD);
+        comboHintView.setGravity(Gravity.CENTER);
+        comboHintView.setPadding(dp(14), dp(8), dp(14), dp(8));
+        comboHintView.setVisibility(GONE);
+        comboHintView.setBackground(Ui.card(999, 0x33000000, 1, Ui.CYAN));
+        FrameLayout.LayoutParams chLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        chLp.topMargin = dp(70);
+        addView(comboHintView, chLp);
+
         // 答题反馈条（V12.7.11：紧凑内容尺寸 WRAP_CONTENT——修复无参数 addView 默认 MATCH_PARENT
         //  导致黑框铺满全屏的尺寸 bug；位置放用户圈定区 y34 顶部，中心≈40% 不遮单词）
         feedbackBar = new FrameLayout(getContext());
@@ -586,6 +600,7 @@ public class BattleView extends FrameLayout {
         layerFinal = false;
         hp = 100;
         combo = 0;
+        comboHintShown = false;   // V13.31
         wrongInRun = 0;
         questionsInRun = 0;
         correctInRun = 0;
@@ -637,6 +652,7 @@ public class BattleView extends FrameLayout {
         updateHud();
         lowHpVignette.setVisibility(GONE);
         flowBanner.setVisibility(GONE);
+        if (comboHintView != null) comboHintView.setVisibility(GONE);   // V13.31
         initTts();
         if ("quick".equals(mode)) {
             // 快刷：无敌人、无玩家血条，纯快速答题 + 振动/音效反馈
@@ -1574,6 +1590,11 @@ public class BattleView extends FrameLayout {
                 comboSub.setText(comboSubText(combo));
                 refreshComboNumStyle();   // UI-iteration-05：三档字号+变色（替代旧 setColor）
                 updateComboDots(combo);
+                // V13.31：首次3连击提示心流（整场一次）
+                if (!comboHintShown && combo == 3) {
+                    comboHintShown = true;
+                    showComboHint();
+                }
                 // V12.5 连击里程碑：每 5 连击全屏横幅
                 if (combo % 5 == 0) showComboBanner(combo);
                 // V12.5 快答判定：拼写按剩余比例、选择按耗时
@@ -3076,6 +3097,21 @@ public class BattleView extends FrameLayout {
             flowBanner.animate().scaleX(1f).scaleY(1f).setDuration(220).start();
             main.postDelayed(() -> flowBanner.animate().alpha(0f).setDuration(350)
                     .withEndAction(() -> flowBanner.setVisibility(GONE)).start(), 900);
+        } catch (Throwable ignore) {}
+    }
+
+    /** V13.31：首次3连击心流引导独立 overlay（不被答对流程内其他 showFeed 覆盖）。 */
+    private void showComboHint() {
+        try {
+            comboHintView.setText("💫 再连 2 击进入心流，额外获得词魂");
+            comboHintView.setTextColor(Ui.CYAN);
+            comboHintView.setVisibility(VISIBLE);
+            comboHintView.setAlpha(1f);
+            comboHintView.setScaleX(0.7f);
+            comboHintView.setScaleY(0.7f);
+            comboHintView.animate().scaleX(1f).scaleY(1f).setDuration(220).start();
+            main.postDelayed(() -> comboHintView.animate().alpha(0f).setDuration(350)
+                    .withEndAction(() -> comboHintView.setVisibility(GONE)).start(), 2200);
         } catch (Throwable ignore) {}
     }
 
