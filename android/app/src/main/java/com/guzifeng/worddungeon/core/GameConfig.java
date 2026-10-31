@@ -94,7 +94,7 @@ public final class GameConfig {
     // 快刷档位
     public static final String[] QUICK_LEVELS = {"normal", "hard", "hell"};
     public static final double[] QUICK_FREQ_POW = {1.0, 0.5, 0.2};
-    public static final double[] QUICK_SPELL_BIAS = {0.0, 0.35, 0.75};
+    public static final double[] QUICK_SPELL_BIAS = {0.0, 0.15, 0.35};   // V13.38：hard/hell 拼写占比下调
     public static final int[] QUICK_SPELL_TIME_ADD = {0, 1, 3};
     public static final double[] QUICK_BASE_FREQ = {1.0, 0.6, 0.3};
     public static final double[] QUICK_LEVEL_FACTOR = {1.0, 1.5, 2.0};

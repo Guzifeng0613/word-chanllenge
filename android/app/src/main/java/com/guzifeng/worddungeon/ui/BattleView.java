@@ -329,19 +329,20 @@ public class BattleView extends FrameLayout {
         qbox.setOrientation(LinearLayout.VERTICAL);
         qbox.setPadding(dpc(14), dpc(6), dpc(14), dpc(6));
         qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));   // UI-iteration-10：题干盒提亮 CARD2，与选项区同级
-        LinearLayout headRow = new LinearLayout(getContext());
-        headRow.setOrientation(LinearLayout.HORIZONTAL);
-        headRow.setGravity(Gravity.CENTER_VERTICAL);
+        // V13.38：headRow 改 FrameLayout，单词全宽居中，posTag/revTag 右上角 overlay 不挤占
+        FrameLayout headRow = new FrameLayout(getContext());
         qBody = Ui.text(getContext(), "", compactF < 1f ? 19f : 22f, Ui.TXT, true);
         qBody.setGravity(Gravity.CENTER);
-        headRow.addView(qBody, new LinearLayout.LayoutParams(0, -2, 1f));
+        headRow.addView(qBody, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
         posTag = Ui.text(getContext(), "", 12, Ui.GOLD, true);
-        posTag.setSingleLine(true);   // V12.5 词性标签不换行、不被挤压
-        LinearLayout.LayoutParams posLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        posTag.setSingleLine(true);
+        FrameLayout.LayoutParams posLp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
         posTag.setLayoutParams(posLp);
         headRow.addView(posTag);
         revTag = Ui.text(getContext(), "", 12, Ui.PURPLE, true);
+        FrameLayout.LayoutParams revLp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
+        revLp.setMargins(0, 0, dpc(50), 0);
+        revTag.setLayoutParams(revLp);
         headRow.addView(revTag);
         qbox.addView(headRow);
         faTxt = Ui.text(getContext(), "", 11, Ui.GOLD, false);
@@ -658,6 +659,7 @@ public class BattleView extends FrameLayout {
             // 快刷：无敌人、无玩家血条，纯快速答题 + 振动/音效反馈
             enemyCard.setVisibility(GONE);
             playerHudBox.setVisibility(GONE);
+            topTxt.setText("快速刷题");   // V13.38：速刷标题不再显示层数
         } else {
             enemyCard.setVisibility(VISIBLE);
             playerHudBox.setVisibility(VISIBLE);

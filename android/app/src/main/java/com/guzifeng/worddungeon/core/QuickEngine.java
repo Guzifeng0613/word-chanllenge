@@ -121,15 +121,28 @@ public class QuickEngine {
         return items.get(items.size() - 1);
     }
 
+    // V13.38：速刷题型收敛——judge 90% 转四选一；新词固定四选一
+    private String choiceQType() {
+        return rnd.nextBoolean() ? "en2cn" : "cn2en";
+    }
+    private String maybeConvertJudge(String qt) {
+        if ("judge".equals(qt) && rnd.nextDouble() < 0.9) return choiceQType();
+        return qt;
+    }
+
     public Quiz draw(Map<String, WordRec> progress, String book, RunState runState, long now) {
         if (progress == null) progress = new java.util.HashMap<>();
         if (runState == null) runState = new RunState();
 
         List<WordEntry> pool = new ArrayList<>();
+        List<WordEntry> highPool = new ArrayList<>();   // V13.38：高频池 freqScore≥0.5
         for (WordEntry e : bank.words) {
             if (book != null && !e.inBook(book)) continue;
             pool.add(e);
+            if (freqScore(e.w) >= 0.5) highPool.add(e);
         }
+        // V13.38：双池 90/10——90% 从高频池抽，10% 从全池抽
+        List<WordEntry> effectivePool = (!highPool.isEmpty() && rnd.nextDouble() < 0.9) ? highPool : pool;
 
         // ── 路径 1：局内进阶队列（同一局内 识→认→写→拼 走完阶梯，题型多样）──
         double r = rnd.nextDouble();
@@ -146,7 +159,7 @@ public class QuickEngine {
         if (rnd.nextDouble() < GameConfig.QUICK_NEW_PICK[idx]) {
             List<String> unseen = new ArrayList<>();
             List<Double> uw = new ArrayList<>();
-            for (WordEntry e : pool) {
+            for (WordEntry e : effectivePool) {
                 String w = e.w;
                 if (progress.containsKey(w) || !runState.cap(w)) continue;
                 if (QuizEngine.cold(runState, w)) continue;
@@ -155,7 +168,7 @@ public class QuickEngine {
             }
             if (!unseen.isEmpty()) {
                 String w = weightedPick(unseen, uw);
-                return build("judge", w, null, runState, book);
+                return build(choiceQType(), w, null, runState, book);   // V13.38：新词固定四选一
             }
         }
 
@@ -163,7 +176,7 @@ public class QuickEngine {
         // 拼写候选（按档门槛；冷却滤除）
         List<String> spellWords = new ArrayList<>();
         List<Double> spellW = new ArrayList<>();
-        for (WordEntry e : pool) {
+        for (WordEntry e : effectivePool) {
             String w = e.w;
             if (!runState.cap(w) || !canSpell(progress.get(w), w)) continue;
             double wt = quickWeight(w, progress.get(w));
@@ -185,14 +198,14 @@ public class QuickEngine {
         } else {
             List<String> words = new ArrayList<>();
             List<Double> ws = new ArrayList<>();
-            for (WordEntry e : pool) {
+            for (WordEntry e : effectivePool) {
                 String w = e.w;
                 if (!runState.cap(w)) continue;
                 double wt = quickWeight(w, progress.get(w));
                 if (wt > 0) { words.add(w); ws.add(wt); }
             }
             if (words.isEmpty()) {
-                for (WordEntry e : pool) {
+                for (WordEntry e : effectivePool) {
                     String w = e.w;
                     if (runState.cap(w)) { words.add(w); ws.add(1.0); }
                 }
@@ -207,6 +220,7 @@ public class QuickEngine {
             qtype = SrsEngine.typeForWord(progress.get(word));
             if ("spell".equals(qtype) && !canSpell(progress.get(word), word)) qtype = "cn2en";
             if ("spell".equals(qtype) && word.length() > 8) qtype = "cn2en";
+            qtype = maybeConvertJudge(qtype);   // V13.38：judge 90% 转四选一
             qtype = QuizEngine.guardSpell(runState, qtype, word);   // 先见后拼
         }
         return build(qtype, word, progress.get(word), runState, book);

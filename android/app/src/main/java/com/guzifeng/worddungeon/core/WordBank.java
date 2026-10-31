@@ -230,7 +230,7 @@ public class WordBank {
         return out;
     }
 
-    /** judge 错题的错误释义：优先同组兄弟词，否则词书池随机（排除同组）。 */
+    /** judge 错题的错误释义：优先同组兄弟词，其次相近候选（同词性/长度差≤2/词频同量级），最后随机兜底。 */
     public String judgeWrongMean(String word, String book) {
         List<String> g = confuseGroup(word);
         if (g != null) {
@@ -238,6 +238,21 @@ public class WordBank {
                 if (!w.equals(word) && byWord.containsKey(w)) return byWord.get(w).m;
             }
         }
+        WordEntry src = byWord.get(word);
+        // V13.38：相近候选——同词性 + 长度差≤2 + 词频对数差≤1
+        java.util.List<String> near = new java.util.ArrayList<>();
+        java.util.List<String> samePos = new java.util.ArrayList<>();
+        for (WordEntry e : words) {
+            if (e.w.equals(word)) continue;
+            if (src != null && !e.p.equals(src.p)) continue;
+            samePos.add(e.w);
+            if (Math.abs(e.w.length() - word.length()) <= 2) {
+                double lf = Math.log10(Math.max(1, e.f)), ls = Math.log10(Math.max(1, src == null ? 1000 : src.f));
+                if (Math.abs(lf - ls) <= 1.0) near.add(e.w);
+            }
+        }
+        if (!near.isEmpty()) return byWord.get(near.get(rnd.nextInt(near.size()))).m;
+        if (!samePos.isEmpty()) return byWord.get(samePos.get(rnd.nextInt(samePos.size()))).m;
         List<String> pool = layerPool(word, book);
         if (pool.isEmpty()) return byWord.get(word).m;
         return byWord.get(pool.get(rnd.nextInt(pool.size()))).m;
