@@ -43,7 +43,7 @@ public final class CardCatalog {
         // ── 普通 common(0) ──
         add("speednote", "速记", 0, "3 秒内答对的伤害额外 +30%");
         add("combomaster", "连击大师", 0, "连击 ≥ 8 时，伤害 +50%");
-        add("steady", "稳扎稳打", 0, "连击 ≥ 5 时，每答对 3 题恢复 2 HP");
+        add("steady", "稳扎稳打", 0, "获得时立即恢复 5 点生命");
         add("shield", "错词护盾", 0, "每场战斗开始时获得 6 点护盾");
         add("buildup", "厚积薄发", 0, "FAMILIAR / MASTERED 的词伤害额外 +20%");
         add("soulmagnet", "词魂引力", 0, "战斗胜利获得的词魂 +40%");
@@ -52,12 +52,12 @@ public final class CardCatalog {
         add("warmup", "热身", 0, "每场战斗前 3 题，限时 +2 秒");
         // ── 稀有 rare(1) ──
         add("flash", "灵光乍现", 1, "每题 15% 概率暴击，造成双倍伤害");
-        add("spellboost", "默写强化", 1, "拼写题伤害 +80%");
+        add("spellboost", "默写强化", 1, "造成的伤害 +20%");
         add("spellmaster", "精准默写", 1, "拼写题答对恢复 4 HP，且拼写题再 +20% 伤害");
         add("unstop", "势如破竹", 1, "答错时连击不清零，而是降为一半（向下取整）");
         add("timectrl", "时间掌控", 1, "题目限时 +3 秒；超时受击伤害减半");
         add("retreat", "以退为进", 1, "每次答错后，下一题伤害 +60%（最多叠加 1 层）");
-        add("combolightning", "连击闪电", 1, "连击每 +1，伤害额外 +3%（随连击叠加）");
+        add("combolightning", "连击闪电", 1, "造成的伤害固定 +15%");
         add("lifesteal", "汲词", 1, "答对时恢复本次伤害 10% 的 HP");
         add("doubleedged", "双刃剑", 1, "造成的伤害 +30%，但受到的伤害 +20%");
         // ── 史诗 epic(2) ──
