@@ -184,6 +184,8 @@ public class BattleView extends FrameLayout {
     private float compactF = 1f;
     private int dpc(float v) { return Math.round(dp(v) * compactF); }
     private int spc(int dp) { return Math.round(dp * compactF); }
+    // V13.39：速刷答题单元（连击行+题目卡+答题区）垂直居中的弹性空间，quick 模式上下各一
+    private View elasticTop, elasticBottom;
 
     public BattleView(Context c) {
         super(c);
@@ -277,6 +279,11 @@ public class BattleView extends FrameLayout {
         enemyCard = ebox;
         col.addView(ebox);
         col.addView(spacer(spc(6)));
+
+        // V13.39：速刷上弹性空间（weight 顶起答题单元，campaign 下 GONE）
+        elasticTop = new View(getContext());
+        col.addView(elasticTop, new LinearLayout.LayoutParams(-1, 0, 1f));
+        elasticTop.setVisibility(GONE);
 
         // 连击行（独立：连击 + 数字 + 心流提示，下方心流圆点）
         LinearLayout comboBoxV = new LinearLayout(getContext());
@@ -375,6 +382,11 @@ public class BattleView extends FrameLayout {
         answerArea.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
         col.addView(answerArea, new LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT));
         col.addView(spacer(spc(6)));
+
+        // V13.39：速刷下弹性空间（与 elasticTop 对称，答题单元垂直居中）
+        elasticBottom = new View(getContext());
+        col.addView(elasticBottom, new LinearLayout.LayoutParams(-1, 0, 1f));
+        elasticBottom.setVisibility(GONE);
 
         // 玩家 HUD（V7.0 playerhud：生命标签 + 绿血条 + 词魂计数）
         LinearLayout pbox = new LinearLayout(getContext());
@@ -659,10 +671,15 @@ public class BattleView extends FrameLayout {
             // 快刷：无敌人、无玩家血条，纯快速答题 + 振动/音效反馈
             enemyCard.setVisibility(GONE);
             playerHudBox.setVisibility(GONE);
+            // V13.39：速刷答题单元垂直居中
+            if (elasticTop != null) elasticTop.setVisibility(VISIBLE);
+            if (elasticBottom != null) elasticBottom.setVisibility(VISIBLE);
             topTxt.setText("快速刷题");   // V13.38：速刷标题不再显示层数
         } else {
             enemyCard.setVisibility(VISIBLE);
             playerHudBox.setVisibility(VISIBLE);
+            if (elasticTop != null) elasticTop.setVisibility(GONE);
+            if (elasticBottom != null) elasticBottom.setVisibility(GONE);
             spawnEnemy();
             battleIntro();
         }
@@ -2540,29 +2557,81 @@ public class BattleView extends FrameLayout {
         }
         try {
             if ("quick".equals(mode)) {
-                new android.app.AlertDialog.Builder(getContext())
-                        .setTitle("退出快刷？")
-                        .setMessage("本次已刷 " + quickDone + " 词；退出后返回主页，学习进度已保存，错词已记入错词本。")
-                        .setNegativeButton("继续刷", null)
-                        .setPositiveButton("退出", (d, w) -> finishQuickSession())
-                        .show();
+                showConfirmDialog("退出快刷？",
+                        "本次已刷 " + quickDone + " 词；退出后返回主页，学习进度已保存，错词已记入错词本。",
+                        "继续刷", "退出", this::finishQuickSession);
             } else if ("endless".equals(mode)) {
-                new android.app.AlertDialog.Builder(getContext())
-                        .setTitle("退出无尽？")
-                        .setMessage("本次已到第 " + layer + " 层，答对 " + correctInRun + " 题；退出后战绩将记入回顾看板，错词已记入错词本。")
-                        .setNegativeButton("继续战斗", null)
-                        .setPositiveButton("退出", (d, w) -> finishEndlessSession())
-                        .show();
+                showConfirmDialog("退出无尽？",
+                        "本次已到第 " + layer + " 层，答对 " + correctInRun + " 题；退出后战绩将记入回顾看板，错词已记入错词本。",
+                        "继续战斗", "退出", this::finishEndlessSession);
             } else {
-                new android.app.AlertDialog.Builder(getContext())
-                        .setTitle("放弃本层战斗？")
-                        .setMessage("本局进度与词魂将不保留，错词仍会记入错词本。")
-                        .setNegativeButton("继续战斗", null)
-                        .setPositiveButton("放弃", (d, w) -> exitToHome())
-                        .show();
+                showConfirmDialog("放弃本层战斗？",
+                        "本局进度与词魂将不保留，错词仍会记入错词本。",
+                        "继续战斗", "放弃", this::exitToHome);
             }
         } catch (Throwable ignore) {
             exitToHome();
+        }
+    }
+
+    /** V13.39：地下城风二次确认对话框——屏幕居中、金色标题、卡片化、实色双按钮、半透明遮罩。
+     *  替换原系统 AlertDialog（样式与深色 UI 不协调且位置偏上）。 */
+    private void showConfirmDialog(String title, String msg, String neg, String pos, Runnable onPos) {
+        try {
+            android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(getContext());
+            LinearLayout box = new LinearLayout(getContext());
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setGravity(Gravity.CENTER_HORIZONTAL);
+            int pad = dp(24);
+            box.setPadding(pad, dp(20), pad, dp(18));
+            box.setBackground(Ui.card(18, 0xFF0F1B30, 2, Ui.GOLD));
+            box.setLayoutParams(new android.view.ViewGroup.LayoutParams(dp(292), android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+            TextView titleV = Ui.text(getContext(), title, 18, Ui.GOLD, true);
+            titleV.setGravity(Gravity.CENTER);
+            titleV.setShadowLayer(10, 0, 0, Ui.GOLD);
+            box.addView(titleV);
+            View sep = new View(getContext());
+            sep.setBackground(Ui.gradient(1, Ui.GOLD, Ui.ORANGE, 0));
+            LinearLayout.LayoutParams seplp = new LinearLayout.LayoutParams(dp(72), dp(2));
+            seplp.topMargin = dp(10);
+            seplp.bottomMargin = dp(12);
+            box.addView(sep, seplp);
+            TextView msgV = Ui.text(getContext(), msg, 13.5f, Ui.TXT, false);
+            msgV.setGravity(Gravity.CENTER);
+            msgV.setLineSpacing(dp(3), 1f);
+            box.addView(msgV);
+            LinearLayout btns = new LinearLayout(getContext());
+            btns.setOrientation(LinearLayout.HORIZONTAL);
+            btns.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
+            blp.topMargin = dp(18);
+            btns.setLayoutParams(blp);
+            final android.app.AlertDialog d = b.create();
+            TextView negV = Ui.button(getContext(), neg, Ui.BG_PILL, Ui.CYAN, false);
+            TextView posV = Ui.button(getContext(), pos, Ui.GOLD, Ui.BG0, false);
+            Ui.pressable(negV);
+            Ui.pressable(posV);
+            negV.setOnClickListener(v -> { try { d.dismiss(); } catch (Throwable ignore) {} });
+            posV.setOnClickListener(v -> { try { d.dismiss(); } catch (Throwable ignore) {} if (onPos != null) onPos.run(); });
+            btns.addView(negV, new LinearLayout.LayoutParams(0, -2, 1f));
+            btns.addView(Ui.spacer(getContext(), 12));
+            btns.addView(posV, new LinearLayout.LayoutParams(0, -2, 1f));
+            box.addView(btns);
+            d.setView(box);
+            d.setCancelable(true);
+            if (d.getWindow() != null) {
+                d.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+                d.getWindow().setDimAmount(0.55f);
+            }
+            d.show();
+            // 垂直居中（部分设备需 show 后再设 gravity 才生效）
+            if (d.getWindow() != null) {
+                android.view.WindowManager.LayoutParams wlp = d.getWindow().getAttributes();
+                wlp.gravity = Gravity.CENTER;
+                d.getWindow().setAttributes(wlp);
+            }
+        } catch (Throwable e) {
+            if (onPos != null) onPos.run();
         }
     }
 
