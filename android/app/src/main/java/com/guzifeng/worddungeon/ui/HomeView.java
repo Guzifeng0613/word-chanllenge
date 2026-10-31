@@ -126,6 +126,7 @@ public class HomeView extends LinearLayout {
         reviewTxt.setBackground(Ui.card(10, 0x113B82F6, 1, 0x223B82F6));
         reviewTxt.setPadding(dp(8), dp(4), dp(8), dp(4));
         reviewTxt.setVisibility(GONE);
+        Ui.pressable(reviewTxt);   // V13.34：可点击按压反馈
         banner.addView(reviewTxt);
         addView(banner);
         addView(spacer(12));
@@ -488,9 +489,11 @@ public class HomeView extends LinearLayout {
                     if (dueNow > REVIEW_HEAVY_THRESHOLD) sb.append("，量较大，可分 2–3 批完成");
                     reviewTxt.setText(sb.toString());
                     reviewTxt.setVisibility(VISIBLE);
+                    reviewTxt.setOnClickListener(v -> act.show(MainActivity.Screen.WRONGBOOK));   // V13.34
                 } else {
                     reviewTxt.setText("✨ 暂无到期复习，去学新词吧");
                     reviewTxt.setVisibility(VISIBLE);
+                    reviewTxt.setOnClickListener(v -> act.show(MainActivity.Screen.BATTLE));   // V13.34
                 }
             } catch (Throwable t) {
                 reviewTxt.setVisibility(GONE);
