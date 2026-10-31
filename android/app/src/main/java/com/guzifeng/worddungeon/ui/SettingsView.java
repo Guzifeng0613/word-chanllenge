@@ -118,11 +118,14 @@ public class SettingsView extends LinearLayout {
         TextView secTitle = tipTitle("词书选择 ⓘ", "切换后即时过滤出题范围；一词可属多本词书。");
         card.addView(secTitle);
 
-        // 5 个词书按钮：上排 3 个、下排 2 个，避免单行过挤
+        // 5 个词书按钮：常规档上排 3 下排 2 等宽；窄屏(≤340dp)包进 HSV 固定宽横滑
+        boolean narrow = getResources().getConfiguration().screenWidthDp <= 340;
         LinearLayout row1 = new LinearLayout(getContext());
         row1.setOrientation(HORIZONTAL);
         LinearLayout row2 = new LinearLayout(getContext());
         row2.setOrientation(HORIZONTAL);
+        LinearLayout hsvRow = new LinearLayout(getContext());
+        hsvRow.setOrientation(HORIZONTAL);
         for (int i = 0; i < bookIds.length; i++) {
             final int idx = i;
             LinearLayout box = new LinearLayout(getContext());
@@ -140,12 +143,26 @@ public class SettingsView extends LinearLayout {
                 act.savePrefs();
                 refresh();
             });
-            LinearLayout targetRow = (idx < 3) ? row1 : row2;
-            targetRow.addView(box, lp(0, -2, 1f));
+            if (narrow) {
+                box.setLayoutParams(new LinearLayout.LayoutParams(dp(80), -2));
+                if (i > 0) hsvRow.addView(spacer(6));
+                hsvRow.addView(box);
+            } else {
+                LinearLayout targetRow = (idx < 3) ? row1 : row2;
+                targetRow.addView(box, lp(0, -2, 1f));
+            }
         }
-        card.addView(row1);
-        card.addView(spacer(6));
-        card.addView(row2);
+        if (narrow) {
+            android.widget.HorizontalScrollView hsv = new android.widget.HorizontalScrollView(getContext());
+            hsv.setHorizontalScrollBarEnabled(false);
+            hsv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            hsv.addView(hsvRow);
+            card.addView(hsv);
+        } else {
+            card.addView(row1);
+            card.addView(spacer(6));
+            card.addView(row2);
+        }
         card.addView(spacer(8));
 
         TextView dh = tipTitle("难度选择 ⓘ", "自适应按能力 θ 抽词；选具体档则锁定 tier。");
