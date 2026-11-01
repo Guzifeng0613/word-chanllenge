@@ -331,11 +331,17 @@ public class WrongbookView extends LinearLayout {
             row.addView(spacer(8));
             row.addView(forget, lp(0, -2, 1f));
             card.addView(row);
+            // 顶部弹性空间：把复习卡片推到屏幕垂直居中（ScrollView fillViewport 下 weight 生效）
+            View elasticTop = new View(getContext());
+            body.addView(elasticTop, lp(-1, 0, 1f));
             body.addView(card);
             TextView nav = Ui.text(getContext(), (idx + 1) + " / " + queue.size() + " · 记住 " + remembered + " 个", 13, Ui.CYAN, false);
             nav.setGravity(Gravity.CENTER);
             nav.setPadding(0, dp(10), 0, 0);
             body.addView(nav);
+            // 底部弹性空间：与顶部等权，卡片+进度整体垂直居中
+            View elasticBottom = new View(getContext());
+            body.addView(elasticBottom, lp(-1, 0, 1f));
             rem.setOnClickListener(v -> reviewWord(word, true));
             forget.setOnClickListener(v -> reviewWord(word, false));
         } catch (Throwable e) {
