@@ -122,7 +122,6 @@ public class BattleView extends FrameLayout {
     private TextView comboTag;   // V12.7 顶栏连击数（手绘框架：顶部圆形徽+连击数）
     private HpBar enemyHp, playerHp;
     private TextView posTag, revTag, promptTxt, qBody, timerTxt, faTxt;
-    private LadderView ladderTxt;   // V13.17：Canvas 画圆点阶梯（替代字符 ▣/▢）
     private TextView enemyLevel;              // V12.6 敌人等级图标行（替代名字）
     private FrameLayout feedbackBar;          // V12.6 底部反馈条（连击⇄对错）
     private LinearLayout comboBox, resultBox; // V12.6 连击态 / 对错态容器
@@ -359,9 +358,6 @@ public class BattleView extends FrameLayout {
         promptTxt = Ui.text(getContext(), "", 12, Ui.MUT, false);
         promptTxt.setGravity(Gravity.CENTER);
         qbox.addView(promptTxt);
-        ladderTxt = new LadderView(getContext());
-        if (compactF < 0.75f) ladderTxt.setVisibility(GONE);   // V13.11：超小屏折叠阶梯提示
-        qbox.addView(ladderTxt);
         // 计时条（金色渐变填充）
         timerTrack = new LinearLayout(getContext());
         timerTrack.setOrientation(LinearLayout.HORIZONTAL);
@@ -1011,9 +1007,6 @@ public class BattleView extends FrameLayout {
         if (fa.isEmpty()) faTxt.setVisibility(GONE);
         else { faTxt.setText(fa); faTxt.setVisibility(VISIBLE); }
         boolean review = quiz.optBoolean("review", false);
-        int step = quiz.optInt("step", 0);
-        boolean graduated = quiz.optBoolean("graduated", false);
-        int stage = quiz.optInt("stage", 0);
         int wrongCount = quiz.optInt("wrongCount", 0);
 
         // 词性徽章（V7.0 POS_COLOR：n→cyan / v→orange / adj→green / adv→teal / prep→purple / 其余→mut）
@@ -1054,17 +1047,6 @@ public class BattleView extends FrameLayout {
         else if ("sense".equals(qtype)) prompt = "熟词生义 · 根据释义选单词";
         else prompt = "根据释义默写英文单词";
         promptTxt.setText(prompt);
-        // 题型阶梯（V13.17：Canvas 圆点——已完成灰实心/当前金色高亮/未来空心灰边）
-        if (graduated) {
-            String[] labs = {"10分", "1天", "3天", "7天", "16天", "30天"};
-            int masterStage = GameConfig.SRS_LADDER.length - 1;
-            int remain = masterStage - stage;
-            String prog = remain <= 0 ? "· MASTERED" : "距掌握 " + remain + "/" + masterStage;
-            ladderTxt.setData(labs, stage, "复习", prog);
-        } else {
-            String[] labs = {"识", "认", "选", "拼"};   // V13.36：cn2en 四选一标"选"原"写"误导
-            ladderTxt.setData(labs, step, "", "");
-        }
 
         answerArea.removeAllViews();
         spellRow = null;
@@ -1166,7 +1148,7 @@ public class BattleView extends FrameLayout {
             case "spell": {
                 qBody.setText(mean);
                 qBody.setTextSize(19);
-                // V11.5 字母格：先显示一排字母位（首字母已锁定，其余为空），实时同步输入
+                // V13.40 字母格：全部初始为空，玩家输入完整单词，逐格实时同步（取消首字母锁定）
                 int len = word.length();
                 tileLen = len;
                 tileRow = new LinearLayout(getContext());
@@ -1182,13 +1164,11 @@ public class BattleView extends FrameLayout {
                 else { cellDp = 28; gapDp = 3; }
                 for (int i = 0; i < len; i++) {
                     float fs = cellDp >= 46 ? 21 : cellDp >= 36 ? 18 : 16;
-                    TextView t = Ui.text(getContext(), i == 0 ? String.valueOf(word.charAt(0)).toUpperCase() : "",
-                            fs, i == 0 ? Ui.GOLD : Ui.TXT, true);
+                    TextView t = Ui.text(getContext(), "", fs, Ui.TXT, true);
                     t.setGravity(Gravity.CENTER);
                     int ts = dp(cellDp);
                     t.setLayoutParams(new LinearLayout.LayoutParams(ts, ts));
-                    t.setBackground(Ui.card(8, i == 0 ? Ui.CARD2 : Ui.BG0, 1,
-                            i == 0 ? Ui.GOLD : Ui.LINE));
+                    t.setBackground(Ui.card(8, Ui.BG0, 1, Ui.LINE));
                     // V7.0：点格子/点提示自动聚焦拼写输入框（隐藏 input 等效处理）
                     final TextView ft = t;
                     t.setClickable(true);
@@ -1229,8 +1209,8 @@ public class BattleView extends FrameLayout {
                 spellInput.setFocusableInTouchMode(true);
                 spellInput.setTextColor(Ui.TXT);
                 spellInput.setHintTextColor(Ui.GOLD);
-                String hint = word.isEmpty() ? "输入英文拼写" : "首字母 " + word.substring(0, 1).toUpperCase()
-                        + "，共 " + word.length() + " 个字母，点击此处拼写";
+                String hint = word.isEmpty() ? "输入英文拼写"
+                        : "输入完整英文拼写，共 " + word.length() + " 个字母（自动小写）";
                 spellInput.setHint(hint);
                 spellInput.setBackground(Ui.card(10, Ui.BG0, 1, Ui.LINE));
                 spellInput.setPadding(dp(10), dp(8), dp(10), dp(8));
@@ -1383,9 +1363,8 @@ public class BattleView extends FrameLayout {
         String t = typed == null ? "" : typed;
         for (int i = 0; i < tileViews.size(); i++) {
             TextView tile = tileViews.get(i);
-            if (i == 0) continue;   // 首字母锁定
-            if (i < t.length() + 1) {
-                char c = t.charAt(i - 1);
+            if (i < t.length()) {
+                char c = t.charAt(i);
                 tile.setText(String.valueOf(c).toUpperCase());
                 tile.setTextColor(Ui.GOLD);
                 tile.setBackground(Ui.card(8, Ui.CARD2, 1, Ui.GOLD));
@@ -1396,7 +1375,7 @@ public class BattleView extends FrameLayout {
             }
         }
         // 满格：全部金色高亮脉冲（V7.0 满格确认态）
-        if (tileLen > 0 && t.length() + 1 >= tileLen) {
+        if (tileLen > 0 && t.length() >= tileLen) {
             for (TextView tile : tileViews) {
                 tile.setTextColor(Ui.GOLD);
                 tile.setBackground(Ui.card(8, Ui.CARD2, 2, Ui.GOLD));
@@ -3295,86 +3274,4 @@ public class BattleView extends FrameLayout {
 
     private int dp(float v) { return Ui.dp(getContext(), v); }
     private View spacer(int h) { return Ui.spacer(getContext(), h); }
-
-    /** V13.17：题型阶梯——Canvas 画圆点+标签，替代字体渲染失败的 ▣/▢。
-     *  已完成=灰实心；当前=金色高亮+外圈光晕；未来=空心灰边。单行不换行。 */
-    static class LadderView extends android.view.View {
-        private String[] labs = new String[0];
-        private int current = -1;
-        private String prefix = "";
-        private String suffix = "";
-        private final android.graphics.Paint dotPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final android.graphics.Paint ringPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final android.graphics.Paint textPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final android.graphics.Paint haloPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private static final int GRAY_DONE = 0xFF64748B;
-        private static final int GRAY_FUTURE = 0xFF475569;
-        private static final int GOLD = 0xFFFBBF24;
-        private static final int TXT_MUT = 0xFF94A3B8;
-        private static final int TXT_GOLD = 0xFFFCD34D;
-
-        LadderView(android.content.Context c) {
-            super(c);
-            textPaint.setTextSize(Ui.dp(c, 10));
-            textPaint.setTextAlign(android.graphics.Paint.Align.CENTER);
-            ringPaint.setStyle(android.graphics.Paint.Style.STROKE);
-            ringPaint.setStrokeWidth(Ui.dp(c, 1.2f));
-            haloPaint.setStyle(android.graphics.Paint.Style.STROKE);
-            haloPaint.setStrokeWidth(Ui.dp(c, 2.5f));
-            haloPaint.setColor(0x66FBBF24);
-        }
-        void setData(String[] labels, int cur, String pre, String suf) {
-            this.labs = labels; this.current = cur; this.prefix = pre; this.suffix = suf;
-            invalidate();
-            requestLayout();
-        }
-        @Override protected void onMeasure(int wms, int hms) {
-            setMeasuredDimension(MeasureSpec.getSize(wms), (int) Ui.dp(getContext(), 22));
-        }
-        @Override protected void onDraw(android.graphics.Canvas cv) {
-            if (labs.length == 0) return;
-            float cy = getHeight() / 2f;
-            float r = Ui.dp(getContext(), 4);
-            float prefixW = prefix.isEmpty() ? 0 : textPaint.measureText(prefix) + Ui.dp(getContext(), 6);
-            float suffixW = suffix.isEmpty() ? 0 : textPaint.measureText(suffix) + Ui.dp(getContext(), 8);
-            // 先测每个 slot 宽度：dot + 标签
-            float[] labW = new float[labs.length];
-            float sumLab = 0;
-            for (int i = 0; i < labs.length; i++) {
-                labW[i] = textPaint.measureText(labs[i]) + Ui.dp(getContext(), 14); // dot 4r + 间距
-                sumLab += labW[i];
-            }
-            float avail = getWidth() - prefixW - suffixW;
-            float x = prefixW;
-            if (!prefix.isEmpty()) {
-                textPaint.setColor(TXT_MUT);
-                cv.drawText(prefix, prefixW - textPaint.measureText(prefix) - Ui.dp(getContext(), 2), cy + textPaint.getTextSize()/3, textPaint);
-            }
-            for (int i = 0; i < labs.length; i++) {
-                float slot = avail * (labW[i] / sumLab);
-                float cx = x + slot / 2f;
-                float dotX = cx - (labW[i] - Ui.dp(getContext(), 8)) / 2f;
-                boolean done = i < current;
-                boolean isCur = i == current;
-                if (isCur) {
-                    dotPaint.setColor(GOLD);
-                    cv.drawCircle(dotX, cy, r + Ui.dp(getContext(), 2), haloPaint);
-                    cv.drawCircle(dotX, cy, r, dotPaint);
-                } else if (done) {
-                    dotPaint.setColor(GRAY_DONE);
-                    cv.drawCircle(dotX, cy, r, dotPaint);
-                } else {
-                    ringPaint.setColor(GRAY_FUTURE);
-                    cv.drawCircle(dotX, cy, r, ringPaint);
-                }
-                textPaint.setColor(isCur ? TXT_GOLD : TXT_MUT);
-                cv.drawText(labs[i], dotX + r + Ui.dp(getContext(), 4), cy + textPaint.getTextSize()/3, textPaint);
-                x += slot;
-            }
-            if (!suffix.isEmpty()) {
-                textPaint.setColor(TXT_MUT);
-                cv.drawText(suffix, getWidth() - suffixW + Ui.dp(getContext(), 2), cy + textPaint.getTextSize()/3, textPaint);
-            }
-        }
-    }
 }
