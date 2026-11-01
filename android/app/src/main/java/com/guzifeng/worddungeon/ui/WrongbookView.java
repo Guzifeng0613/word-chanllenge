@@ -351,6 +351,9 @@ public class WrongbookView extends LinearLayout {
 
     private void reviewWord(String word, boolean rememberedFlag) {
         try {
+            // V14.9：按钮点击振动反馈（受设置页「震动触感」开关控制）
+            if (rememberedFlag) Ui.vibrate(getContext(), 22);                    // 记住了：清脆一击（与答对同款）
+            else Ui.vibrate(getContext(), new long[]{0, 30, 20, 40});           // 再复习：轻双段提示
             JSONObject body = new JSONObject();
             body.put("word", word);
             body.put("remembered", rememberedFlag);
