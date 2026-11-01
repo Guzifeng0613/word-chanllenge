@@ -352,7 +352,11 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case POSITION_EDITOR:
-                if (positionEditor != null) root.addView(positionEditor);
+                if (positionEditor != null)
+                    // 等比例修复：编辑器必须 MATCH_PARENT——WRAP_CONTENT 高度下 LinearLayout 的
+                    //   weight=1f 预览区不参与剩余空间分配，预览区被压到极小（截图里只占屏上部 1/3）。
+                    root.addView(positionEditor, new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                 else { TopToast.error(this, "编辑器不可用"); show(Screen.HOME); }
                 break;
         }

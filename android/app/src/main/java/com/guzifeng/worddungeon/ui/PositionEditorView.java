@@ -336,147 +336,165 @@ public class PositionEditorView extends LinearLayout {
         }
 
         // ── 战斗页（远征 / 快刷）：敌区→连击→技能→题目卡→答题区→玩家 HUD ──
-        // 迭代1：纵向按可用高度等比缩放（s），保证小屏/矮预览区不裁切玩家 HUD；水平保持自适应。
+        // 等比例：以「真机典型画布」为设计坐标系，整体 scale = min(W/DW, H/DH) 等比缩放并居中，
+        //   布局、文字、间距与真机同比例（不再纵向压缩、横向自适应，避免失真）。
         private void drawBattle(Canvas canvas) {
             float W = getWidth(), H = getHeight();
             float px = Ui.dp(getContext(), 12);
             boolean quick = Positions.SCENE_QUICK.equals(scene);
-            float s = Math.max(0.5f, Math.min(1.3f, H / (40f * px)));
+            float DW = 36 * px;                      // 设计宽（≈ 真机 432dp 屏宽）
+            float DH = quick ? 38 * px : 41 * px;    // 设计高（快刷无技能行，略矮）
+            float scale = Math.min(W / DW, H / DH);
+            if (scale > 1.5f) scale = 1.5f;
+            if (scale < 0.2f) scale = 0.2f;          // 等比优先：宁可整体缩小，绝不裁切
+            float ox = (W - DW * scale) / 2f, oy = (H - DH * scale) / 2f;
+            canvas.save();
+            canvas.translate(ox, oy);
+            canvas.scale(scale, scale);
             float cy;
 
             // 1) 敌区卡（emoji + 名字 + 敌血条 + hp；微目标行）
-            float eTop = px * 0.5f * s, eH = px * 7.6f * s;
-            card(canvas, px, eTop, W - px * 2, eH, Ui.CARD2, Ui.LINE);
-            cy = eTop + px * 2.3f * s;
+            float eTop = px * 0.5f, eH = px * 7.6f;
+            card(canvas, px, eTop, DW - px * 2, eH, Ui.CARD2, Ui.LINE);
+            cy = eTop + px * 2.3f;
             canvas.drawText("👹", px + px * 0.7f, cy, emoji);
             float nameX = px + px * 3.4f;
             txt.setTextSize(Ui.dp(getContext(), 13));
             canvas.drawText(quick ? "词魔·深渊领主" : "词魇·深渊领主", nameX, cy, txt);
-            // 敌血条（红，约 58%，宽度自适应避免压到右侧 hp 文字）
+            // 敌血条（红，约 58%，宽度按设计画布布局避免挤压右侧 hp 文字）
             float nameW = txt.measureText(quick ? "词魔·深渊领主" : "词魇·深渊领主");
             float hpW = Ui.dp(getContext(), 58);
             float barX = nameX + nameW + Ui.dp(getContext(), 10);
-            float barW = W - barX - px * 3.2f - hpW;
+            float barW = DW - barX - px * 3.2f - hpW;
             if (barW > Ui.dp(getContext(), 40)) {
-                bar(canvas, barX, cy - Ui.dp(getContext(), 5) * s, barW, Ui.dp(getContext(), 7) * s,
+                bar(canvas, barX, cy - Ui.dp(getContext(), 5), barW, Ui.dp(getContext(), 7),
                         0xFF1C2B45, 0xFFF87171, 0.58f);
             }
             goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("185 / 320", W - px - hpW, cy, goldTxt);
+            canvas.drawText("185 / 320", DW - px - hpW, cy, goldTxt);
             // 微目标行
-            float goalY = eTop + eH - Ui.dp(getContext(), 6) * s;
+            float goalY = eTop + eH - Ui.dp(getContext(), 6);
             mutTxt.setTextSize(Ui.dp(getContext(), 11));
             canvas.drawText(quick ? "快刷一轮" : "本场答对 5 题", px + px * 0.8f, goalY, mutTxt);
             goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("已达成", W - px - Ui.dp(getContext(), 46), goalY, goldTxt);
+            canvas.drawText("已达成", DW - px - Ui.dp(getContext(), 46), goalY, goldTxt);
 
-            float y = eTop + eH + px * 1.1f * s;
+            float y = eTop + eH + px * 1.1f;
 
             // 2) 连击行（连击 0 + 心流圆点）
-            float comboY = y + px * 1.7f * s;
+            float comboY = y + px * 1.7f;
             txt.setTextSize(Ui.dp(getContext(), 12));
-            float comboText = centerText(canvas, "连击 0", W / 2f, comboY, txt);
+            centerText(canvas, "连击 0", DW / 2f, comboY, txt);
             for (int i = 0; i < 5; i++) {
-                float dx = W / 2f + (i - 2) * Ui.dp(getContext(), 9);
-                circle(canvas, dx, comboY + Ui.dp(getContext(), 14) * s, Ui.dp(getContext(), 3), 0xFF33507A);
+                float dx = DW / 2f + (i - 2) * Ui.dp(getContext(), 9);
+                circle(canvas, dx, comboY + Ui.dp(getContext(), 14), Ui.dp(getContext(), 3), 0xFF33507A);
             }
-            y += px * 3.4f * s;
+            y += px * 3.4f;
 
             // 3) 技能徽章行
             if (!quick) {
-                float by = y + px * 1.0f * s;
+                float by = y + px * 1.0f;
                 float bx = px * 0.8f;
                 for (int i = 0; i < 3; i++) {
-                    float bw = Ui.dp(getContext(), 64), bh = Ui.dp(getContext(), 20) * s;
+                    float bw = Ui.dp(getContext(), 64), bh = Ui.dp(getContext(), 20);
                     card(canvas, bx, by, bw, bh, Ui.BG1, Ui.LINE);
                     mutTxt.setTextSize(Ui.dp(getContext(), 10));
                     canvas.drawText(new String[]{"⚡ 词锋", "💠 贪婪", "🛡 复苏"}[i],
-                            bx + Ui.dp(getContext(), 6), by + bh / 2f + Ui.dp(getContext(), 4) * s, mutTxt);
+                            bx + Ui.dp(getContext(), 6), by + bh / 2f + Ui.dp(getContext(), 4), mutTxt);
                     bx += bw + Ui.dp(getContext(), 6);
                 }
-                y += px * 3.0f * s;
+                y += px * 3.0f;
             }
 
             // 4) 题目卡（大字释义 + 提示 + 计时条 + 秒数）
-            float qTop = y + px * 0.6f * s, qH = px * 7.2f * s;
-            card(canvas, px, qTop, W - px * 2, qH, Ui.CARD2, Ui.LINE);
+            float qTop = y + px * 0.6f, qH = px * 7.2f;
+            card(canvas, px, qTop, DW - px * 2, qH, Ui.CARD2, Ui.LINE);
             bigTxt.setTextSize(Ui.dp(getContext(), 21));
-            canvas.drawText("同意，许可", W / 2f - Ui.dp(getContext(), 42), qTop + px * 2.6f * s, bigTxt);
+            canvas.drawText("同意，许可", DW / 2f - Ui.dp(getContext(), 42), qTop + px * 2.6f, bigTxt);
             mutTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("根据释义默写英文单词", W / 2f - Ui.dp(getContext(), 74), qTop + px * 4.4f * s, mutTxt);
+            canvas.drawText("根据释义默写英文单词", DW / 2f - Ui.dp(getContext(), 74), qTop + px * 4.4f, mutTxt);
             // 计时条
-            float tY = qTop + qH - Ui.dp(getContext(), 9) * s;
-            bar(canvas, px + Ui.dp(getContext(), 6), tY, W - px * 2 - Ui.dp(getContext(), 12),
-                    Ui.dp(getContext(), 5) * s, 0xFF0F1B30, 0xFFF59E0B, 0.7f);
+            float tY = qTop + qH - Ui.dp(getContext(), 9);
+            bar(canvas, px + Ui.dp(getContext(), 6), tY, DW - px * 2 - Ui.dp(getContext(), 12),
+                    Ui.dp(getContext(), 5), 0xFF0F1B30, 0xFFF59E0B, 0.7f);
             goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("13 秒", W - px - Ui.dp(getContext(), 30), qTop + px * 4.4f * s, goldTxt);
+            canvas.drawText("13 秒", DW - px - Ui.dp(getContext(), 30), qTop + px * 4.4f, goldTxt);
 
-            y = qTop + qH + px * 1.1f * s;
+            y = qTop + qH + px * 1.1f;
 
             // 5) 答题区（拼写格 + 输入框）
-            float aTop = y, aH = px * 7.0f * s;
-            card(canvas, px, aTop, W - px * 2, aH, Ui.CARD2, Ui.LINE);
+            float aTop = y, aH = px * 7.0f;
+            card(canvas, px, aTop, DW - px * 2, aH, Ui.CARD2, Ui.LINE);
             float cellW = Ui.dp(getContext(), 30), gap = Ui.dp(getContext(), 5);
             float rowW = 7 * cellW + 6 * gap;
-            float gx = (W - rowW) / 2f;
-            if (gx < px * 0.5f) { cellW = Math.max(Ui.dp(getContext(), 18), (W - px * 2 - 6 * gap) / 7f); rowW = 7 * cellW + 6 * gap; gx = (W - rowW) / 2f; }
-            float gy = aTop + Ui.dp(getContext(), 15) * s;
+            float gx = (DW - rowW) / 2f;
+            float gy = aTop + Ui.dp(getContext(), 15);
             for (int i = 0; i < 7; i++) {
                 card(canvas, gx + i * (cellW + gap), gy, cellW, cellW, Ui.BG1, Ui.LINE);
                 if (i == 0) { // 已输入一格示例
                     txt.setTextSize(Ui.dp(getContext(), 14));
                     canvas.drawText("c", gx + i * (cellW + gap) + cellW / 2f - Ui.dp(getContext(), 4),
-                            gy + cellW / 2f + Ui.dp(getContext(), 5) * s, txt);
+                            gy + cellW / 2f + Ui.dp(getContext(), 5), txt);
                 }
             }
             // 输入框（示例内容小写）
-            float iy = gy + cellW + Ui.dp(getContext(), 8) * s;
-            card(canvas, px + Ui.dp(getContext(), 6), iy, W - px * 2 - Ui.dp(getContext(), 12),
-                    Ui.dp(getContext(), 30) * s, Ui.BG1, Ui.LINE);
+            float iy = gy + cellW + Ui.dp(getContext(), 8);
+            card(canvas, px + Ui.dp(getContext(), 6), iy, DW - px * 2 - Ui.dp(getContext(), 12),
+                    Ui.dp(getContext(), 30), Ui.BG1, Ui.LINE);
             txt.setTextSize(Ui.dp(getContext(), 15));
-            canvas.drawText("concent", px + Ui.dp(getContext(), 12), iy + Ui.dp(getContext(), 20) * s, txt);
+            canvas.drawText("concent", px + Ui.dp(getContext(), 12), iy + Ui.dp(getContext(), 20), txt);
             // 确认按钮
             float btnW = Ui.dp(getContext(), 64);
-            fillRound(canvas, W - px - btnW - Ui.dp(getContext(), 6), iy, btnW, Ui.dp(getContext(), 30) * s,
+            fillRound(canvas, DW - px - btnW - Ui.dp(getContext(), 6), iy, btnW, Ui.dp(getContext(), 30),
                     999f, 0xFFFCD34D);
             btnTxt.setTextSize(Ui.dp(getContext(), 13));
             btnTxt.setColor(0xFF081326);
-            canvas.drawText("✓ 确认", W - px - btnW - Ui.dp(getContext(), 6) + Ui.dp(getContext(), 14),
-                    iy + Ui.dp(getContext(), 20) * s, btnTxt);
+            canvas.drawText("✓ 确认", DW - px - btnW - Ui.dp(getContext(), 6) + Ui.dp(getContext(), 14),
+                    iy + Ui.dp(getContext(), 20), btnTxt);
 
-            y = aTop + aH + px * 1.0f * s;
+            y = aTop + aH + px * 1.0f;
 
             // 6) 玩家 HUD（🧙 生命 + 绿血条 + 词魂）
-            float pTop = y, pH = px * 3.8f * s;
-            card(canvas, px, pTop, W - px * 2, pH, Ui.CARD2, 0);
+            float pTop = y, pH = px * 3.8f;
+            card(canvas, px, pTop, DW - px * 2, pH, Ui.CARD2, 0);
             emoji.setTextSize(Ui.dp(getContext(), 18));
-            canvas.drawText("🧙", px + Ui.dp(getContext(), 4), pTop + pH / 2f + Ui.dp(getContext(), 6) * s, emoji);
+            canvas.drawText("🧙", px + Ui.dp(getContext(), 4), pTop + pH / 2f + Ui.dp(getContext(), 6), emoji);
             txt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("生命 100/100", px + Ui.dp(getContext(), 38), pTop + pH / 2f + Ui.dp(getContext(), 4) * s, txt);
-            float pbX = px + Ui.dp(getContext(), 130), pbW = W - pbX - px * 2 - Ui.dp(getContext(), 60);
-            bar(canvas, pbX, pTop + pH / 2f - Ui.dp(getContext(), 3) * s, pbW, Ui.dp(getContext(), 6) * s,
+            canvas.drawText("生命 100/100", px + Ui.dp(getContext(), 38), pTop + pH / 2f + Ui.dp(getContext(), 4), txt);
+            float pbX = px + Ui.dp(getContext(), 130), pbW = DW - pbX - px * 2 - Ui.dp(getContext(), 60);
+            bar(canvas, pbX, pTop + pH / 2f - Ui.dp(getContext(), 3), pbW, Ui.dp(getContext(), 6),
                     0xFF1C2B45, 0xFF22C55E, 1.0f);
             goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("💠 词魂 0", W - px - Ui.dp(getContext(), 56), pTop + pH / 2f + Ui.dp(getContext(), 4) * s, goldTxt);
+            canvas.drawText("💠 词魂 0", DW - px - Ui.dp(getContext(), 56), pTop + pH / 2f + Ui.dp(getContext(), 4), goldTxt);
+            canvas.restore();
         }
 
-        // ── 错词复习页：垂直居中的词卡 + 记住了/再复习 + 进度 ──
+        // ── 错词复习页：垂直居中的词卡 + 记住了/再复习 + 进度（整体等比缩放）──
         private void drawReview(Canvas canvas) {
             float W = getWidth(), H = getHeight();
             float px = Ui.dp(getContext(), 14);
-            float cardW = W - px * 2;
+            float DW = 36 * px, DH = 44 * px;   // 设计画布：词卡 + 上下留白 + 进度
+            float scale = Math.min(W / DW, H / DH);
+            if (scale > 1.5f) scale = 1.5f;
+            if (scale < 0.2f) scale = 0.2f;     // 等比优先：宁可整体缩小，绝不裁切
+            float ox = (W - DW * scale) / 2f, oy = (H - DH * scale) / 2f;
+            canvas.save();
+            canvas.translate(ox, oy);
+            canvas.scale(scale, scale);
+
+            float cardW = DW - px * 2;
             float cardH = px * 9.5f;
             float cardX = px;
-            float cardY = (H - cardH) / 2f - px * 1.6f;
+            float cardY = (DH - cardH) / 2f - px * 1.6f;
             card(canvas, cardX, cardY, cardW, cardH, Ui.CARD, Ui.LINE);
 
             float cy = cardY + px * 2.2f;
             bigTxt.setTextSize(Ui.dp(getContext(), 20));
-            canvas.drawText("slam [n.]", W / 2f - Ui.dp(getContext(), 42), cy, bigTxt);
+            canvas.drawText("slam [n.]", DW / 2f - Ui.dp(getContext(), 42), cy, bigTxt);
             mutTxt.setTextSize(Ui.dp(getContext(), 14));
-            canvas.drawText("砰地关上（门）", W / 2f - Ui.dp(getContext(), 60), cy + px * 2.0f, mutTxt);
+            canvas.drawText("砰地关上（门）", DW / 2f - Ui.dp(getContext(), 60), cy + px * 2.0f, mutTxt);
             goldTxt.setTextSize(Ui.dp(getContext(), 12));
-            canvas.drawText("答错 4 次", W / 2f - Ui.dp(getContext(), 30), cy + px * 3.6f, goldTxt);
+            canvas.drawText("答错 4 次", DW / 2f - Ui.dp(getContext(), 30), cy + px * 3.6f, goldTxt);
 
             float btnY = cardY + cardH - px * 4.6f;
             float btnW = cardW / 2f - Ui.dp(getContext(), 4);
@@ -491,8 +509,9 @@ public class PositionEditorView extends LinearLayout {
 
             // 进度
             goldTxt.setTextSize(Ui.dp(getContext(), 13));
-            canvas.drawText("1 / 274 · 记住 0 个", W / 2f - Ui.dp(getContext(), 52),
+            canvas.drawText("1 / 274 · 记住 0 个", DW / 2f - Ui.dp(getContext(), 52),
                     cardY + cardH + px * 2.0f, goldTxt);
+            canvas.restore();
         }
 
         private void card(Canvas canvas, float x, float y, float w, float h, int bg, int border) {
