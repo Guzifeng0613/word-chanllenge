@@ -305,8 +305,8 @@ public class PositionEditorView extends LinearLayout {
         SceneBackground(Context c, String s) {
             super(c);
             scene = s;
-            DW = Ui.dp(c, 36f);
-            DH = Ui.dp(c, dhFor(s));
+            DW = Ui.dp(c, 432f);                 // 设计宽 = 36 × 12dp = 432dp
+            DH = Ui.dp(c, dhDp(s));
             page = new LinearLayout(c);
             if (Positions.SCENE_REVIEW.equals(s)) buildReview(page);
             else buildBattle(page, false);
@@ -319,7 +319,7 @@ public class PositionEditorView extends LinearLayout {
             scene = s;
             page.removeAllViews();
             boolean quick = Positions.SCENE_QUICK.equals(s);
-            DH = Ui.dp(getContext(), dhFor(s));
+            DH = Ui.dp(getContext(), dhDp(s));
             if (Positions.SCENE_REVIEW.equals(s)) buildReview(page);
             else buildBattle(page, quick);
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) page.getLayoutParams();
@@ -328,10 +328,10 @@ public class PositionEditorView extends LinearLayout {
             requestLayout();
         }
 
-        private static float dhFor(String s) {
-            if (Positions.SCENE_QUICK.equals(s)) return 38f;    // 快刷无技能行，略矮
-            if (Positions.SCENE_REVIEW.equals(s)) return 44f;
-            return 41f;
+        private static float dhDp(String s) {
+            if (Positions.SCENE_QUICK.equals(s)) return 456f;   // 快刷：38 × 12dp，无技能行
+            if (Positions.SCENE_REVIEW.equals(s)) return 528f;  // 复习：44 × 12dp
+            return 492f;                                        // 远征：41 × 12dp
         }
 
         @Override
