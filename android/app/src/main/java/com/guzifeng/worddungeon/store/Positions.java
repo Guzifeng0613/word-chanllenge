@@ -7,7 +7,7 @@ import android.content.SharedPreferences;
  * 提示框位置自定义（V14.0）。
  * 以每个提示框的「正中心」为标点，用相对屏幕的百分比定位：
  * x=0..100 表示中心横向位置（左→右），y=0..100 表示中心纵向位置（上→下）。
- * 三个场景（远征 / 快刷 / 错词复习）各记一套，共 3 × 7 个提示框。
+ * 远征与快刷公用一套（V14.8：快刷键归一化到远征键），错词复习独立一套，共 2 套 × 7 个提示框。
  */
 public final class Positions {
 
@@ -51,24 +51,26 @@ public final class Positions {
         return SCENE_EXPEDITION;   // campaign 与 endless 共用远征布局
     }
 
+    /** 存储键：V14.8 起快刷与远征公用一套（快刷键归一化到远征键）。 */
     private static String key(String scene, String anchor, String axis) {
+        if (SCENE_QUICK.equals(scene)) scene = SCENE_EXPEDITION;   // 远征 / 快刷公用一套
         return scene + "_" + anchor + "_" + axis;
     }
 
-    // ── 默认值：对齐各提示框历史位置 ──────────────
+    // ── 默认值：V14.8 按用户真机调校的远征套（X 均 50）──
     public static int defaultX(String anchor) {
         return 50;
     }
 
     public static int defaultY(String anchor) {
         switch (anchor) {
-            case ANCHOR_DMG: return 20;
-            case ANCHOR_SUMMON: return 34;
-            case ANCHOR_FLOW: return 12;
-            case ANCHOR_COMBO_HINT: return 12;
-            case ANCHOR_FEEDBACK: return 34;
-            case ANCHOR_TOAST: return 5;
-            case ANCHOR_CONFIRM: return 50;
+            case ANCHOR_DMG: return 40;         // 伤害飘字（用户调校值）
+            case ANCHOR_SUMMON: return 40;      // 召唤横幅
+            case ANCHOR_FLOW: return 41;        // 心流横幅
+            case ANCHOR_COMBO_HINT: return 41;  // 心流引导
+            case ANCHOR_FEEDBACK: return 42;    // 答题反馈
+            case ANCHOR_TOAST: return 7;        // 顶部提示（贴顶）
+            case ANCHOR_CONFIRM: return 50;     // 退出确认框（居中）
             default: return 50;
         }
     }
