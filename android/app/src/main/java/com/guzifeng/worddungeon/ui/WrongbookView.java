@@ -9,6 +9,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
+import com.guzifeng.worddungeon.core.WordBank;
+import com.guzifeng.worddungeon.core.WordEntry;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -120,6 +122,7 @@ public class WrongbookView extends LinearLayout {
             goGd.setCornerRadius(dp(13));
             go.setBackground(goGd);
             Ui.ctaGlow(go);
+            Ui.pressable(go);   // V15.2：空态 CTA 按压反馈
             go.setOnClickListener(v -> {
                 act.mode = "campaign";
                 act.show(MainActivity.Screen.BATTLE);
@@ -138,6 +141,7 @@ public class WrongbookView extends LinearLayout {
                 new int[]{0xFFFCD34D, 0xFFF59E0B});
         gd.setCornerRadius(dp(13));
         start.setBackground(gd);
+        Ui.pressable(start);   // V15.2：开始复习按钮按压反馈
         start.setOnClickListener(v -> startReview(sw));
         body.addView(start);
         body.addView(spacer(10));
@@ -237,6 +241,10 @@ public class WrongbookView extends LinearLayout {
             row.addView(tags);
             row.addView(spacer(2));
         }
+        // V15.2：整行可点击看释义（与结算页错词 chip 同款深色提示框）
+        final String wd = w.optString("word", "");
+        Ui.pressable(row);
+        row.setOnClickListener(v -> showWordDialog(wd));
         return row;
     }
 
@@ -325,6 +333,8 @@ public class WrongbookView extends LinearLayout {
             card.addView(info);
             TextView rem = Ui.button(getContext(), "✓ 记住了", Ui.GREEN, Ui.BG0, false);
             TextView forget = Ui.button(getContext(), "✗ 再复习", Ui.RED, Ui.BG0, false);
+            Ui.pressable(rem);   // V15.2：复习按钮按压反馈
+            Ui.pressable(forget);
             LinearLayout row = new LinearLayout(getContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.addView(rem, lp(0, -2, 1f));
@@ -364,6 +374,30 @@ public class WrongbookView extends LinearLayout {
         } catch (Throwable e) {
             body.addView(Ui.text(getContext(), "复习失败：" + e.getMessage(), 14, Ui.RED, false));
         }
+    }
+
+    /** V15.2：词条点击看释义（与结算页错词 chip 同款深色地下城风提示框）。 */
+    private void showWordDialog(String word) {
+        try {
+            WordEntry e = WordBank.get().entry(word);
+            if (e == null) return;
+            String mean = (act.book == null || "all".equals(act.book)) ? e.m : e.effM(act.book);
+            String pos = e.p == null ? "" : e.p.trim();
+            String content = (pos.isEmpty() ? "" : pos + "　") + (mean == null ? "" : mean);
+            if (content.isEmpty()) content = "（词库中暂无释义）";
+            android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(getContext());
+            b.setTitle(word);
+            b.setMessage(content);
+            b.setNegativeButton("关闭", null);
+            android.app.AlertDialog d = b.create();
+            if (d.getWindow() != null) d.getWindow().setBackgroundDrawable(Ui.card(18, Ui.CARD, 1, Ui.GOLD));
+            d.show();
+            TextView tt = d.findViewById(android.R.id.title);
+            if (tt != null) tt.setTextColor(Ui.GOLD);
+            TextView mt = d.findViewById(android.R.id.message);
+            if (mt != null) mt.setTextColor(Ui.TXT);
+            d.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(Ui.CYAN);
+        } catch (Throwable ignore) {}
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }

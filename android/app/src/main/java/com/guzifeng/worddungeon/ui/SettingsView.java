@@ -522,7 +522,7 @@ public class SettingsView extends LinearLayout {
         lab.addView(s);
         lab.setLayoutParams(lp(0, -2, 1f));
         row.addView(lab);
-        boolean def = "speak".equals(key) && act.speak;
+        boolean def = "speak".equals(key) ? act.speak : true;   // V15.2：sfx/vibrate 行为默认开，开关初始态与行为一致
         boolean on = sp.getBoolean(key, def);
         View sw = Ui.switchBtn(getContext(), on);
         row.addView(sw);

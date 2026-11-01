@@ -1,3 +1,11 @@
+## V15.2 · 逐模块检查收官的剩余待修项（3 项）（2026-11-01）
+- 按监督 agent 逐模块检查（5 模块收官）发现的剩余用户可见问题修复：
+  1. 设置页「震动触感 / 打击音效」开关初始态与行为一致（SettingsView audioRow def）：此前非 speak 键 def 恒 false → 开关首次显示「关」但行为默认「开」，关停需点两次；改为 speak 用 act.speak、sfx/vibrate 默认 true，与 Ui.vibrate/Sfx 行为默认对齐；
+  2. 错词本词条整行可点击看释义（WrongbookView wordRow + showWordDialog）：复用结算页错词 chip 同款深色地下城风 AlertDialog（词性+当前词书释义），消除两页交互不一致；
+  3. 错词复习「✓ 记住了 / ✗ 再复习 / 开始复习 / 空态去远征」按钮补 Ui.pressable 按压反馈。
+- 验证方式：云主机无 KVM（模拟器无法开机），本次为代码级验证 + `compileReleaseJavaWithJavac` 编译通过；构建由 `assembleRelease/assembleDebug` 完成，aapt 核验双 APK 版本一致；真机截图是权威验收依据，待用户确认。
+- 版本号 versionCode 104 / versionName 15.2。
+
 ## V15.1 · 位置编辑器监督清单修复（P1–P11）（2026-11-01）
 - 按监督 agent 检查报告（P1–P13）逐项修复位置编辑器模块，全部改在 PositionEditorView.java 内、不触碰真机文件：
   - P1（中）：快刷场景隐藏整张敌卡与玩家 HUD（BattleView L702-706 GONE），弹性空间还原、答题单元垂直居中；
