@@ -438,8 +438,16 @@ public class BackendRouter {
         if (remembered) {
             int[] nm = SrsEngine.nextMemory(rec.state, true);
             rec.state = SrsEngine.stateName(nm[0]);
-            rec.due = System.currentTimeMillis() + nm[1] * 60_000L;
+            // V14.5 错词回流闭环：记住后立即把词放回正常出题池（远征/无尽到期队列、快刷全池），
+            //   通过正常闯关/快刷答题继续 SM-2 阶梯，最终进入长期记忆（graduated → MASTERED）。
+            //   ① 立即到期：原 nextMemory 给 +2 天，玩家感觉不到回流；现 due=now，下一局就能遇到。
+            //   ② 阶梯推进：step≥2，回流后最多再答对 2 次即毕业（拼写关→FAMILIAR→长期间隔）。
+            //   ③ 快刷侧：清 wrongBy + 置 quickPass，快刷把它当「已掌握轮换词」而非顽固错词。
+            rec.step = Math.max(rec.step, 2);
+            rec.due = System.currentTimeMillis();
             rec.wrongCount = 0;
+            rec.wrongBy.clear();
+            rec.quickPass = true;
         } else {
             rec.wrongCount++;
             rec.state = "LEARNING";
