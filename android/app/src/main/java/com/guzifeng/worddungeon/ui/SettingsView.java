@@ -62,6 +62,7 @@ public class SettingsView extends LinearLayout {
         buildBackupCard(body);
         buildStatsCard(body);
         buildAltarCard(body);
+        buildPositionCard(body);
         buildWrongCard(body);
         buildAchCard(body);
         buildHowtoCard(body);
@@ -634,6 +635,28 @@ public class SettingsView extends LinearLayout {
         row.setClickable(true);
         Ui.pressable(row);
         row.setOnClickListener(v -> act.show(MainActivity.Screen.ALTAR));
+        card.addView(row);
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
+    private void buildPositionCard(LinearLayout body) {
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("提示框位置 ⓘ", "以每个提示框的正中心为标点，按相对屏幕的百分比（0~100）自定义位置；远征、快刷、错词复习各记一套，可拖动也可输入数值。"));
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(8), 0, dp(8));
+        TextView lab = Ui.text(getContext(), "提示框位置自定义", 13, Ui.MUT, false);
+        row.addView(lab, lp(0, -2, 1f));
+        TextView arrow = Ui.text(getContext(), "›", 20, Ui.GOLD, true);
+        row.addView(arrow);
+        row.setClickable(true);
+        Ui.pressable(row);
+        row.setOnClickListener(v -> act.show(MainActivity.Screen.POSITION_EDITOR));
         card.addView(row);
         body.addView(card);
         body.addView(spacer(10));

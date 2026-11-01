@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.guzifeng.worddungeon.server.BackendRouter;
 import com.guzifeng.worddungeon.ui.AchievementsView;
 import com.guzifeng.worddungeon.ui.AltarView;
+import com.guzifeng.worddungeon.ui.PositionEditorView;
 import com.guzifeng.worddungeon.ui.BattleView;
 import com.guzifeng.worddungeon.ui.HomeView;
 import com.guzifeng.worddungeon.ui.TopToast;
@@ -68,12 +69,13 @@ public class MainActivity extends AppCompatActivity {
     private AchievementsView achievements;
     private StatsView stats;
     private AltarView altar;
+    private PositionEditorView positionEditor;
 
     // P1 学习数据导出/恢复（V13.7）：Storage Access Framework，免存储权限
     private ActivityResultLauncher<String> exportLauncher;
     private ActivityResultLauncher<String[]> importLauncher;
 
-    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS, STATS, ALTAR }
+    public enum Screen { HOME, BATTLE, RESULT, WRONGBOOK, SETTINGS, ACHIEVEMENTS, STATS, ALTAR, POSITION_EDITOR }
     private Screen screen = Screen.HOME;
 
     @Override
@@ -116,6 +118,7 @@ public class MainActivity extends AppCompatActivity {
         try { achievements = new AchievementsView(this); } catch (Throwable e) { Log.e(TAG, "AchievementsView 构造失败", e); }
         try { stats = new StatsView(this); } catch (Throwable e) { Log.e(TAG, "StatsView 构造失败", e); }
         try { altar = new AltarView(this); } catch (Throwable e) { Log.e(TAG, "AltarView 构造失败", e); }
+        try { positionEditor = new PositionEditorView(this); } catch (Throwable e) { Log.e(TAG, "PositionEditorView 构造失败", e); }
 
         if (crash != null && !crash.isEmpty() && home != null) {
             try { home.onCrashInfo(crash); } catch (Throwable ignore) {}
@@ -346,6 +349,10 @@ public class MainActivity extends AppCompatActivity {
                     try { altar.refresh(); } catch (Throwable ignore) {}
                 }
                 break;
+            case POSITION_EDITOR:
+                if (positionEditor != null) root.addView(positionEditor);
+                else { TopToast.error(this, "编辑器不可用"); show(Screen.HOME); }
+                break;
         }
     }
 
@@ -366,6 +373,8 @@ public class MainActivity extends AppCompatActivity {
             case STATS:
             case ALTAR:
                 show(Screen.HOME); return;
+            case POSITION_EDITOR:
+                show(Screen.SETTINGS); return;
             case HOME:
             default:
                 super.onBackPressed();

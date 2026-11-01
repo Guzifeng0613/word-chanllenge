@@ -28,6 +28,7 @@ import com.guzifeng.worddungeon.core.DamageCalc;
 import com.guzifeng.worddungeon.core.GameConfig;
 import com.guzifeng.worddungeon.core.CardCatalog;
 import com.guzifeng.worddungeon.core.WordBank;
+import com.guzifeng.worddungeon.store.Positions;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -445,6 +446,7 @@ public class BattleView extends FrameLayout {
         FrameLayout.LayoutParams fbLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         fbLp.topMargin = dp(70);
         addView(flowBanner, fbLp);
+        placeByCenter(flowBanner, Positions.ANCHOR_FLOW);
 
         // V13.31：心流引导独立 overlay（不被答对流程内其他 showFeed 覆盖）
         comboHintView = new TextView(getContext());
@@ -457,6 +459,7 @@ public class BattleView extends FrameLayout {
         FrameLayout.LayoutParams chLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         chLp.topMargin = dp(70);
         addView(comboHintView, chLp);
+        placeByCenter(comboHintView, Positions.ANCHOR_COMBO_HINT);
 
         // 答题反馈条（V12.7.11：紧凑内容尺寸 WRAP_CONTENT——修复无参数 addView 默认 MATCH_PARENT
         //  导致黑框铺满全屏的尺寸 bug；位置放用户圈定区 y34 顶部，中心≈40% 不遮单词）
@@ -479,7 +482,7 @@ public class BattleView extends FrameLayout {
         FrameLayout.LayoutParams barLp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         addView(feedbackBar, barLp);
         resultBox = resultV;
-        placeAtY(feedbackBar, 34);
+        placeByCenter(feedbackBar, Positions.ANCHOR_FEEDBACK);
 
         // 词魔出现提示（V12.7.11：同样修复 MATCH_PARENT 尺寸 bug，紧凑内容尺寸）
         summonBanner = new TextView(getContext());
@@ -491,7 +494,7 @@ public class BattleView extends FrameLayout {
         summonBanner.setBackground(Ui.card(10, 0x660F2A3A, 1, 0xAA38BDF8));
         // V12.9.1 修复：summonBanner 同步改为水平居中（旧版手算 leftMargin 偶发偏右）
         addView(summonBanner, new FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
-        placeAtY(summonBanner, 34);   // V12.7.11 与错误提示同位置（y34）
+        placeByCenter(summonBanner, Positions.ANCHOR_SUMMON);   // V14.0 按中心百分比定位
     }
 
     /** V12.9.1 提示浮层定位：水平由 FrameLayout CENTER_HORIZONTAL 保证居中，
@@ -508,6 +511,31 @@ public class BattleView extends FrameLayout {
                 lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
                 lp.leftMargin = 0;
                 lp.topMargin = (int) Math.round(h * yPct / 100.0);
+                v.setLayoutParams(lp);
+            } catch (Throwable ignore) {}
+        });
+    }
+
+    /** V14.0 按中心百分比定位：把提示框正中心放到配置的 (xPct, yPct) 对应点。 */
+    private void placeByCenter(View v, String anchor) {
+        post(() -> {
+            try {
+                View rootView = getRootView();
+                int w = rootView.getWidth(), h = rootView.getHeight();
+                if (w <= 0 || h <= 0) return;
+                String scene = Positions.sceneFromMode(mode);
+                int xPct = Positions.getX(getContext(), scene, anchor);
+                int yPct = Positions.getY(getContext(), scene, anchor);
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
+                lp.width = FrameLayout.LayoutParams.WRAP_CONTENT;
+                lp.height = FrameLayout.LayoutParams.WRAP_CONTENT;
+                lp.gravity = Gravity.TOP | Gravity.LEFT;
+                v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.AT_MOST),
+                        View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST));
+                int cx = Math.round(w * xPct / 100f);
+                int cy = Math.round(h * yPct / 100f);
+                lp.leftMargin = cx - v.getMeasuredWidth() / 2;
+                lp.topMargin = cy - v.getMeasuredHeight() / 2;
                 v.setLayoutParams(lp);
             } catch (Throwable ignore) {}
         });
@@ -600,6 +628,11 @@ public class BattleView extends FrameLayout {
         main.removeCallbacksAndMessages(null);
         hideKeyboard();
         mode = act.mode;
+        // V14.0：mode 就绪后按当前场景重新定位静态浮层（构造时 mode 可能尚未赋值）
+        placeByCenter(flowBanner, Positions.ANCHOR_FLOW);
+        placeByCenter(comboHintView, Positions.ANCHOR_COMBO_HINT);
+        placeByCenter(feedbackBar, Positions.ANCHOR_FEEDBACK);
+        placeByCenter(summonBanner, Positions.ANCHOR_SUMMON);
         book = act.book;
         difficulty = act.difficulty;
         runState = new RunState();
@@ -2603,10 +2636,18 @@ public class BattleView extends FrameLayout {
                 d.getWindow().setDimAmount(0.55f);
             }
             d.show();
-            // 垂直居中（部分设备需 show 后再设 gravity 才生效）
+            // V14.0：按配置中心百分比定位（show 后再设 gravity/x/y 才生效）
             if (d.getWindow() != null) {
+                android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+                d.getWindow().getWindowManager().getDefaultDisplay().getMetrics(dm);
+                View decor = d.getWindow().getDecorView();
+                String scene = Positions.sceneFromMode(mode);
+                int xPct = Positions.getX(getContext(), scene, Positions.ANCHOR_CONFIRM);
+                int yPct = Positions.getY(getContext(), scene, Positions.ANCHOR_CONFIRM);
                 android.view.WindowManager.LayoutParams wlp = d.getWindow().getAttributes();
-                wlp.gravity = Gravity.CENTER;
+                wlp.gravity = Gravity.TOP | Gravity.LEFT;
+                wlp.x = Math.round(dm.widthPixels * xPct / 100f) - decor.getWidth() / 2;
+                wlp.y = Math.round(dm.heightPixels * yPct / 100f) - decor.getHeight() / 2;
                 d.getWindow().setAttributes(wlp);
             }
         } catch (Throwable e) {
@@ -2933,15 +2974,19 @@ public class BattleView extends FrameLayout {
         try {
             dmgPop.setText(txt);
             dmgPop.setTextColor(color);
-            int[] ec = new int[2];
-            enemyEmoji.getLocationInWindow(ec);
-            int[] bc = new int[2];
-            getLocationInWindow(bc);
-            float cx = ec[0] - bc[0] + enemyEmoji.getWidth() / 2f;
-            float cy = ec[1] - bc[1] + enemyEmoji.getHeight() / 2f;
+            // V14.0：按配置中心百分比定位（不再跟随敌人）
+            View rootView = getRootView();
+            int rw = rootView.getWidth(), rh = rootView.getHeight();
+            String scene = Positions.sceneFromMode(mode);
+            int xPct = Positions.getX(getContext(), scene, Positions.ANCHOR_DMG);
+            int yPct = Positions.getY(getContext(), scene, Positions.ANCHOR_DMG);
+            dmgPop.measure(View.MeasureSpec.makeMeasureSpec(rw, View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(rh, View.MeasureSpec.AT_MOST));
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) dmgPop.getLayoutParams();
-            lp.leftMargin = (int) (cx - dp(34));
-            lp.topMargin = (int) (cy - dp(44));
+            lp.gravity = Gravity.TOP | Gravity.LEFT;
+            int px = Math.round(rw * xPct / 100f), py = Math.round(rh * yPct / 100f);
+            lp.leftMargin = px - dmgPop.getMeasuredWidth() / 2;
+            lp.topMargin = py - dmgPop.getMeasuredHeight() / 2;
             dmgPop.setLayoutParams(lp);
             dmgPop.setVisibility(VISIBLE);
             dmgPop.setAlpha(1f);

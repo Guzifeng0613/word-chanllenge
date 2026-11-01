@@ -10,6 +10,9 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.guzifeng.worddungeon.MainActivity;
+import com.guzifeng.worddungeon.store.Positions;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +41,7 @@ public final class TopToast {
         if (act == null || msg == null) return;
         try {
             ensureBar(act);
+            repositionBar(act);
             synchronized (queue) {
                 for (Item it : queue) { if (it.msg.equals(msg)) return; }  // 合并
                 queue.add(new Item(msg, type == null ? "info" : type));
@@ -59,16 +63,49 @@ public final class TopToast {
         bar.setGravity(Gravity.CENTER_HORIZONTAL);
         bar.setClipChildren(false);
         bar.setClipToPadding(false);
+        // V14.0：WRAP_CONTENT，由 repositionBar 按配置中心百分比定位
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.TOP | Gravity.LEFT;
         lp.topMargin = dp(act, TOP_DP);
-        lp.leftMargin = dp(act, 14);
-        lp.rightMargin = dp(act, 14);
         bar.setLayoutParams(lp);
         bar.setClickable(false);
         bar.setFocusable(false);
         root.addView(bar);
+    }
+
+    /** V14.0 推断当前场景：错词本页=review，战斗页按 mode 区分 quick/expedition。 */
+    private static String currentScene(Activity act) {
+        if (act instanceof MainActivity) {
+            MainActivity m = (MainActivity) act;
+            if (m.screen() == MainActivity.Screen.WRONGBOOK) return Positions.SCENE_REVIEW;
+            return Positions.sceneFromMode(m.mode);
+        }
+        return Positions.SCENE_EXPEDITION;
+    }
+
+    /** V14.0 把 bar 正中心放到当前场景配置的 (xPct,yPct) 点。 */
+    private static void repositionBar(Activity act) {
+        if (bar == null) return;
+        bar.post(() -> {
+            try {
+                ViewGroup content = act.findViewById(android.R.id.content);
+                int cw = content.getWidth(), ch = content.getHeight();
+                if (cw <= 0 || ch <= 0) return;
+                String scene = currentScene(act);
+                int xPct = Positions.getX(act, scene, Positions.ANCHOR_TOAST);
+                int yPct = Positions.getY(act, scene, Positions.ANCHOR_TOAST);
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+                lp.gravity = Gravity.TOP | Gravity.LEFT;
+                lp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+                lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                int px = Math.round(cw * xPct / 100f);
+                int py = Math.round(ch * yPct / 100f);
+                lp.leftMargin = px - bar.getWidth() / 2;
+                lp.topMargin = py - bar.getHeight() / 2;
+                bar.setLayoutParams(lp);
+            } catch (Throwable ignore) {}
+        });
     }
 
     private static void next() {
@@ -98,6 +135,7 @@ public final class TopToast {
         t.setAlpha(0f);
         t.animate().translationY(0).scaleX(1f).alpha(1f).setDuration(280).start();
         bar.addView(t);
+        repositionBar(act);
         t.postDelayed(() -> {
             t.animate().alpha(0f).translationY(-dp(act, 10)).setDuration(300)
                     .withEndAction(() -> {
