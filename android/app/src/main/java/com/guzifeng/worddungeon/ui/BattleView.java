@@ -2324,7 +2324,7 @@ public class BattleView extends FrameLayout {
     private void openShop() {
         final ShopView[] holder = new ShopView[1];
         java.util.List<ShopView.Item> items = buildShopItems();
-        ShopView sv = new ShopView(getContext(), act.souls, items, new ShopView.OnShop() {
+        ShopView sv = new ShopView(getContext(), act.souls, items, rerollCost(), new ShopView.OnShop() {
             @Override public void onBuy(String kind, int price, JSONObject card) {
                 // GAP-01 + V12.8.3：真实扣词魂走后端 /shop/buy（item/potion|bless|card），必须携带 souls 与前端价格
                 final String item;

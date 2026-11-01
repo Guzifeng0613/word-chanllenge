@@ -352,6 +352,17 @@ public class ProgressStore extends SQLiteOpenHelper {
         v.put("theta", 1.5);
         v.put("souls", 0);
         db.update("users", v, "id=?", new String[]{String.valueOf(LOCAL_USER_ID)});
+        // V15.4：重置彩蛋圣辉标记（保留精华与已购永久祝福），使 saint_awakened 成就清空后可重新达成
+        try {
+            JSONObject meta = getMeta();
+            JSONObject altar = meta.optJSONObject("altar");
+            if (altar != null && altar.has("saint")) {
+                altar.remove("saint");
+                meta.put("altar", altar);
+                saveMeta(meta);
+            }
+        } catch (Throwable ignore) {
+        }
     }
 
     /** 累计掌握（MASTERED）词数。 */

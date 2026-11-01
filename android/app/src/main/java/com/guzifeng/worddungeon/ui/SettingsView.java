@@ -76,7 +76,7 @@ public class SettingsView extends LinearLayout {
         Ui.pressable(reset);   // V15.3：清空按钮按压反馈
         reset.setOnClickListener(v -> new android.app.AlertDialog.Builder(c)
                 .setTitle("清空所有学习进度？")
-                .setMessage("等级 / XP / 词书进度 / 错词本 / 成就将全部重置，此操作不可恢复。")
+                .setMessage("等级 / XP / 词书进度 / 错词本 / 成就将全部重置，此操作不可恢复。精华与祭坛永久祝福将保留。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("确认清空", (d, w) -> {
                     try {

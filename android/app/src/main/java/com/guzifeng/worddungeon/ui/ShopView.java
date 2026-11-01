@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * 词境商店（V12.8.3 动态刷新版）：
  * 商品列表由 BattleView 按难度/层数生成（血药/祝福固定，三卡槽按稀有度权重随机），
- * 支持「刷新商品 · 25 词魂」重抽；词魂不足置灰不可购买。纯前端展示层，钱包与效果由 BattleView 落地。
+ * 支持「刷新商品」重抽（刷新费随模式变化：远征固定，无尽随层数上浮）；词魂不足置灰不可购买。纯前端展示层，钱包与效果由 BattleView 落地。
  */
 public class ShopView extends FrameLayout {
 
@@ -38,13 +38,15 @@ public class ShopView extends FrameLayout {
 
     private final OnShop cb;
     private final List<Item> items;
+    private final int rerollCost;   // V15.4：刷新费跟随模式（远征25；无尽 25+2×层，封顶60）
     private int souls;
     private TextView soulLab;
 
-    public ShopView(Context c, int startSouls, List<Item> shopItems, OnShop callback) {
+    public ShopView(Context c, int startSouls, List<Item> shopItems, int rerollCost, OnShop callback) {
         super(c);
         this.cb = callback;
         this.items = shopItems;
+        this.rerollCost = rerollCost;
         this.souls = startSouls;
         setClickable(true);
         setBackgroundColor(0xDD08111F);
@@ -80,22 +82,23 @@ public class ShopView extends FrameLayout {
         }
         col.addView(spacer(10));
 
-        // 刷新商品（25 词魂，重抽卡槽与价格）
-        final boolean canReroll = souls >= 25;
-        final TextView reroll = Ui.text(c, "刷新商品 · 25 词魂", 13, canReroll ? 0xFF081326 : 0xFF7A8494, true);
+        // 刷新商品（刷新费随模式变化，重抽卡槽与价格）
+        final boolean canReroll = souls >= rerollCost;
+        final TextView reroll = Ui.text(c, "刷新商品 · " + rerollCost + " 词魂", 13, canReroll ? 0xFF081326 : 0xFF7A8494, true);
         reroll.setGravity(Gravity.CENTER);
         reroll.setPadding(dp(14), dp(12), dp(14), dp(12));
         reroll.setBackground(canReroll ? Ui.gradient(999, 0xFF4DD0E1, 0xFF2B9BC0, 0)
                 : Ui.card(999, 0xFF2A3442, 0, 0));
+        Ui.pressable(reroll);   // V15.4：刷新按钮按压反馈
         reroll.setClickable(true);   // V13.24：禁用态仍可点，点击只弹解释
         reroll.setOnClickListener(v -> {
-            if (souls < 25) {
+            if (souls < rerollCost) {
                 android.widget.Toast.makeText(getContext(),
-                        "词魂不足：需要 25，当前 " + souls + "；答对题目、连击可获得词魂",
+                        "词魂不足：需要 " + rerollCost + "，当前 " + souls + "；答对题目、连击可获得词魂",
                         android.widget.Toast.LENGTH_SHORT).show();
                 return;
             }
-            souls -= 25;
+            souls -= rerollCost;
             cb.onReroll();
         });
         col.addView(reroll);
@@ -138,6 +141,7 @@ public class ShopView extends FrameLayout {
         buy.setPadding(dp(12), dp(9), dp(12), dp(9));
         buy.setBackground(afford ? Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0)
                 : Ui.card(999, 0xFF2A3442, 0, 0));
+        Ui.pressable(buy);   // V15.4：购买按钮按压反馈
         buy.setClickable(true);   // V13.24：禁用态仍可点，点击只弹解释
         buy.setOnClickListener(v -> {
             if (souls < it.price) {

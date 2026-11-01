@@ -1,3 +1,12 @@
+## V15.4 · 第三轮全项目基座检查修复（2 项）（2026-11-01）
+- 监督 agent 第三轮完成全项目剩余 20 个文件检查（35 个源文件三轮全覆盖），修复 2 项缺陷：
+  1. 【中危·状态机】ProgressStore.resetAll 未清 extra 列：清空学习进度后彩蛋标记 altar.saint=1 残留，导致重新达到「等级10+连续打卡30天」时 saint_awakened 成就永久无法再次解锁。现 resetAll 同步重置该彩蛋标记（保留精华余额与已购祭坛永久祝福，符合确认框语义）；
+  2. 【低-中·价格口径】ShopView 刷新商品费写死 25，无尽模式实际 rerollCost()=min(60,25+2×层) 可能更高，致按钮文案与实际扣费不符、后端失败时本地余额临时错误。现构造注入 rerollCost，文案/拦截/本地扣减统一使用权威值，并为刷新/购买按钮补 Ui.pressable。
+- 同步：清空确认框文案补充「精华与祭坛永久祝福将保留」。
+- 第三轮检查结论：其余 18 个文件（BackendRouter/App/GameConfig/CardCatalog/DamageCalc/EnemyModel/RunState/Quiz/WordEntry/WordRec/WordBank/MainActivity/Ui/TopToast/Sfx/HpBar/AmbientBackground/SaintAwakeningView）未发现用户可见或数据正确性缺陷，核心业务链路（SRS 状态机、七题型、经济/抽卡保底、SQL 迁移与事务、音效/振动/崩溃落盘）全部正确；仅余信息级死代码与注释。
+- 验证方式：云主机无 KVM（模拟器无法开机），代码级验证 + compileReleaseJavaWithJavac 通过 + assembleRelease/assembleDebug 构建 + aapt 核验双 APK 版本一致；真机截图为权威验收依据。
+- 版本号 versionCode 106 / versionName 15.4。
+
 ## V15.3 · 第二轮逐模块检查的显示口径缺陷修复（7 项）（2026-11-01）
 - 监督 agent 第二轮逐模块检查（设置页/主页/泉水/成就墙/祭坛/统计看板），修复全部用户可见「显示/计算常量未跟随配置或权威源」问题：
   1. 设置页词书按钮书名重复：刷新词数行改为只写词数（书名由独立行显示）；
