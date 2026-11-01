@@ -308,7 +308,7 @@ public class PositionEditorView extends LinearLayout {
             DH = Ui.dp(c, dhDp(s));
             page = new LinearLayout(c);
             if (Positions.SCENE_REVIEW.equals(s)) buildReview(page);
-            else buildBattle(page, false);
+            else buildBattle(page, Positions.SCENE_QUICK.equals(s));
             page.setLayoutParams(new FrameLayout.LayoutParams((int) DW, (int) DH, Gravity.CENTER));
             addView(page);
         }
@@ -357,12 +357,11 @@ public class PositionEditorView extends LinearLayout {
             LinearLayout top = new LinearLayout(c);
             top.setOrientation(LinearLayout.HORIZONTAL);
             top.setGravity(Gravity.CENTER_VERTICAL);
-            top.addView(Ui.text(c, "第 1 层 · 词境", 16, Ui.CYAN, true),   // 快刷左侧标题与真机一致（BattleView topTxt）
-                    new LinearLayout.LayoutParams(0, -2, 1f));
+            top.addView(Ui.text(c, quick ? "快速刷题" : "第 1 层 · 词境", 16, Ui.CYAN, true),
+                    new LinearLayout.LayoutParams(0, -2, 1f));   // 快刷标题「快速刷题」（BattleView L707）；远征显示层标题
             if (quick) {
                 top.addView(Ui.text(c, "‹ 退出快刷", 14, Ui.CYAN, true));
-                top.addView(Ui.spacer(c, 8));
-                top.addView(Ui.text(c, "已刷 12 词", 14, Ui.MUT, false));
+                top.addView(Ui.text(c, "已刷 12 词", 14, Ui.MUT, false));   // 真机退出与已刷紧邻无间隔（BattleView L896-901）
             } else {
                 LinearLayout dots = new LinearLayout(c);
                 dots.setOrientation(LinearLayout.HORIZONTAL);
@@ -372,7 +371,15 @@ public class PositionEditorView extends LinearLayout {
                     int sz = dp(9);
                     LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(sz, sz);
                     dlp.leftMargin = dp(4);
-                    dot.setBackground(circleFill(i == 4 ? Ui.GOLD : Ui.CARD2));
+                    if (i == 0) {   // 第 1 层当前节点：GOLD + 1.5dp 金描边（BattleView L915-921）
+                        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+                        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                        g.setColor(Ui.GOLD);
+                        g.setStroke(dp(1.5f), Ui.GOLD);
+                        dot.setBackground(g);
+                    } else {
+                        dot.setBackground(circleFill(Ui.CARD2));
+                    }
                     dots.addView(dot, dlp);
                 }
                 top.addView(dots);
@@ -385,11 +392,16 @@ public class PositionEditorView extends LinearLayout {
             ebox.setOrientation(LinearLayout.VERTICAL);
             ebox.setGravity(Gravity.CENTER);
             ebox.setPadding(dp(12), dp(6), dp(12), dp(6));
-            ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.LINE));
+            ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.CYAN));   // 普通敌卡描边 CYAN（BattleView applyEnemyGlow L2942）
             FrameLayout faceWrap = new FrameLayout(c);
             View glow = new View(c);
-            glow.setBackground(Ui.card(999, 0x2A0BF2CE, 0, 0));   // 光晕（半透明青）
-            faceWrap.addView(glow, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
+            android.graphics.drawable.GradientDrawable glowG = new android.graphics.drawable.GradientDrawable();
+            glowG.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            glowG.setGradientType(android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT);
+            glowG.setGradientRadius(dp(49));   // 光晕半径 49dp（BattleView L2936-2941）
+            glowG.setColors(new int[]{alphaColor(Ui.CYAN, 0.22f), alphaColor(Ui.CYAN, 0f)});
+            glow.setBackground(glowG);
+            faceWrap.addView(glow, new FrameLayout.LayoutParams(dp(98), dp(98), Gravity.CENTER));
             faceWrap.addView(Ui.text(c, "👹", 42, Ui.TXT, false),
                     new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
             ebox.addView(faceWrap);
@@ -421,6 +433,7 @@ public class PositionEditorView extends LinearLayout {
                 ebox.addView(goal, glp);
             }
             col.addView(ebox);
+            ebox.setVisibility(quick ? GONE : VISIBLE);   // 快刷隐藏整张敌卡（BattleView L702-706）
             col.addView(spacer(6));
 
             // 弹性上（快刷显示，答题单元垂直居中；远征 GONE 顶部排列）
@@ -481,11 +494,13 @@ public class PositionEditorView extends LinearLayout {
             qbox.setPadding(dp(14), dp(6), dp(14), dp(6));
             qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
             FrameLayout headRow = new FrameLayout(c);
-            TextView qBody = Ui.text(c, "集中；专心", 22, Ui.TXT, true);
+            TextView qBody = Ui.text(c, "集中；专心", 19, Ui.TXT, true);   // 拼写题释义 19sp（BattleView L1183-1184）
             qBody.setGravity(Gravity.CENTER);
             headRow.addView(qBody, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
-            TextView posTag = Ui.text(c, "[v.]", 12, Ui.GOLD, true);
+            TextView posTag = Ui.text(c, "v", 12, Ui.ORANGE, true);   // 裸词性 + ORANGE + pill 背景（BattleView L1050-1062）
             posTag.setSingleLine(true);
+            posTag.setPadding(dp(7), dp(2), dp(7), dp(2));
+            posTag.setBackground(Ui.pill(Ui.BG_PILL, Ui.ORANGE));
             headRow.addView(posTag, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT));
             qbox.addView(headRow);
             LinearLayout timerTrack = new LinearLayout(c);
@@ -506,7 +521,7 @@ public class PositionEditorView extends LinearLayout {
             answerArea.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
             LinearLayout av = new LinearLayout(c);
             av.setOrientation(LinearLayout.VERTICAL);
-            av.setPadding(dp(12), dp(10), dp(12), dp(10));
+            av.setPadding(dp(10), dp(8), dp(10), dp(8));   // 答题区容器 padding 10/8/10/8（BattleView L1095）
             LinearLayout tileRow = new LinearLayout(c);
             tileRow.setOrientation(LinearLayout.HORIZONTAL);
             tileRow.setGravity(Gravity.CENTER);
@@ -560,12 +575,14 @@ public class PositionEditorView extends LinearLayout {
             soul.setBackground(Ui.card(999, 0x33FCD34D, 1, 0x66FCD34D));
             pbox.addView(soul);
             col.addView(pbox);
+            pbox.setVisibility(quick ? GONE : VISIBLE);   // 快刷隐藏玩家 HUD（BattleView L702-706）
         }
 
         // ── 错词复习页：与 WrongbookView.renderReview 同结构（弹性上下 + 词卡 + 进度）──
         private void buildReview(final LinearLayout body) {
             Context c = getContext();
             body.setOrientation(LinearLayout.VERTICAL);
+            body.setPadding(dp(16), dp(14), dp(16), dp(20));   // 页级 padding 与真机一致（WrongbookView L39）
             View et = new View(c);
             body.addView(et, new LinearLayout.LayoutParams(-1, 0, 1f));
             LinearLayout card = new LinearLayout(c);
@@ -614,6 +631,12 @@ public class PositionEditorView extends LinearLayout {
             g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
             g.setColor(color);
             return g;
+        }
+
+        /** 与 BattleView.alphaColor 同逻辑：给色值叠加 alpha（0..1）。 */
+        private static int alphaColor(int color, float a) {
+            int alpha = Math.round(255 * Math.max(0f, Math.min(1f, a)));
+            return (alpha << 24) | (color & 0x00FFFFFF);
         }
 
         private View spacer(int h) { return Ui.spacer(getContext(), h); }

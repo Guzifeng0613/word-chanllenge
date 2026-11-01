@@ -1,3 +1,20 @@
+## V15.1 · 位置编辑器监督清单修复（P1–P11）（2026-11-01）
+- 按监督 agent 检查报告（P1–P13）逐项修复位置编辑器模块，全部改在 PositionEditorView.java 内、不触碰真机文件：
+  - P1（中）：快刷场景隐藏整张敌卡与玩家 HUD（BattleView L702-706 GONE），弹性空间还原、答题单元垂直居中；
+  - P2（中）：快刷顶栏左标题改「快速刷题」（BattleView L707，V13.38 起速刷不显示层数），远征保持「第 1 层 · 词境」——纠正 V15.0 改反的方向；
+  - P3（中）：节点圆点第 1 个（对应「第 1 层」）GOLD+1.5dp 金描边，其余 CARD2；
+  - P4（低中）：词性徽章改裸「v」+ORANGE+pill(BG_PILL,ORANGE)+padding 7/2（BattleView L1050-1062）；
+  - P5（低中）：拼写释义字号 22→19sp（BattleView L1183-1184）；
+  - P6（低）：敌卡描边 Ui.LINE→CYAN（applyEnemyGlow）；
+  - P7（低）：敌人光晕改 OVAL+径向渐变 CYAN@0.22→0、半径 49dp（自带 alphaColor，与 BattleView 同逻辑）；
+  - P8（低）：移除快刷「‹ 退出快刷」与「已刷 12 词」间多余 8dp spacer（L896-901 紧邻）；
+  - P9（低）：答题区容器 padding 12/10→10/8（L1095）；
+  - P10（低）：复习页补页级 padding 16/14/16/20（WrongbookView L39）；
+  - P11（健壮性）：构造器 buildBattle(page,false) 硬编码改为按场景判断（quick 归一化一致）。
+- P12/P13 为设计选择/预览式编辑器固有近似，未改（保持静态血条 0.58、整预览区参照系）。
+- 验证方式：云主机无 KVM（模拟器无法开机），本次为代码级验证 + `compileReleaseJavaWithJavac` 编译通过；构建由 `assembleRelease/assembleDebug` 完成，aapt 核验双 APK 版本一致；真机截图是权威验收依据，待用户确认。
+- 版本号 versionCode 103 / versionName 15.1。
+
 ## V15.0 · 走查修复：位置编辑器快刷顶栏标题与真机一致（2026-11-01）
 - 对 V14.6/14.7/14.8/14.9 连续四版做全面代码级走查（PositionEditorView SceneBackground 全链路、Positions 键归一化与默认值、Ui.vibrate 开关、WrongbookView 振动、BattleView/TopToast 调用方）。
 - 修复：位置编辑器快刷场景预览背景顶栏左侧此前写「快刷」，与真机不一致——真机快刷顶栏左侧仍为「第 1 层 · 词境」（16sp CYAN 加粗，BattleView topTxt），右侧才是「‹ 退出快刷 + 已刷 N 词」。已改为完全一致。
