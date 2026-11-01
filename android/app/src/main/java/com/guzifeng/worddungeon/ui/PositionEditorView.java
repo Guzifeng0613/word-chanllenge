@@ -293,269 +293,332 @@ public class PositionEditorView extends LinearLayout {
         post(this::placeCard);
     }
 
-    // ── 真实界面背景（V14.1.1）────────────────────
-    // 用与真实页面相同的色板/圆角/布局结构静态绘制三个场景，帮助用户在真实观感下定位提示框。
-    private static final class SceneBackground extends View {
+    // ── 真实界面背景（V14.4.2 重写：View 树复刻 + 整体等比缩放）────────
+    // 用户要求「完全一样然后缩小」：不再手绘坐标，改为用与真实页面（BattleView/WrongbookView）
+    //   完全相同的 dp 值、字号、颜色、卡片结构静态搭建 View 树，固定设计画布
+    //   （宽 432dp × 战斗 492 / 快刷 456 / 复习 528dp），整体等比缩放居中于预览区。
+    private static final class SceneBackground extends FrameLayout {
         private String scene;
-        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint barBg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint txt = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint goldTxt = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint mutTxt = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint bigTxt = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint emoji = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint btnTxt = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final LinearLayout page;   // 静态页容器（固定设计尺寸）
+        private float DW, DH;               // 设计尺寸（像素）
 
         SceneBackground(Context c, String s) {
             super(c);
             scene = s;
-            fill.setStyle(Paint.Style.FILL);
-            stroke.setStyle(Paint.Style.STROKE);
-            stroke.setStrokeWidth(Ui.dp(c, 1.5f));
-            barBg.setColor(0xFF0F1B30);
-            txt.setColor(Ui.TXT);
-            txt.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            goldTxt.setColor(Ui.GOLD);
-            goldTxt.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            mutTxt.setColor(Ui.MUT);
-            bigTxt.setColor(Ui.TXT);
-            bigTxt.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            emoji.setColor(Ui.TXT);
-            emoji.setTextSize(Ui.dp(c, 24));
-            btnTxt.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            DW = Ui.dp(c, 36f);
+            DH = Ui.dp(c, dhFor(s));
+            page = new LinearLayout(c);
+            if (Positions.SCENE_REVIEW.equals(s)) buildReview(page);
+            else buildBattle(page, false);
+            page.setLayoutParams(new FrameLayout.LayoutParams((int) DW, (int) DH, Gravity.CENTER));
+            addView(page);
         }
 
-        void setScene(String s) { scene = s; invalidate(); }
+        void setScene(String s) {
+            if (s.equals(scene)) return;
+            scene = s;
+            page.removeAllViews();
+            boolean quick = Positions.SCENE_QUICK.equals(s);
+            DH = Ui.dp(getContext(), dhFor(s));
+            if (Positions.SCENE_REVIEW.equals(s)) buildReview(page);
+            else buildBattle(page, quick);
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) page.getLayoutParams();
+            lp.width = (int) DW; lp.height = (int) DH;
+            page.setLayoutParams(lp);
+            requestLayout();
+        }
+
+        private static float dhFor(String s) {
+            if (Positions.SCENE_QUICK.equals(s)) return 38f;    // 快刷无技能行，略矮
+            if (Positions.SCENE_REVIEW.equals(s)) return 44f;
+            return 41f;
+        }
 
         @Override
-        protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            if (Positions.SCENE_REVIEW.equals(scene)) drawReview(canvas);
-            else drawBattle(canvas);
-        }
-
-        // ── 战斗页（远征 / 快刷）：敌区→连击→技能→题目卡→答题区→玩家 HUD ──
-        // 等比例：以「真机典型画布」为设计坐标系，整体 scale = min(W/DW, H/DH) 等比缩放并居中，
-        //   布局、文字、间距与真机同比例（不再纵向压缩、横向自适应，避免失真）。
-        private void drawBattle(Canvas canvas) {
+        protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            super.onLayout(changed, l, t, r, b);
             float W = getWidth(), H = getHeight();
-            float px = Ui.dp(getContext(), 12);
-            boolean quick = Positions.SCENE_QUICK.equals(scene);
-            float DW = 36 * px;                      // 设计宽（≈ 真机 432dp 屏宽）
-            float DH = quick ? 38 * px : 41 * px;    // 设计高（快刷无技能行，略矮）
+            if (W <= 0 || H <= 0) return;
             float scale = Math.min(W / DW, H / DH);
             if (scale > 1.5f) scale = 1.5f;
-            if (scale < 0.2f) scale = 0.2f;          // 等比优先：宁可整体缩小，绝不裁切
-            float ox = (W - DW * scale) / 2f, oy = (H - DH * scale) / 2f;
-            canvas.save();
-            canvas.translate(ox, oy);
-            canvas.scale(scale, scale);
-            float cy;
+            if (scale < 0.2f) scale = 0.2f;    // 等比优先：宁可整体缩小，绝不裁切
+            page.setPivotX(page.getWidth() / 2f);
+            page.setPivotY(page.getHeight() / 2f);
+            page.setScaleX(scale);
+            page.setScaleY(scale);
+        }
 
-            // 1) 敌区卡（emoji + 名字 + 敌血条 + hp；微目标行）
-            float eTop = px * 0.5f, eH = px * 7.6f;
-            card(canvas, px, eTop, DW - px * 2, eH, Ui.CARD2, Ui.LINE);
-            cy = eTop + px * 2.3f;
-            canvas.drawText("👹", px + px * 0.7f, cy, emoji);
-            float nameX = px + px * 3.4f;
-            txt.setTextSize(Ui.dp(getContext(), 13));
-            canvas.drawText(quick ? "词魔·深渊领主" : "词魇·深渊领主", nameX, cy, txt);
-            // 敌血条（红，约 58%，宽度按设计画布布局避免挤压右侧 hp 文字）
-            float nameW = txt.measureText(quick ? "词魔·深渊领主" : "词魇·深渊领主");
-            float hpW = Ui.dp(getContext(), 58);
-            float barX = nameX + nameW + Ui.dp(getContext(), 10);
-            float barW = DW - barX - px * 3.2f - hpW;
-            if (barW > Ui.dp(getContext(), 40)) {
-                bar(canvas, barX, cy - Ui.dp(getContext(), 5), barW, Ui.dp(getContext(), 7),
-                        0xFF1C2B45, 0xFFF87171, 0.58f);
+        // ── 战斗页（远征 / 快刷）：与 BattleView.build() 同结构同参数 ──
+        private void buildBattle(final LinearLayout col, boolean quick) {
+            Context c = getContext();
+            col.setOrientation(LinearLayout.VERTICAL);
+            col.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+            // 顶栏（左标题，右：远征节点圆点 / 快刷退出+已刷）
+            LinearLayout top = new LinearLayout(c);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            top.addView(Ui.text(c, quick ? "快刷" : "第 1 层 · 词境", 16, Ui.CYAN, true),
+                    new LinearLayout.LayoutParams(0, -2, 1f));
+            if (quick) {
+                top.addView(Ui.text(c, "‹ 退出快刷", 14, Ui.CYAN, true));
+                top.addView(Ui.spacer(c, 8));
+                top.addView(Ui.text(c, "已刷 12 词", 14, Ui.MUT, false));
+            } else {
+                LinearLayout dots = new LinearLayout(c);
+                dots.setOrientation(LinearLayout.HORIZONTAL);
+                dots.setGravity(Gravity.CENTER_VERTICAL);
+                for (int i = 0; i < 5; i++) {
+                    View dot = new View(c);
+                    int sz = dp(9);
+                    LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(sz, sz);
+                    dlp.leftMargin = dp(4);
+                    dot.setBackground(circleFill(i == 4 ? Ui.GOLD : Ui.CARD2));
+                    dots.addView(dot, dlp);
+                }
+                top.addView(dots);
             }
-            goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("185 / 320", DW - px - hpW, cy, goldTxt);
-            // 微目标行
-            float goalY = eTop + eH - Ui.dp(getContext(), 6);
-            mutTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText(quick ? "快刷一轮" : "本场答对 5 题", px + px * 0.8f, goalY, mutTxt);
-            goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("已达成", DW - px - Ui.dp(getContext(), 46), goalY, goldTxt);
+            col.addView(top);
+            col.addView(spacer(6));
 
-            float y = eTop + eH + px * 1.1f;
-
-            // 2) 连击行（连击 0 + 心流圆点）
-            float comboY = y + px * 1.7f;
-            txt.setTextSize(Ui.dp(getContext(), 12));
-            centerText(canvas, "连击 0", DW / 2f, comboY, txt);
-            for (int i = 0; i < 5; i++) {
-                float dx = DW / 2f + (i - 2) * Ui.dp(getContext(), 9);
-                circle(canvas, dx, comboY + Ui.dp(getContext(), 14), Ui.dp(getContext(), 3), 0xFF33507A);
-            }
-            y += px * 3.4f;
-
-            // 3) 技能徽章行
+            // 敌人卡（光晕 + emoji + 名字 + 标签 + 警告 + 血条 + hp + 微目标）
+            LinearLayout ebox = new LinearLayout(c);
+            ebox.setOrientation(LinearLayout.VERTICAL);
+            ebox.setGravity(Gravity.CENTER);
+            ebox.setPadding(dp(12), dp(6), dp(12), dp(6));
+            ebox.setBackground(Ui.card(16, Ui.CARD, 1, Ui.LINE));
+            FrameLayout faceWrap = new FrameLayout(c);
+            View glow = new View(c);
+            glow.setBackground(Ui.card(999, 0x2A0BF2CE, 0, 0));   // 光晕（半透明青）
+            faceWrap.addView(glow, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
+            faceWrap.addView(Ui.text(c, "👹", 42, Ui.TXT, false),
+                    new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+            ebox.addView(faceWrap);
+            TextView eName = Ui.text(c, "词魇·深渊领主", 18, Ui.TXT, true);
+            eName.setGravity(Gravity.CENTER);
+            ebox.addView(eName);
+            TextView eTag = Ui.text(c, "普通战", 11, Ui.CYAN, true);
+            eTag.setGravity(Gravity.CENTER);
+            ebox.addView(eTag);
+            TextView warn = Ui.text(c, "答错 / 超时将受到 10 点伤害", 11, Ui.MUT, false);
+            warn.setGravity(Gravity.CENTER);
+            ebox.addView(warn);
+            ebox.addView(hpBar(6, Ui.RED, 0.58f), new LinearLayout.LayoutParams(-1, dp(6)));
+            TextView hpNum = Ui.text(c, "185 / 320", 12, Ui.TXT, true);
+            hpNum.setGravity(Gravity.CENTER);
+            ebox.addView(hpNum);
+            // 微目标行（仅远征；快刷 GONE）
             if (!quick) {
-                float by = y + px * 1.0f;
-                float bx = px * 0.8f;
-                for (int i = 0; i < 3; i++) {
-                    float bw = Ui.dp(getContext(), 64), bh = Ui.dp(getContext(), 20);
-                    card(canvas, bx, by, bw, bh, Ui.BG1, Ui.LINE);
-                    mutTxt.setTextSize(Ui.dp(getContext(), 10));
-                    canvas.drawText(new String[]{"⚡ 词锋", "💠 贪婪", "🛡 复苏"}[i],
-                            bx + Ui.dp(getContext(), 6), by + bh / 2f + Ui.dp(getContext(), 4), mutTxt);
-                    bx += bw + Ui.dp(getContext(), 6);
+                LinearLayout goal = new LinearLayout(c);
+                goal.setOrientation(LinearLayout.HORIZONTAL);
+                goal.setGravity(Gravity.CENTER_VERTICAL);
+                goal.setPadding(dp(10), dp(5), dp(10), dp(5));
+                goal.setBackground(Ui.card(12, Ui.CARD2, 0, 0));
+                goal.addView(Ui.text(c, "本场答对 5 题", 13, Ui.TXT, false),
+                        new LinearLayout.LayoutParams(0, -2, 1f));
+                goal.addView(Ui.text(c, "已达成", 13, Ui.GOLD, true));
+                LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(-1, -2);
+                glp.topMargin = dp(6);
+                ebox.addView(goal, glp);
+            }
+            col.addView(ebox);
+            col.addView(spacer(6));
+
+            // 弹性上（快刷显示，答题单元垂直居中；远征 GONE 顶部排列）
+            View elasticTop = new View(c);
+            col.addView(elasticTop, new LinearLayout.LayoutParams(-1, 0, 1f));
+            elasticTop.setVisibility(quick ? VISIBLE : GONE);
+
+            // 连击行（连击 0 + 心流圆点）
+            LinearLayout comboBoxV = new LinearLayout(c);
+            comboBoxV.setOrientation(LinearLayout.VERTICAL);
+            comboBoxV.setGravity(Gravity.CENTER);
+            comboBoxV.setPadding(dp(10), 0, dp(10), 0);
+            LinearLayout comboRow = new LinearLayout(c);
+            comboRow.setOrientation(LinearLayout.HORIZONTAL);
+            comboRow.setGravity(Gravity.CENTER);
+            comboRow.addView(Ui.text(c, "连击", 12, Ui.MUT, true));
+            TextView comboNum = Ui.text(c, "0", 24, Ui.GOLD, true);
+            comboNum.setPadding(dp(8), 0, dp(8), 0);
+            comboRow.addView(comboNum);
+            comboBoxV.addView(comboRow);
+            LinearLayout dotRow = new LinearLayout(c);
+            dotRow.setOrientation(LinearLayout.HORIZONTAL);
+            dotRow.setGravity(Gravity.CENTER);
+            for (int i = 0; i < 5; i++) {
+                View d = new View(c);
+                LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(7), dp(7));
+                d.setBackground(Ui.pill(0xFF0E2238, 0xFF33507A));
+                d.setAlpha(0.55f);
+                if (i > 0) dlp.leftMargin = dp(5);
+                dotRow.addView(d, dlp);
+            }
+            comboBoxV.addView(dotRow);
+            col.addView(comboBoxV);
+            col.addView(spacer(4));
+
+            // 技能徽章行（仅远征；快刷无）
+            if (!quick) {
+                LinearLayout chips = new LinearLayout(c);
+                chips.setOrientation(LinearLayout.HORIZONTAL);
+                chips.setGravity(Gravity.CENTER);
+                chips.setPadding(dp(4), 0, dp(4), 0);
+                String[] names = {"⚡ 词锋", "💠 贪婪", "🛡 复苏"};
+                int[] cols = {0xFFFCD34D, 0xFF33507A, 0xFF4ADE80};
+                for (int i = 0; i < names.length; i++) {
+                    TextView chip = Ui.text(c, names[i], 10.5f, 0xFFC7D6E8, true);
+                    chip.setPadding(dp(8), dp(3), dp(8), dp(3));
+                    chip.setBackground(Ui.pill(0xFF0E2238, cols[i]));
+                    LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
+                    if (i > 0) clp.leftMargin = dp(5);
+                    chips.addView(chip, clp);
                 }
-                y += px * 3.0f;
+                col.addView(chips);
             }
 
-            // 4) 题目卡（大字释义 + 提示 + 计时条 + 秒数）
-            float qTop = y + px * 0.6f, qH = px * 7.2f;
-            card(canvas, px, qTop, DW - px * 2, qH, Ui.CARD2, Ui.LINE);
-            bigTxt.setTextSize(Ui.dp(getContext(), 21));
-            canvas.drawText("同意，许可", DW / 2f - Ui.dp(getContext(), 42), qTop + px * 2.6f, bigTxt);
-            mutTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("根据释义默写英文单词", DW / 2f - Ui.dp(getContext(), 74), qTop + px * 4.4f, mutTxt);
-            // 计时条
-            float tY = qTop + qH - Ui.dp(getContext(), 9);
-            bar(canvas, px + Ui.dp(getContext(), 6), tY, DW - px * 2 - Ui.dp(getContext(), 12),
-                    Ui.dp(getContext(), 5), 0xFF0F1B30, 0xFFF59E0B, 0.7f);
-            goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("13 秒", DW - px - Ui.dp(getContext(), 30), qTop + px * 4.4f, goldTxt);
+            // 题目卡（释义大字 + 词性徽章 + 计时条 + 秒数）
+            LinearLayout qbox = new LinearLayout(c);
+            qbox.setOrientation(LinearLayout.VERTICAL);
+            qbox.setPadding(dp(14), dp(6), dp(14), dp(6));
+            qbox.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
+            FrameLayout headRow = new FrameLayout(c);
+            TextView qBody = Ui.text(c, "集中；专心", 22, Ui.TXT, true);
+            qBody.setGravity(Gravity.CENTER);
+            headRow.addView(qBody, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
+            TextView posTag = Ui.text(c, "[v.]", 12, Ui.GOLD, true);
+            posTag.setSingleLine(true);
+            headRow.addView(posTag, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT));
+            qbox.addView(headRow);
+            LinearLayout timerTrack = new LinearLayout(c);
+            timerTrack.setOrientation(LinearLayout.HORIZONTAL);
+            timerTrack.setBackground(Ui.card(999, 0xFF0F1B30, 0, 0));
+            View timerFill = new View(c);
+            timerFill.setBackground(Ui.gradient(999, Ui.GOLD, Ui.ORANGE, 0));
+            timerTrack.addView(timerFill, new LinearLayout.LayoutParams(-1, dp(6)));
+            qbox.addView(timerTrack, new LinearLayout.LayoutParams(-1, dp(6)));
+            TextView timerTxt = Ui.text(c, "13 秒", 13, Ui.GOLD, true);
+            timerTxt.setGravity(Gravity.CENTER);
+            qbox.addView(timerTxt);
+            col.addView(qbox);
+            col.addView(spacer(6));
 
-            y = qTop + qH + px * 1.1f;
-
-            // 5) 答题区（拼写格 + 输入框）
-            float aTop = y, aH = px * 7.0f;
-            card(canvas, px, aTop, DW - px * 2, aH, Ui.CARD2, Ui.LINE);
-            float cellW = Ui.dp(getContext(), 30), gap = Ui.dp(getContext(), 5);
-            float rowW = 7 * cellW + 6 * gap;
-            float gx = (DW - rowW) / 2f;
-            float gy = aTop + Ui.dp(getContext(), 15);
-            for (int i = 0; i < 7; i++) {
-                card(canvas, gx + i * (cellW + gap), gy, cellW, cellW, Ui.BG1, Ui.LINE);
-                if (i == 0) { // 已输入一格示例
-                    txt.setTextSize(Ui.dp(getContext(), 14));
-                    canvas.drawText("c", gx + i * (cellW + gap) + cellW / 2f - Ui.dp(getContext(), 4),
-                            gy + cellW / 2f + Ui.dp(getContext(), 5), txt);
-                }
+            // 答题区（拼写：字母格 + 输入行，与 renderQuiz spell 分支同参数）
+            FrameLayout answerArea = new FrameLayout(c);
+            answerArea.setBackground(Ui.card(14, Ui.CARD2, 1, Ui.LINE));
+            LinearLayout av = new LinearLayout(c);
+            av.setOrientation(LinearLayout.VERTICAL);
+            av.setPadding(dp(12), dp(10), dp(12), dp(10));
+            LinearLayout tileRow = new LinearLayout(c);
+            tileRow.setOrientation(LinearLayout.HORIZONTAL);
+            tileRow.setGravity(Gravity.CENTER);
+            for (int i = 0; i < 7; i++) {          // concent = 7 字母（len≤8 → 32dp 格、4dp 距、16sp）
+                TextView t = Ui.text(c, "", 16, Ui.TXT, true);
+                t.setGravity(Gravity.CENTER);
+                t.setLayoutParams(new LinearLayout.LayoutParams(dp(32), dp(32)));
+                t.setBackground(Ui.card(8, Ui.BG0, 1, Ui.LINE));
+                tileRow.addView(t);
+                if (i < 6) tileRow.addView(spacer(4));
             }
-            // 输入框（示例内容小写）
-            float iy = gy + cellW + Ui.dp(getContext(), 8);
-            card(canvas, px + Ui.dp(getContext(), 6), iy, DW - px * 2 - Ui.dp(getContext(), 12),
-                    Ui.dp(getContext(), 30), Ui.BG1, Ui.LINE);
-            txt.setTextSize(Ui.dp(getContext(), 15));
-            canvas.drawText("concent", px + Ui.dp(getContext(), 12), iy + Ui.dp(getContext(), 20), txt);
-            // 确认按钮
-            float btnW = Ui.dp(getContext(), 64);
-            fillRound(canvas, DW - px - btnW - Ui.dp(getContext(), 6), iy, btnW, Ui.dp(getContext(), 30),
-                    999f, 0xFFFCD34D);
-            btnTxt.setTextSize(Ui.dp(getContext(), 13));
-            btnTxt.setColor(0xFF081326);
-            canvas.drawText("✓ 确认", DW - px - btnW - Ui.dp(getContext(), 6) + Ui.dp(getContext(), 14),
-                    iy + Ui.dp(getContext(), 20), btnTxt);
+            av.addView(tileRow);
+            av.addView(spacer(6));
+            LinearLayout spellRow = new LinearLayout(c);
+            spellRow.setOrientation(LinearLayout.HORIZONTAL);
+            spellRow.setGravity(Gravity.CENTER_VERTICAL);
+            TextView input = Ui.text(c, "concent", 18, Ui.TXT, false);
+            input.setBackground(Ui.card(10, Ui.BG0, 1, Ui.LINE));
+            input.setPadding(dp(10), dp(8), dp(10), dp(8));
+            spellRow.addView(input, new LinearLayout.LayoutParams(0, -2, 1f));
+            spellRow.addView(spacer(6));
+            TextView confirm = Ui.text(c, "✓ 确认", 14, 0xFF081326, true);
+            confirm.setGravity(Gravity.CENTER);
+            confirm.setPadding(dp(12), dp(10), dp(12), dp(10));
+            confirm.setBackground(Ui.gradient(999, 0xFFFCD34D, 0xFFF59E0B, 0));
+            spellRow.addView(confirm);
+            av.addView(spellRow);
+            answerArea.addView(av, new FrameLayout.LayoutParams(-1, -2));
+            col.addView(answerArea, new LinearLayout.LayoutParams(-1, -2));
+            col.addView(spacer(6));
 
-            y = aTop + aH + px * 1.0f;
+            // 弹性下（快刷显示）
+            View elasticBottom = new View(c);
+            col.addView(elasticBottom, new LinearLayout.LayoutParams(-1, 0, 1f));
+            elasticBottom.setVisibility(quick ? VISIBLE : GONE);
 
-            // 6) 玩家 HUD（🧙 生命 + 绿血条 + 词魂）
-            float pTop = y, pH = px * 3.8f;
-            card(canvas, px, pTop, DW - px * 2, pH, Ui.CARD2, 0);
-            emoji.setTextSize(Ui.dp(getContext(), 18));
-            canvas.drawText("🧙", px + Ui.dp(getContext(), 4), pTop + pH / 2f + Ui.dp(getContext(), 6), emoji);
-            txt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("生命 100/100", px + Ui.dp(getContext(), 38), pTop + pH / 2f + Ui.dp(getContext(), 4), txt);
-            float pbX = px + Ui.dp(getContext(), 130), pbW = DW - pbX - px * 2 - Ui.dp(getContext(), 60);
-            bar(canvas, pbX, pTop + pH / 2f - Ui.dp(getContext(), 3), pbW, Ui.dp(getContext(), 6),
-                    0xFF1C2B45, 0xFF22C55E, 1.0f);
-            goldTxt.setTextSize(Ui.dp(getContext(), 11));
-            canvas.drawText("💠 词魂 0", DW - px - Ui.dp(getContext(), 56), pTop + pH / 2f + Ui.dp(getContext(), 4), goldTxt);
-            canvas.restore();
+            // 玩家 HUD（🧙 生命 + 绿血条 + 词魂）
+            LinearLayout pbox = new LinearLayout(c);
+            pbox.setOrientation(LinearLayout.HORIZONTAL);
+            pbox.setGravity(Gravity.CENTER_VERTICAL);
+            pbox.setPadding(dp(10), dp(4), dp(10), dp(4));
+            pbox.setBackground(Ui.card(12, Ui.CARD2, 0, 0));
+            pbox.addView(Ui.text(c, "🧙", 26, Ui.TXT, false));
+            pbox.addView(Ui.spacer(c, 6));
+            pbox.addView(Ui.text(c, "生命 100/100", 13, Ui.TXT, true));
+            pbox.addView(Ui.spacer(c, 8));
+            pbox.addView(hpBar(10, Ui.GREEN, 1.0f), new LinearLayout.LayoutParams(0, dp(10), 1f));
+            pbox.addView(Ui.spacer(c, 8));
+            TextView soul = Ui.text(c, "💠 词魂 0", 14, Ui.GOLD, true);
+            soul.setPadding(dp(8), dp(4), dp(8), dp(4));
+            soul.setBackground(Ui.card(999, 0x33FCD34D, 1, 0x66FCD34D));
+            pbox.addView(soul);
+            col.addView(pbox);
         }
 
-        // ── 错词复习页：垂直居中的词卡 + 记住了/再复习 + 进度（整体等比缩放）──
-        private void drawReview(Canvas canvas) {
-            float W = getWidth(), H = getHeight();
-            float px = Ui.dp(getContext(), 14);
-            float DW = 36 * px, DH = 44 * px;   // 设计画布：词卡 + 上下留白 + 进度
-            float scale = Math.min(W / DW, H / DH);
-            if (scale > 1.5f) scale = 1.5f;
-            if (scale < 0.2f) scale = 0.2f;     // 等比优先：宁可整体缩小，绝不裁切
-            float ox = (W - DW * scale) / 2f, oy = (H - DH * scale) / 2f;
-            canvas.save();
-            canvas.translate(ox, oy);
-            canvas.scale(scale, scale);
-
-            float cardW = DW - px * 2;
-            float cardH = px * 9.5f;
-            float cardX = px;
-            float cardY = (DH - cardH) / 2f - px * 1.6f;
-            card(canvas, cardX, cardY, cardW, cardH, Ui.CARD, Ui.LINE);
-
-            float cy = cardY + px * 2.2f;
-            bigTxt.setTextSize(Ui.dp(getContext(), 20));
-            canvas.drawText("slam [n.]", DW / 2f - Ui.dp(getContext(), 42), cy, bigTxt);
-            mutTxt.setTextSize(Ui.dp(getContext(), 14));
-            canvas.drawText("砰地关上（门）", DW / 2f - Ui.dp(getContext(), 60), cy + px * 2.0f, mutTxt);
-            goldTxt.setTextSize(Ui.dp(getContext(), 12));
-            canvas.drawText("答错 4 次", DW / 2f - Ui.dp(getContext(), 30), cy + px * 3.6f, goldTxt);
-
-            float btnY = cardY + cardH - px * 4.6f;
-            float btnW = cardW / 2f - Ui.dp(getContext(), 4);
-            float b1x = cardX, b2x = cardX + cardW / 2f + Ui.dp(getContext(), 4);
-            fillRound(canvas, b1x, btnY, btnW, Ui.dp(getContext(), 32), 999f, 0xFF16A34A);
-            fillRound(canvas, b2x, btnY, btnW, Ui.dp(getContext(), 32), 999f, 0xFFDC2626);
-            btnTxt.setTextSize(Ui.dp(getContext(), 14));
-            btnTxt.setColor(0xFFF0FDF4);
-            canvas.drawText("✓ 记住了", b1x + btnW / 2f - Ui.dp(getContext(), 34), btnY + Ui.dp(getContext(), 21), btnTxt);
-            btnTxt.setColor(0xFFFFF7ED);
-            canvas.drawText("✗ 再复习", b2x + btnW / 2f - Ui.dp(getContext(), 34), btnY + Ui.dp(getContext(), 21), btnTxt);
-
-            // 进度
-            goldTxt.setTextSize(Ui.dp(getContext(), 13));
-            canvas.drawText("1 / 274 · 记住 0 个", DW / 2f - Ui.dp(getContext(), 52),
-                    cardY + cardH + px * 2.0f, goldTxt);
-            canvas.restore();
+        // ── 错词复习页：与 WrongbookView.renderReview 同结构（弹性上下 + 词卡 + 进度）──
+        private void buildReview(final LinearLayout body) {
+            Context c = getContext();
+            body.setOrientation(LinearLayout.VERTICAL);
+            View et = new View(c);
+            body.addView(et, new LinearLayout.LayoutParams(-1, 0, 1f));
+            LinearLayout card = new LinearLayout(c);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(14), dp(14), dp(14), dp(14));
+            card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+            card.addView(Ui.text(c, "slam  [n.]", 20, Ui.TXT, true));
+            TextView mv = Ui.text(c, "砰地关上（门）", 15, Ui.MUT, false);
+            mv.setPadding(0, dp(6), 0, 0);
+            card.addView(mv);
+            TextView info = Ui.text(c, "答错 4 次", 12, Ui.ORANGE, true);
+            info.setPadding(0, dp(8), 0, dp(12));
+            card.addView(info);
+            LinearLayout row = new LinearLayout(c);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.addView(Ui.button(c, "✓ 记住了", Ui.GREEN, Ui.BG0, false),
+                    new LinearLayout.LayoutParams(0, -2, 1f));
+            row.addView(spacer(8));
+            row.addView(Ui.button(c, "✗ 再复习", Ui.RED, Ui.BG0, false),
+                    new LinearLayout.LayoutParams(0, -2, 1f));
+            card.addView(row);
+            body.addView(card);
+            TextView nav = Ui.text(c, "1 / 274 · 记住 0 个", 13, Ui.CYAN, false);
+            nav.setGravity(Gravity.CENTER);
+            nav.setPadding(0, dp(10), 0, 0);
+            body.addView(nav);
+            View eb = new View(c);
+            body.addView(eb, new LinearLayout.LayoutParams(-1, 0, 1f));
         }
 
-        private void card(Canvas canvas, float x, float y, float w, float h, int bg, int border) {
-            fill.setColor(bg);
-            Path p = new Path();
-            float r = Ui.dp(getContext(), 12);
-            p.addRoundRect(x, y, x + w, y + h, r, r, Path.Direction.CW);
-            canvas.drawPath(p, fill);
-            if (border != 0) {
-                stroke.setColor(border);
-                canvas.drawPath(p, stroke);
-            }
+        // ── 工具 ──
+        private View hpBar(int h, int color, float pct) {
+            Context c = getContext();
+            FrameLayout f = new FrameLayout(c);
+            f.setBackground(Ui.card(999, Ui.CARD2, 0, 0));   // 深槽
+            View fill = new View(c);
+            fill.setBackground(Ui.card(999, color, 0, 0));
+            fill.setPivotX(0f);
+            fill.setScaleX(Math.max(0.02f, Math.min(1f, pct)));
+            f.addView(fill, new FrameLayout.LayoutParams(-1, -1));
+            return f;
         }
 
-        private void fillRound(Canvas canvas, float x, float y, float w, float h, float r, int color) {
-            fill.setColor(color);
-            Path p = new Path();
-            p.addRoundRect(x, y, x + w, y + h, r, r, Path.Direction.CW);
-            canvas.drawPath(p, fill);
+        private static android.graphics.drawable.GradientDrawable circleFill(int color) {
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+            g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            g.setColor(color);
+            return g;
         }
 
-        private void bar(Canvas canvas, float x, float y, float w, float h, int bg, int fg, float pct) {
-            fill.setColor(bg);
-            float r = h / 2f;
-            Path p = new Path();
-            p.addRoundRect(x, y, x + w, y + h, r, r, Path.Direction.CW);
-            canvas.drawPath(p, fill);
-            fill.setColor(fg);
-            Path pf = new Path();
-            pf.addRoundRect(x, y, x + w * Math.max(0.02f, Math.min(1f, pct)), y + h, r, r, Path.Direction.CW);
-            canvas.drawPath(pf, fill);
-        }
-
-        private void circle(Canvas canvas, float cx, float cy, float r, int color) {
-            fill.setColor(color);
-            canvas.drawCircle(cx, cy, r, fill);
-        }
-
-        /** 返回文本中心 x（用于对齐）。 */
-        private float centerText(Canvas canvas, String s, float cx, float baseY, Paint p) {
-            float w = p.measureText(s);
-            canvas.drawText(s, cx - w / 2f, baseY, p);
-            return cx;
-        }
+        private View spacer(int h) { return Ui.spacer(getContext(), h); }
+        private int dp(float v) { return Ui.dp(getContext(), v); }
     }
 
     // ── 网格参考线 ───────────────────────────────
