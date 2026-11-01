@@ -73,6 +73,7 @@ public class SettingsView extends LinearLayout {
         reset.setPadding(dp(12), dp(12), dp(12), dp(12));
         reset.setBackground(Ui.card(12, Ui.CARD, 1, Ui.RED));
         reset.setClickable(true);
+        Ui.pressable(reset);   // V15.3：清空按钮按压反馈
         reset.setOnClickListener(v -> new android.app.AlertDialog.Builder(c)
                 .setTitle("清空所有学习进度？")
                 .setMessage("等级 / XP / 词书进度 / 错词本 / 成就将全部重置，此操作不可恢复。")
@@ -139,6 +140,7 @@ public class SettingsView extends LinearLayout {
             box.addView(nm);
             box.addView(ct);
             bookLines[idx] = ct;
+            Ui.pressable(box);   // V15.3：词书按钮按压反馈
             box.setOnClickListener(v -> {
                 act.book = bookIds[idx];
                 act.savePrefs();
@@ -183,6 +185,7 @@ public class SettingsView extends LinearLayout {
             TextView nm = Ui.text(getContext(), diffNames[i], 12, sel ? Ui.CYAN : Ui.TXT, true);
             box.addView(nm);
             diffBoxes[idx] = box;
+            Ui.pressable(box);   // V15.3：难度按钮按压反馈
             box.setOnClickListener(v -> {
                 act.difficulty = diffIds[idx];
                 act.savePrefs();   // GAP-08：持久化难度选择
@@ -419,6 +422,7 @@ public class SettingsView extends LinearLayout {
             TextView t2 = Ui.text(getContext(), q + "题 / " + n + "新词", 10.5f, Ui.MUT, false);
             btn.addView(t1); btn.addView(t2);
             final int idx = i;
+            Ui.pressable(btn);   // V15.3：每日目标按钮按压反馈
             btn.setOnClickListener(v -> {
                 sp.edit().putInt("daily_q", q).putInt("daily_n", n).apply();
                 // 刷新按钮高亮
@@ -682,6 +686,7 @@ public class SettingsView extends LinearLayout {
         go.setPadding(dp(12), dp(11), dp(12), dp(11));
         go.setBackground(Ui.card(12, Ui.BG1, 1, Ui.CYAN));
         go.setClickable(true);
+        Ui.pressable(go);   // V15.3：错词入口按压反馈
         go.setOnClickListener(v -> act.show(MainActivity.Screen.WRONGBOOK));
         card.addView(go);
         body.addView(card);
@@ -761,7 +766,7 @@ public class SettingsView extends LinearLayout {
             // 词书选中态与词数
             String bookName = "";
             for (int i = 0; i < bookIds.length; i++) {
-                bookLines[i].setText(bookNames[i] + "\n" + counts.optInt(bookIds[i], 0) + " 词");
+                bookLines[i].setText(counts.optInt(bookIds[i], 0) + " 词");   // V15.3：只写词数，书名由独立 nm 行显示
                 View parent = (View) bookLines[i].getParent();
                 if (act.book.equals(bookIds[i])) {
                     bookName = bookNames[i];
@@ -806,7 +811,9 @@ public class SettingsView extends LinearLayout {
             dataRows.setText(GameConfig.TITLE_NAMES[tStage] + "      Lv." + level + " · " + xp + " / " + xpNeed + " XP\n"
                     + "连续打卡         🔥 " + streak + " 天\n"
                     + "能力 θ           " + String.format("%.2f", theta) + "\n"
-                    + "今日目标         答对 " + q + "/40 · 新学 " + nw + "/15 · 远征 " + run + "/1\n"
+                    + "今日目标         答对 " + q + "/" + (daily == null ? 40 : daily.optInt("questions_goal", 40))
+                    + " · 新学 " + nw + "/" + (daily == null ? 15 : daily.optInt("new_words_goal", 15))
+                    + " · 远征 " + run + "/" + (daily == null ? 1 : daily.optInt("run_goal", 1)) + "\n"
                     + "今日到期复习     " + dl + " 学习 + " + dg + " 已毕业");
 
             // 成就墙
@@ -833,29 +840,14 @@ public class SettingsView extends LinearLayout {
 
     private void rebuildAch(JSONArray got, int streak, int mastered, int bestCorrect) {
         if (achHost.getChildCount() > 0) achHost.removeAllViews();
-        String[][] defs = {
-                {"🏆", "初战告捷", "击败第 1 层 Boss", "boss1"},
-                {"🏆", "穿透迷雾", "击败第 2 层 Boss", "boss2"},
-                {"🏆", "征服深渊", "击败第 3 层 Boss", "boss3"},
-                {"🌟", "远征通关", "完成一次完整远征", "first_win"},
-                {"🔥", "连击高手", "单局连击达到 10", "combo10"},
-                {"⚔️", "弹无虚发", "单局答对 50 题", "correct50"},
-                {"📖", "初具规模", "一局收集 5 张词典卡", "cards5"},
-                {"📚", "词典大成", "一局收集 10 张词典卡", "cards10"},
-                {"🎓", "渐入佳境", "累计掌握 30 个词", "master30"},
-                {"🎓", "词汇达人", "累计掌握 60 个词", "master60"},
-                {"📅", "坚持不懈", "连续打卡 3 天", "streak3"},
-                {"📅", "一周不辍", "连续打卡 7 天", "streak7"},
-                {"🌀", "深渊行者", "无尽模式抵达第 5 层", "endless5"},
-                {"💀", "深渊主宰", "无尽模式抵达第 10 层", "endless10"},
-        };
+        String[][] defs = AchievementsView.ACH_DEFS;   // V15.3：与成就墙同源（15 项，含 saint_awakened），不再本地硬编码
         boolean[] has = new boolean[defs.length];
         for (int i = 0; i < defs.length; i++) {
             for (int j = 0; j < got.length(); j++) {
                 if (defs[i][3].equals(got.optString(j))) has[i] = true;
             }
         }
-        for (int r = 0; r < 7; r++) {
+        for (int r = 0; r * 2 < defs.length; r++) {
             LinearLayout row = new LinearLayout(getContext());
             row.setOrientation(HORIZONTAL);
             for (int col = 0; col < 2; col++) {
@@ -891,9 +883,9 @@ public class SettingsView extends LinearLayout {
                 row.addView(cell, lp(0, -2, 1f));
             }
             achHost.addView(row);
-            if (r < 6) achHost.addView(spacer(7));
+            if ((r + 1) * 2 < defs.length) achHost.addView(spacer(7));
         }
-        achTitle.setText("成就墙（" + countTrue(has) + "/14）");
+        achTitle.setText("成就墙（" + countTrue(has) + "/" + defs.length + "）");
     }
 
     /** P0-4：需要进度外显的成就目标值（0=无进度条）。 */

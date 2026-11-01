@@ -25,15 +25,17 @@ public class SpringView extends FrameLayout {
     private final Map<String, String[]> words;   // word → [pos, mean]
     private final OnSpring cb;
     private final LinearLayout col;
+    private final int maxHp;   // V15.3：生命上限跟随祭坛体魄祝福（100+10×vigor）
     private int hp;
     private int idx = 0;
 
-    public SpringView(Context c, Map<String, String[]> layerWrong, int curHp, OnSpring callback) {
+    public SpringView(Context c, Map<String, String[]> layerWrong, int curHp, int maxHp, OnSpring callback) {
         super(c);
         this.words = layerWrong;
         this.cb = callback;
+        this.maxHp = maxHp;
         // 泉水先回 30 HP
-        this.hp = Math.max(0, Math.min(100, curHp + 30));
+        this.hp = Math.max(0, Math.min(maxHp, curHp + 30));
         try { cb.onHeal(this.hp); } catch (Throwable ignore) {}
         setClickable(true);
         setBackgroundColor(0xDD08111F);
@@ -75,6 +77,7 @@ public class SpringView extends FrameLayout {
             go.setGravity(Gravity.CENTER);
             go.setPadding(dp(14), dp(13), dp(14), dp(13));
             go.setBackground(Ui.gradient(12, 0xFFFCD34D, 0xFFF59E0B, 0));
+            Ui.pressable(go);   // V15.3：继续按钮按压反馈
             go.setOnClickListener(v -> done());
             col.addView(go);
             return;
@@ -97,6 +100,7 @@ public class SpringView extends FrameLayout {
             go.setGravity(Gravity.CENTER);
             go.setPadding(dp(14), dp(13), dp(14), dp(13));
             go.setBackground(Ui.gradient(12, 0xFFFCD34D, 0xFFF59E0B, 0));
+            Ui.pressable(go);   // V15.3：前往商店按钮按压反馈
             go.setOnClickListener(v -> done());
             col.addView(go);
             return;
@@ -137,7 +141,7 @@ public class SpringView extends FrameLayout {
         Ui.pressable(rem);
         Ui.pressable(forget);
         rem.setOnClickListener(v -> {
-            hp = Math.max(0, Math.min(100, hp + 2));
+            hp = Math.max(0, Math.min(maxHp, hp + 2));
             try { cb.onHeal(hp); } catch (Throwable ignore) {}
             Ui.vibrate(getContext(), 22);
             idx++;

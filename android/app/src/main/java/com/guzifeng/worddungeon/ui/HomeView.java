@@ -681,7 +681,9 @@ public class HomeView extends LinearLayout {
             int total = bs.optInt("total", 0);
             int seen = bs.optInt("seen", 0);
             int remain = Math.max(0, total - seen);
-            int dailyNew = 15;   // = BackendRouter.DAILY_NEW_WORDS / daily.new_words_goal
+            JSONObject st = act.router().dispatch("/stats/daily", "GET", null);
+            JSONObject d = st.optJSONObject("daily");
+            int dailyNew = d == null ? 15 : d.optInt("new_words_goal", 15);   // V15.3：跟随用户每日目标档（轻松10/标准15/高强度25）
             if (remain <= 0) return "当前词书已学完一轮，保持间隔复习即可。";
             long canCover = days * (long) dailyNew;
             if (canCover >= remain)

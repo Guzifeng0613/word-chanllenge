@@ -2302,7 +2302,7 @@ public class BattleView extends FrameLayout {
     /** V7.0 复习之泉：每层固定节点，先回 30 HP，再把本层错词做「记得/不记得」复习，答对每词 +2 HP。 */
     private void openSpring() {
         final SpringView[] holder = new SpringView[1];
-        SpringView sv = new SpringView(getContext(), layerWrong, hp, new SpringView.OnSpring() {
+        SpringView sv = new SpringView(getContext(), layerWrong, hp, maxHp, new SpringView.OnSpring() {
             @Override public void onHeal(int newHp) {
                 hp = Math.max(0, Math.min(maxHp, newHp));
                 playerHp.setRatio(maxHp > 0 ? hp / (float) maxHp : 0f);

@@ -1,3 +1,16 @@
+## V15.3 · 第二轮逐模块检查的显示口径缺陷修复（7 项）（2026-11-01）
+- 监督 agent 第二轮逐模块检查（设置页/主页/泉水/成就墙/祭坛/统计看板），修复全部用户可见「显示/计算常量未跟随配置或权威源」问题：
+  1. 设置页词书按钮书名重复：刷新词数行改为只写词数（书名由独立行显示）；
+  2. 设置页数据卡「今日目标」不再硬编码 40/15：改读 /stats/daily 动态 questions_goal/new_words_goal/run_goal，与主页目标行同口径；
+  3. 设置页词书/难度/每日目标/错词入口/清空按钮补 Ui.pressable 按压反馈；
+  4. 主页考试倒计时 roundHint 不再写死每日新学 15 词：改读 /stats/daily 的 new_words_goal，跟随轻松/标准/高强度档；
+  5. 泉水 HP 上限不再写死 100：SpringView 构造注入 maxHp（BattleView 传入，=100+10×体魄祝福），初始 30 HP 与每词 +2 均按真实上限 clamp，体魄玩家 HUD 不再虚差；
+  6. 泉水「继续/前往商店」金色按钮补 Ui.pressable；
+  7. 设置页成就墙 rebuildAch 不再本地硬编码 14 项：改引用 AchievementsView.ACH_DEFS 权威源（15 项，含「圣者觉醒」），行循环与计数分母动态化。
+- 未发现缺陷模块：位置存储、战斗页布局、结算页、商店奖励、数据层 SrsEngine、出题引擎、祭坛、统计看板（核心链路全部正确）。
+- 验证方式：云主机无 KVM（模拟器无法开机），代码级验证 + compileReleaseJavaWithJavac 通过 + assembleRelease/assembleDebug 构建 + aapt 核验双 APK 版本一致；真机截图为权威验收依据。
+- 版本号 versionCode 105 / versionName 15.3。
+
 ## V15.2 · 逐模块检查收官的剩余待修项（3 项）（2026-11-01）
 - 按监督 agent 逐模块检查（5 模块收官）发现的剩余用户可见问题修复：
   1. 设置页「震动触感 / 打击音效」开关初始态与行为一致（SettingsView audioRow def）：此前非 speak 键 def 恒 false → 开关首次显示「关」但行为默认「开」，关停需点两次；改为 speak 用 act.speak、sfx/vibrate 默认 true，与 Ui.vibrate/Sfx 行为默认对齐；
