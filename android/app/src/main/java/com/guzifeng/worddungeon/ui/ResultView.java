@@ -405,7 +405,8 @@ public class ResultView extends FrameLayout {
         return wrap;
     }
 
-    /** V14.0.1 词 chip 点击：深色地下城风提示框，显示单词+词性+正确释义。 */
+    /** V14.0.1 词 chip 点击：深色地下城风提示框，显示单词+词性+正确释义。
+     *  V15.6：易读配色（卡片底提亮+金色边框加粗+亮金标题+近白正文），无「关闭」按钮，点击空白处关闭。 */
     private void showWordDialog(String word) {
         try {
             WordEntry e = WordBank.get().entry(word);
@@ -417,17 +418,16 @@ public class ResultView extends FrameLayout {
             android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(getContext());
             b.setTitle(word);
             b.setMessage(content);
-            b.setNegativeButton("关闭", null);
             android.app.AlertDialog d = b.create();
             if (d.getWindow() != null) {
-                d.getWindow().setBackgroundDrawable(Ui.card(18, Ui.CARD, 1, Ui.GOLD));
+                d.getWindow().setBackgroundDrawable(Ui.card(18, Ui.CARD2, 2, Ui.GOLD));
             }
+            d.setCanceledOnTouchOutside(true);   // 点击弹窗外部空白处关闭
             d.show();
             TextView tt = d.findViewById(android.R.id.title);
-            if (tt != null) tt.setTextColor(Ui.GOLD);
+            if (tt != null) { tt.setTextColor(0xFFFFD54F); tt.setTextSize(19); }
             TextView mt = d.findViewById(android.R.id.message);
-            if (mt != null) mt.setTextColor(Ui.TXT);
-            d.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(Ui.CYAN);
+            if (mt != null) { mt.setTextColor(0xFFF8FAFC); mt.setTextSize(16); }
         } catch (Throwable ignore) {}
     }
 

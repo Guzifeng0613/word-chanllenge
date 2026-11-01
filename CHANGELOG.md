@@ -1,3 +1,11 @@
+## V15.6 · 释义弹窗易读化（2026-11-01）
+- 按真机反馈调整结算页/错词本释义弹窗（两处 showWordDialog 同步）：
+  1. 易读配色：弹窗卡片底由 CARD 提亮为 CARD2、金色边框加粗 2、标题改亮金 #FFD54F 并加大 19sp、正文改近白 #F8FAFC 并加大 16sp；
+  2. 取消「关闭」按钮（删除 setNegativeButton 及其按钮配色）；
+  3. 点击弹窗外部空白处关闭（setCanceledOnTouchOutside(true)，show 前设置）。
+- 验证方式：云主机无 KVM，代码级核查 + compileReleaseJavaWithJavac 通过 + assembleRelease/assembleDebug 构建 + aapt 核验双 APK 版本一致；真机截图为权威验收依据。
+- 版本号 versionCode 108 / versionName 15.6。
+
 ## V15.5 · 全项目信息级死代码清理（2026-11-01）
 - 在三轮 35 文件检查基础上，清理经逐项 grep 核实的信息级死代码，不改变任何功能与对外行为：
   1. BackendRouter：删除无调用方的 /progress/sync 路由及 progressSync 方法；checkAch 精简为 checkAch(meta, combo)（移除 isNewWord/qtype/isCorrect 三个死参数，同步改调用点）；清理随之失效的 Iterator import；
