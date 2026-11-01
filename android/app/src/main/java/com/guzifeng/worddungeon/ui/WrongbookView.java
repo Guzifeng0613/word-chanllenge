@@ -131,7 +131,6 @@ public class WrongbookView extends LinearLayout {
             return;
         }
 
-        android.util.Log.d("WD", "wrongbook words.length=" + words.length());
         // 开始复习（顽固优先）——V12.7 按钮置于分组卡上方
         TextView start = Ui.text(getContext(), "开始复习（顽固优先）", 15, 0xFF081326, true);
         start.setGravity(Gravity.CENTER);
@@ -174,7 +173,6 @@ public class WrongbookView extends LinearLayout {
                 }
                 if (w.optInt("grade", 0) != grade) continue;
                 String wd = w.optString("word", "?");
-                android.util.Log.d("WD", "render grade=" + grade + " word=" + wd);
                 try {
                     card.addView(wordRow(w, color));
                     card.addView(spacer(6));   // V11.5 卡片行间距

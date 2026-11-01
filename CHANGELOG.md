@@ -1,3 +1,20 @@
+## V15.5 · 全项目信息级死代码清理（2026-11-01）
+- 在三轮 35 文件检查基础上，清理经逐项 grep 核实的信息级死代码，不改变任何功能与对外行为：
+  1. BackendRouter：删除无调用方的 /progress/sync 路由及 progressSync 方法；checkAch 精简为 checkAch(meta, combo)（移除 isNewWord/qtype/isCorrect 三个死参数，同步改调用点）；清理随之失效的 Iterator import；
+  2. SrsEngine：删除旧记忆状态机 nextMemory/stateName（间隔字段从未被使用），新增语义明确的 advanceState(state) 只负责错词本「记住了」状态推进（NEW→LEARNING→FAMILIAR→MASTERED，到顶保持），BackendRouter 同步改调用；
+  3. WordRec：删除无调用方的 toJson/fromJson 及其专用 JSON/JSONException import（持久化仍走 ProgressStore 手动列映射）；
+  4. AmbientBackground：删除外层无调用的 withAlpha（Particle 内部自带同名实现；sin/clamp01 保留）；
+  5. RunState：删除 markWrong 中写入默认值的冗余 seen.put；
+  6. AltarView：refresh 移除结果未被消费的 /bank/meta 冗余请求与死变量，简化为直接以 /stats/daily 取数（与原实际执行路径一致）；
+  7. StatsView：catch 中创建后未挂载的错误 TextView 改为 Toast「数据加载失败」，使错误真正可见；
+  8. CardCatalog：更新商店价格陈旧注释（血药30/祝福35/献祭40）；
+  9. WrongbookView：删除两处例行调试 Log.d（catch 内 Log.e 保留用于真机排查）；
+  10. App：全局 UncaughtExceptionHandler 保存系统原 handler，写盘后链式调用，恢复系统标准崩溃终止流程。
+- 纠偏：GameConfig.FOCUS_REVENGE_BONUS 并非死代码（BattleView 复仇加成在用），监督报告误判，已保留。
+- 不纳入本次清理：ProgressStore Cursor try-finally（健壮性建议，改动面大、风险/收益不匹配）、RewardDrawView 文案、Ui.pulseLoop 取消接口。
+- 验证方式：云主机无 KVM，代码级核查 + compileReleaseJavaWithJavac 通过 + assembleRelease/assembleDebug 构建 + aapt 核验双 APK 版本一致；真机截图为权威验收依据。
+- 版本号 versionCode 107 / versionName 15.5。
+
 ## V15.4 · 第三轮全项目基座检查修复（2 项）（2026-11-01）
 - 监督 agent 第三轮完成全项目剩余 20 个文件检查（35 个源文件三轮全覆盖），修复 2 项缺陷：
   1. 【中危·状态机】ProgressStore.resetAll 未清 extra 列：清空学习进度后彩蛋标记 altar.saint=1 残留，导致重新达到「等级10+连续打卡30天」时 saint_awakened 成就永久无法再次解锁。现 resetAll 同步重置该彩蛋标记（保留精华余额与已购祭坛永久祝福，符合确认框语义）；

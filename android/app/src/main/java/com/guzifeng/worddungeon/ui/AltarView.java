@@ -84,34 +84,22 @@ public class AltarView extends LinearLayout {
         body.addView(listHost);
     }
 
-    /** 读取 meta 并重建 6 张祭坛卡（后台取数，主线程渲染）。 */
+    /** 重建 6 张祭坛卡（数据以 /stats/daily 为准，主线程渲染）。 */
     public void refresh() {
         if (act.router() == null) return;
-        new Thread(() -> {
-            JSONObject meta = null;
+        act.main().post(() -> {
+            int essence = 0;
+            JSONObject altar = null;
             try {
-                meta = act.router().dispatch("/bank/meta", "GET", null);
-            } catch (Throwable ignore) {}
-            final JSONObject m = meta;
-            act.main().post(() -> {
-                int essence = 0;
-                JSONObject altar = null;
-                if (m != null) {
-                    // /bank/meta 可能不直接含 essence；以 stats/daily 为准更稳
+                JSONObject stats = act.router().dispatch("/stats/daily", "GET", null);
+                if (stats != null) {
+                    essence = stats.optInt("essence", 0);
+                    altar = stats.optJSONObject("altar");
                 }
-                try {
-                    JSONObject stats = act.router().dispatch("/stats/daily", "GET", null);
-                    if (stats != null) {
-                        essence = stats.optInt("essence", 0);
-                        altar = stats.optJSONObject("altar");
-                    }
-                } catch (Throwable ignore) {}
-                if (altar == null) altar = new JSONObject();
-                final int fe = essence;
-                final JSONObject fa = altar;
-                render(fe, fa);
-            });
-        }).start();
+            } catch (Throwable ignore) {}
+            if (altar == null) altar = new JSONObject();
+            render(essence, altar);
+        });
     }
 
     private void render(int essence, JSONObject altar) {

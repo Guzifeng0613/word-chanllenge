@@ -19,6 +19,7 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         instance = this;
+        final Thread.UncaughtExceptionHandler original = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
             try {
                 StringWriter sw = new StringWriter();
@@ -32,6 +33,8 @@ public class App extends Application {
                 }
                 Log.e(TAG, "未捕获异常已落盘", e);
             } catch (Throwable ignore) {}
+            // 写盘后交回系统原 handler，恢复标准终止流程（系统崩溃弹窗/进程结束）
+            if (original != null) original.uncaughtException(t, e);
         });
     }
 

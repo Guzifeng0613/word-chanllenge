@@ -19,7 +19,6 @@ import com.guzifeng.worddungeon.store.ProgressStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -67,7 +66,6 @@ public class BackendRouter {
             return wrongbookReview(body == null ? new JSONObject() : body);
         if ("/stats/daily".equals(route)) return statsDaily();
         if ("/stats/book".equals(route)) return bookStats(body == null ? null : body.optString("book", null));
-        if ("/progress/sync".equals(route)) return progressSync(body == null ? new JSONObject() : body);
         if ("/progress/finish".equals(route))
             return progressFinish(body == null ? new JSONObject() : body);
         if ("/progress/reset".equals(route)) return progressReset();
@@ -265,7 +263,7 @@ public class BackendRouter {
         if (isCorrect) {
             addXp(meta, xpGain);
         }
-        checkAch(meta, combo, isNewWord, qtype, isCorrect);
+        checkAch(meta, combo);
         store.saveMeta(meta);
 
         JSONObject out = new JSONObject();
@@ -346,7 +344,7 @@ public class BackendRouter {
     }
 
     /** 成就解锁：combo10 / master30 / master60。 */
-    private void checkAch(JSONObject meta, int combo, boolean isNewWord, String qtype, boolean isCorrect) throws Exception {
+    private void checkAch(JSONObject meta, int combo) throws Exception {
         if (meta == null) return;
         if (combo >= 10) unlock(meta, "combo10");
         int mastered = store.masteredCount();
@@ -436,8 +434,7 @@ public class BackendRouter {
         long nowSec = System.currentTimeMillis() / 1000;
 
         if (remembered) {
-            int[] nm = SrsEngine.nextMemory(rec.state, true);
-            rec.state = SrsEngine.stateName(nm[0]);
+            rec.state = SrsEngine.advanceState(rec.state);
             // V14.5 错词回流闭环：记住后立即把词放回正常出题池（远征/无尽到期队列、快刷全池），
             //   通过正常闯关/快刷答题继续 SM-2 阶梯，最终进入长期记忆（graduated → MASTERED）。
             //   ① 立即到期：原 nextMemory 给 +2 天，玩家感觉不到回流；现 due=now，下一局就能遇到。
@@ -655,32 +652,6 @@ public class BackendRouter {
         out.put("mastered", mastered);
         out.put("seen", seen);
         out.put("pct", total > 0 ? Math.round((double) mastered / total * 1000.0) / 10.0 : 0);
-        return out;
-    }
-
-    private JSONObject progressSync(JSONObject b) throws Exception {
-        JSONObject words = b.optJSONObject("words");
-        JSONObject merged = new JSONObject();
-        if (words != null) {
-            Map<String, WordRec> progress = store.loadProgress();
-            long nowSec = System.currentTimeMillis() / 1000;
-            for (Iterator<String> it = words.keys(); it.hasNext(); ) {
-                String word = it.next();
-                JSONObject p = words.optJSONObject(word);
-                WordRec rec = progress.get(word);
-                if (rec == null) rec = new WordRec();
-                int clientWc = p == null ? 0 : p.optInt("wrong_count", 0);
-                rec.wrongCount = Math.max(rec.wrongCount, clientWc);
-                if (p != null && p.has("state")) rec.state = p.optString("state", rec.state);
-                store.upsertRec(word, rec, nowSec);
-                JSONObject m = new JSONObject();
-                m.put("state", rec.state);
-                m.put("wrong_count", rec.wrongCount);
-                merged.put(word, m);
-            }
-        }
-        JSONObject out = new JSONObject();
-        out.put("merged", merged);
         return out;
     }
 

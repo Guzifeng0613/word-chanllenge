@@ -119,7 +119,6 @@ public class RunState {
     public void markWrong(String w) {
         if (!wrong.containsKey(w)) {
             wrong.put(w, true);
-            seen.put(w, seen.getOrDefault(w, 0));
         }
         wrongTimes.put(w, wrongTimes.getOrDefault(w, 0) + 1);
     }

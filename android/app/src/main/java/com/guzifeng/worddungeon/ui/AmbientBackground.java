@@ -140,12 +140,6 @@ public class AmbientBackground extends Drawable {
 
     private static float clamp01(float x) { return Math.max(0f, Math.min(1f, x)); }
 
-    private static int withAlpha(int color, float a) {
-        int baseAlpha = (color >> 24) & 0xFF;
-        int alpha = Math.round(baseAlpha * Math.max(0f, Math.min(1f, a)));
-        return (alpha << 24) | (color & 0x00FFFFFF);
-    }
-
     /** 停止动画：宿主 View onDetachedFromWindow 时调用，避免无限动画悬挂。 */
     public void stop() {
         if (anim != null) { anim.cancel(); anim = null; }

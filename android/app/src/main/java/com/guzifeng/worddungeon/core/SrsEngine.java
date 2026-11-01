@@ -155,21 +155,14 @@ public class SrsEngine {
         return rows;
     }
 
-    // ---------------- 旧记忆状态机（错词本复习用） ----------------
-    public static int[] nextMemory(String state, boolean correct) {
-        // 返回 {state 编码, intervalMin}；state 编码 0 NEW /1 LEARNING /2 FAMILIAR /3 MASTERED
-        if (!correct) return new int[]{1, 1440};
+    // ---------------- 错词本复习状态推进 ----------------
+    /** 错词本「记住了」：状态推进一阶（NEW→LEARNING→FAMILIAR→MASTERED），已到顶则保持。 */
+    public static String advanceState(String state) {
         String[] order = {"NEW", "LEARNING", "FAMILIAR", "MASTERED"};
         int i = 0;
-        for (int k = 0; k < order.length; k++) if (order[k].equals(state)) { i = k; break; }
-        int ni = Math.min(i + 1, 3);
-        if (ni == 2) return new int[]{2, 2880};
-        if (ni == 3) return new int[]{3, 21600};
-        return new int[]{ni, 10};
-    }
-
-    public static String stateName(int code) {
-        String[] order = {"NEW", "LEARNING", "FAMILIAR", "MASTERED"};
-        return order[Math.max(0, Math.min(3, code))];
+        for (int k = 0; k < order.length; k++) {
+            if (order[k].equals(state)) { i = k; break; }
+        }
+        return order[Math.min(i + 1, order.length - 1)];
     }
 }

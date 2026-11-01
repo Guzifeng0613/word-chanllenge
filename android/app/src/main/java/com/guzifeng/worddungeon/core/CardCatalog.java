@@ -84,7 +84,7 @@ public final class CardCatalog {
         return arr;
     }
 
-    /** 商店价格（C.shop）：血药30 / 祝福40 / 卡 普通50/稀有85/史诗150；刷新一组25。 */
+    /** 商店价格（C.shop）：血药30 / 祝福35 / 献祭40 / 卡 普通50/稀有85/史诗150；刷新一组25。 */
     public static final int PRICE_POTION = 30;
     public static final int PRICE_BLESS = 35;
     public static final int PRICE_SACRIFICE = 40;

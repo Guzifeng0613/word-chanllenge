@@ -236,11 +236,8 @@ public class StatsView extends FrameLayout {
                         .getInt("daily_q", 40);
                 post(() -> { barChart.setDailyGoal(dq); render(ov, series, share, recent); });
             } catch (Throwable e) {
-                post(() -> {
-                    TextView e2 = Ui.text(getContext(), "数据加载失败", 12, Ui.MUT, false);
-                    e2.setGravity(Gravity.CENTER);
-                    e2.setPadding(0, dp(24), 0, dp(24));
-                });
+                post(() -> android.widget.Toast.makeText(getContext(), "数据加载失败",
+                        android.widget.Toast.LENGTH_SHORT).show());
             }
         }).start();
     }
