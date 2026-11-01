@@ -35,6 +35,11 @@ public class RunState {
     public int senseGap = 0;
     /** V13.10 熟词生义：本局已考察过的「词|义」去重。 */
     public Map<String, Boolean> senseSeen = new HashMap<>();
+    /** V15.7 快刷普通模式新词调度：本会话累计答题数（重投间隔基准）。 */
+    public int drawnTotal = 0;
+    /** V15.7 快刷普通模式新词调度表：词 → {出现次数n, 连续答对streak, 下次出现序号nextAt(<=0=等待答题结果), 曾错0/1}。
+     *  规则：答错 → 5 道题后重投；答对 → 10/15/25 道题后重投；未错过连续 2 对、错过连续 3 对 → 毕业；出现满 4 次强制毕业。 */
+    public Map<String, int[]> quickSch = new HashMap<>();
 
     public RunState() {}
 
@@ -107,6 +112,17 @@ public class RunState {
                 r.formSeen.put(k, fs.optBoolean(k));
             }
         }
+        r.drawnTotal = o.optInt("drawn_total", 0);
+        JSONObject qs = o.optJSONObject("quick_sch");
+        if (qs != null) {
+            for (java.util.Iterator<String> it = qs.keys(); it.hasNext(); ) {
+                String k = it.next();
+                JSONArray a = qs.optJSONArray(k);
+                if (a != null && a.length() >= 4) {
+                    r.quickSch.put(k, new int[]{a.optInt(0, 1), a.optInt(1, 0), a.optInt(2, -1), a.optInt(3, 0)});
+                }
+            }
+        }
         return r;
     }
 
@@ -160,6 +176,12 @@ public class RunState {
             JSONObject fs = new JSONObject();
             for (Map.Entry<String, Boolean> e : formSeen.entrySet()) fs.put(e.getKey(), e.getValue());
             o.put("form_seen", fs);
+            o.put("drawn_total", drawnTotal);
+            JSONObject qs = new JSONObject();
+            for (Map.Entry<String, int[]> e : quickSch.entrySet()) {
+                qs.put(e.getKey(), new JSONArray(new int[]{e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]}));
+            }
+            o.put("quick_sch", qs);
         } catch (Exception e) {
             // 内部结构固定
         }

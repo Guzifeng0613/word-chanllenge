@@ -129,6 +129,11 @@ public class QuickEngine {
         if ("judge".equals(qt) && rnd.nextDouble() < 0.9) return choiceQType();
         return qt;
     }
+    /** V15.7 快刷普通模式（normal）无拼写题：spell 一律转四选一；hard/hell 保留拼写。 */
+    private String normQType(String qt) {
+        if (idx == 0 && "spell".equals(qt)) return choiceQType();
+        return qt;
+    }
 
     public Quiz draw(Map<String, WordRec> progress, String book, RunState runState, long now) {
         if (progress == null) progress = new java.util.HashMap<>();
@@ -144,13 +149,37 @@ public class QuickEngine {
         // V13.38：双池 90/10——90% 从高频池抽，10% 从全池抽
         List<WordEntry> effectivePool = (!highPool.isEmpty() && rnd.nextDouble() < 0.9) ? highPool : pool;
 
+        // ── 路径 0：V15.7 快刷普通模式新词调度重投（最高优先，到期必出）──
+        if (idx == 0) {
+            String due = null;
+            int dueAt = Integer.MAX_VALUE;
+            for (Map.Entry<String, int[]> en : runState.quickSch.entrySet()) {
+                int[] sc = en.getValue();
+                if (sc[0] >= 4) continue;                       // 出现满 4 次：不再重投
+                WordRec r0 = progress.get(en.getKey());
+                if (r0 != null && r0.graduated) continue;       // 已毕业：退出调度
+                if (sc[2] > 0 && sc[2] <= runState.drawnTotal && sc[2] < dueAt) {
+                    due = en.getKey();
+                    dueAt = sc[2];
+                }
+            }
+            if (due != null) {
+                int[] sc = runState.quickSch.get(due);
+                sc[0]++;                                        // 出现次数 +1
+                sc[2] = -1;                                     // 标记等待答题结果（提交时按结果重新安排）
+                WordRec rec = progress.get(due);
+                if (rec == null) rec = new WordRec();
+                return build(choiceQType(), due, rec, runState, book);
+            }
+        }
+
         // ── 路径 1：局内进阶队列（同一局内 识→认→写→拼 走完阶梯，题型多样）──
         double r = rnd.nextDouble();
         if (!runState.advQueue.isEmpty() && r < GameConfig.QUICK_ADV_PICK[idx]) {
             String w = runState.advQueue.remove(0);
             WordRec rec = progress.get(w);
             if (rec != null && bank.byWord.containsKey(w) && runState.cap(w)) {
-                String qt = QuizEngine.guardSpell(runState, SrsEngine.typeForWord(rec), w);
+                String qt = normQType(QuizEngine.guardSpell(runState, SrsEngine.typeForWord(rec), w));
                 return build(qt, w, rec, runState, book);
             }
         }
@@ -173,21 +202,23 @@ public class QuickEngine {
         }
 
         // ── 路径 3：全池加权（拼写候选 + 全池随机，含复习/已学词）──
-        // 拼写候选（按档门槛；冷却滤除）
+        // 拼写候选（仅 hard/hell；V15.7 普通模式无拼写题；按档门槛；冷却滤除）
         List<String> spellWords = new ArrayList<>();
         List<Double> spellW = new ArrayList<>();
-        for (WordEntry e : effectivePool) {
-            String w = e.w;
-            if (!runState.cap(w) || !canSpell(progress.get(w), w)) continue;
-            double wt = quickWeight(w, progress.get(w));
-            if (wt > 0) { spellWords.add(w); spellW.add(wt); }
-        }
-        if (!spellWords.isEmpty()) {
-            List<String> cw = new ArrayList<>(); List<Double> cW = new ArrayList<>();
-            for (int i = 0; i < spellWords.size(); i++) {
-                if (!QuizEngine.cold(runState, spellWords.get(i))) { cw.add(spellWords.get(i)); cW.add(spellW.get(i)); }
+        if (idx != 0) {
+            for (WordEntry e : effectivePool) {
+                String w = e.w;
+                if (!runState.cap(w) || !canSpell(progress.get(w), w)) continue;
+                double wt = quickWeight(w, progress.get(w));
+                if (wt > 0) { spellWords.add(w); spellW.add(wt); }
             }
-            if (!cw.isEmpty()) { spellWords = cw; spellW = cW; }
+            if (!spellWords.isEmpty()) {
+                List<String> cw = new ArrayList<>(); List<Double> cW = new ArrayList<>();
+                for (int i = 0; i < spellWords.size(); i++) {
+                    if (!QuizEngine.cold(runState, spellWords.get(i))) { cw.add(spellWords.get(i)); cW.add(spellW.get(i)); }
+                }
+                if (!cw.isEmpty()) { spellWords = cw; spellW = cW; }
+            }
         }
 
         String word;
@@ -217,11 +248,10 @@ public class QuickEngine {
             }
             if (!cw.isEmpty()) { words = cw; ws = cW; }
             word = weightedPick(words, ws);
-            qtype = SrsEngine.typeForWord(progress.get(word));
-            if ("spell".equals(qtype) && !canSpell(progress.get(word), word)) qtype = "cn2en";
+            qtype = normQType(SrsEngine.typeForWord(progress.get(word)));   // V15.7 普通模式无拼写
             if ("spell".equals(qtype) && word.length() > 8) qtype = "cn2en";
             qtype = maybeConvertJudge(qtype);   // V13.38：judge 90% 转四选一
-            qtype = QuizEngine.guardSpell(runState, qtype, word);   // 先见后拼
+            qtype = normQType(QuizEngine.guardSpell(runState, qtype, word));   // 先见后拼；普通模式无拼写
         }
         return build(qtype, word, progress.get(word), runState, book);
     }

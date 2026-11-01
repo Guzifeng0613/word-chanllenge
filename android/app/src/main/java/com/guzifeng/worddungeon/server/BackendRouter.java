@@ -241,6 +241,37 @@ public class BackendRouter {
             // V7.0：wrong_by 仅快刷记录；答对（任意档）若无任何错误记录则置 quick_pass
             if (!isCorrect) QuickEngine.markQuickWrong(newRec, quickLevel, qtype);
             else QuickEngine.markQuickPass(newRec);
+            runState.drawnTotal++;   // V15.7 会话答题计数（新词调度重投间隔基准）
+            // V15.7 快刷普通模式新词调度：未毕业词首现即进调度；
+            //   答错 → 5 道题后重投；答对 → 10/15/25 道题后重投；未错过连续 2 对、错过连续 3 对 → 毕业；出现满 4 次强制毕业。
+            if ("normal".equals(quickLevel) && !newRec.graduated) {
+                int[] sc = runState.quickSch.get(word);
+                if (sc == null) {
+                    sc = new int[]{1, 0, -1, 0};   // 首次出现：n=1，等待答题结果
+                    runState.quickSch.put(word, sc);
+                }
+                if (sc[2] == -1) {   // 本次是调度出现（draw 已递增 n 并置等待标记）
+                    if (isCorrect) {
+                        sc[1]++;
+                        boolean clean = sc[3] == 0;
+                        if ((clean && sc[1] >= 2) || sc[1] >= 3) {
+                            graduateQuick(newRec, nowMs);   // 进入长期记忆
+                            runState.quickSch.remove(word);
+                        } else {
+                            sc[2] = runState.drawnTotal + (sc[1] == 1 ? 10 : sc[1] == 2 ? 15 : 25);
+                        }
+                    } else {
+                        sc[1] = 0;
+                        sc[3] = 1;
+                        sc[2] = runState.drawnTotal + 5;   // 答错：5 道题后重新投入
+                    }
+                    if (sc[0] >= 4 && runState.quickSch.containsKey(word)) {
+                        // 出现满 4 次仍未达标：强制毕业兜底，防无限循环
+                        if (!newRec.graduated) graduateQuick(newRec, nowMs);
+                        runState.quickSch.remove(word);
+                    }
+                }
+            }
             // V12.7.14 局内进阶：答对且未毕业，排入进阶队列（去重、上限），同一局内出更高阶梯题
             if (isCorrect && !newRec.graduated
                     && !runState.advQueue.contains(word)
@@ -363,6 +394,15 @@ public class BackendRouter {
         n.put(id);
         meta.put("new_ach", n);
         return true;
+    }
+
+    /** V15.7 快刷普通模式新词调度毕业：进入长期记忆（与拼写压轴毕业同口径，随后走 SM-2 长期间隔复习）。 */
+    private void graduateQuick(WordRec rec, long nowMs) {
+        rec.graduated = true;
+        rec.state = "FAMILIAR";
+        rec.stage = 0;
+        rec.streak = 0;
+        rec.due = nowMs + (long) GameConfig.SRS_LADDER[0] * 60_000L;
     }
 
     private JSONObject reviewDue(String book) throws Exception {
