@@ -228,6 +228,9 @@ public class BackendRouter {
                     * (1.0 + 0.08 * greedLv + 0.15 * saintLv));
             soulGain = reward;
             souls += reward;
+            // V14.0.1 击杀词魂持久化：此前击杀奖励只进响应、从未写回 DB，导致结算/主页持久余额恒 0。
+            //   此处只累计击杀收益（reward），不混入前端上传的局内余额 souls（那含心流等局内机制值）。
+            meta.put("souls", meta.optInt("souls", 0) + reward);
         }
 
         WordRec newRec = oldRec == null ? new WordRec() : oldRec;
@@ -310,6 +313,9 @@ public class BackendRouter {
         out.put("heal_back", healBack);
         out.put("souls", souls);
         out.put("soul_gain", soulGain);
+        // V14.0.1 权威新词判定（oldRec==null），前端据此收集「本次新学的词」——
+        //   旧前端用 state=="NEW" 判新，但 SrsEngine 新词 state 实为 LEARNING，导致新学词恒 0。
+        out.put("is_new_word", oldRec == null);
         out.put("new_ach", meta.optJSONArray("new_ach") == null ? new JSONArray() : meta.optJSONArray("new_ach"));
         meta.remove("new_ach");
         return out;

@@ -55,6 +55,8 @@ public class MainActivity extends AppCompatActivity {
     public JSONObject bankMeta = null;
     // V11.7 对齐 V7.0：词魂钱包（战斗胜利发放，商店消费；持久化依赖 Agent3 后端字段，前端先本地维护）
     public int souls = 0;
+    // V14.0.1 本局词魂获得量（击杀 soul_gain + 心流奖励累计），结算页「本局收获」展示
+    public int soulsGained = 0;
     // 本局词收集（结算页 chip 展示）
     public final java.util.List<String> runNewWords = new java.util.ArrayList<>();
     public final java.util.List<String> runWrongWords = new java.util.ArrayList<>();

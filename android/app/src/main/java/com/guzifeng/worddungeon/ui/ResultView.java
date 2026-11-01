@@ -11,6 +11,8 @@ import android.widget.TextView;
 
 import com.guzifeng.worddungeon.MainActivity;
 import com.guzifeng.worddungeon.core.GameConfig;
+import com.guzifeng.worddungeon.core.WordBank;
+import com.guzifeng.worddungeon.core.WordEntry;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -99,12 +101,13 @@ public class ResultView extends FrameLayout {
                 try {
                     final int eg = res == null ? 0 : res.optInt("essence_gained", 0);
                     final int streak = res == null ? 0 : res.optInt("streak", 0);
-                    final int soulsNow = res == null ? act.souls : res.optInt("souls", act.souls);
+                    // V14.0.1 词魂显示本局获得量（击杀+心流），不再用后端持久余额（结算卡是「本局收获」）
+                    final int soulsNow = act.soulsGained;
                     act.main().post(() -> {
                         try {
                             if (essenceGainTxt != null) essenceGainTxt.setText("精华 +" + eg);
                             if (streakRewardTxt != null) streakRewardTxt.setText("连续打卡 " + streak + " 天");
-                            if (soulRewardTxt != null) soulRewardTxt.setText("词魂 " + soulsNow);
+                            if (soulRewardTxt != null) soulRewardTxt.setText("词魂 +" + soulsNow);
                         } catch (Throwable ignore) {}
                     });
                 } catch (Throwable ignore) {}
@@ -229,7 +232,7 @@ public class ResultView extends FrameLayout {
         reward.addView(Ui.text(getContext(), "本局收获", 13, Ui.GOLD, true));
         reward.addView(spacer(8));
         essenceGainTxt = Ui.text(getContext(), "精华 +—", 15, Ui.GOLD, true);
-        soulRewardTxt = Ui.text(getContext(), "词魂 " + act.souls, 13, Ui.CYAN, true);
+        soulRewardTxt = Ui.text(getContext(), "词魂 +" + act.soulsGained, 13, Ui.CYAN, true);   // V14.0.1 本局获得量
         streakRewardTxt = Ui.text(getContext(), "打卡 — 天", 13, Ui.TXT, false);
         reward.addView(essenceGainTxt);
         reward.addView(spacer(4));
@@ -377,12 +380,18 @@ public class ResultView extends FrameLayout {
         }
         int shown = Math.min(words.size(), 4);
         for (int i = 0; i < shown; i++) {
-            TextView chip = Ui.text(getContext(), words.get(i), 12, color, true);
+            final String w = words.get(i);
+            TextView chip = Ui.text(getContext(), w, 12, color, true);
             chip.setSingleLine(true);
             chip.setMaxWidth(dp(160));
             chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
             chip.setPadding(dp(10), dp(4), dp(10), dp(4));
             chip.setBackground(Ui.pill(Ui.BG_PILL, color));
+            // V14.0.1 词 chip 可点击：弹出该词正确释义提示框（新学词/错词均可点）
+            chip.setClickable(true);
+            chip.setFocusable(false);
+            Ui.pressable(chip);
+            chip.setOnClickListener(v -> showWordDialog(w));
             wrap.addView(chip);
             wrap.addView(Ui.spacer(getContext(), 6));
         }
@@ -394,6 +403,32 @@ public class ResultView extends FrameLayout {
             wrap.addView(more);
         }
         return wrap;
+    }
+
+    /** V14.0.1 词 chip 点击：深色地下城风提示框，显示单词+词性+正确释义。 */
+    private void showWordDialog(String word) {
+        try {
+            WordEntry e = WordBank.get().entry(word);
+            if (e == null) return;
+            String mean = (act.book == null || "all".equals(act.book)) ? e.m : e.effM(act.book);
+            String pos = e.p == null ? "" : e.p.trim();
+            String content = (pos.isEmpty() ? "" : pos + "　") + (mean == null ? "" : mean);
+            if (content.isEmpty()) content = "（词库中暂无释义）";
+            android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(getContext());
+            b.setTitle(word);
+            b.setMessage(content);
+            b.setNegativeButton("关闭", null);
+            android.app.AlertDialog d = b.create();
+            if (d.getWindow() != null) {
+                d.getWindow().setBackgroundDrawable(Ui.card(18, Ui.CARD, 1, Ui.GOLD));
+            }
+            d.show();
+            TextView tt = d.findViewById(android.R.id.title);
+            if (tt != null) tt.setTextColor(Ui.GOLD);
+            TextView mt = d.findViewById(android.R.id.message);
+            if (mt != null) mt.setTextColor(Ui.TXT);
+            d.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(Ui.CYAN);
+        } catch (Throwable ignore) {}
     }
 
     private void fillLevelCard(TextView badge, TextView ll, LinearLayout barl) {

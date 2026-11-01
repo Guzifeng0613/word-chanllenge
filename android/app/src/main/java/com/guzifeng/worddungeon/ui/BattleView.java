@@ -672,6 +672,7 @@ public class BattleView extends FrameLayout {
         if (activeCardsScroll != null) activeCardsScroll.setVisibility(GONE);
         // 词魂局内制（V11.8）：闯关/无尽各自一局，开局清零、局内获得局内使用，不跨局
         act.souls = 0;
+        act.soulsGained = 0;   // V14.0.1 结算页本局词魂获得量
         // V12.9 读祭坛永久祝福（账号级权威），应用体魄/引力/复苏/词锋/先知
         JSONObject altar = new JSONObject();
         try {
@@ -1250,13 +1251,30 @@ public class BattleView extends FrameLayout {
                 spellInput.setTextSize(18);
                 spellInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
                 // V11.5 字母格实时同步（只读不回写，绝不干扰输入顺序/删除键）
-                spellInput.addTextChangedListener(new android.text.TextWatcher() {
+                // V14.0.1 后置强制小写：部分输入法可绕过 InputFilter 直接提交大写，这里兜底
+                //   把 EditText 内容统一转小写（保光标在末尾），保证输入框与字母格永不出现大写。
+                final android.text.TextWatcher spellWatcher = new android.text.TextWatcher() {
                     @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
                     @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
                     @Override public void afterTextChanged(android.text.Editable e) {
-                        syncTiles(e.toString());
+                        String s = e.toString();
+                        boolean hasUpper = false;
+                        for (int i = 0; i < s.length(); i++) {
+                            char ch = s.charAt(i);
+                            if (ch >= 'A' && ch <= 'Z') { hasUpper = true; break; }
+                        }
+                        if (hasUpper) {
+                            String lower = s.toLowerCase(java.util.Locale.ROOT);
+                            spellInput.removeTextChangedListener(this);
+                            spellInput.setText(lower);
+                            spellInput.setSelection(lower.length());
+                            spellInput.addTextChangedListener(this);
+                            s = lower;
+                        }
+                        syncTiles(s);
                     }
-                });
+                };
+                spellInput.addTextChangedListener(spellWatcher);
                 // 回车/完成：走与选项提交完全一致的 submit() 判定逻辑
                 spellInput.setOnEditorActionListener((v, id, ev) -> {
                     if (id == EditorInfo.IME_ACTION_DONE || id == EditorInfo.IME_ACTION_GO
@@ -1520,7 +1538,7 @@ public class BattleView extends FrameLayout {
         if (spellInput == null) { submit(""); return; }
         if (spellInput != null) recordTap(spellInput);
         String t = spellInput.getText().toString().trim();
-        submit(t);
+        submit(t.toLowerCase(java.util.Locale.ROOT));   // V14.0.1 提交兜底转小写（判答本就大小写无关）
     }
 
     /** 记录本次作答点击位置（投射打击起点）。坐标换算为相对本 View 根容器的位置。 */
@@ -1608,6 +1626,15 @@ public class BattleView extends FrameLayout {
                 act.souls = res.optInt("souls", act.souls);
                 updateHud();
             }
+            // V14.0.1 本局词魂获得量累计（击杀奖励 soul_gain，与结算页「本局收获」同源）
+            act.soulsGained += res.optInt("soul_gain", 0);
+            // V14.0.1 新学词收集（结算页 chip）：以后端 is_new_word 权威判定。
+            //   旧条件 state=="NEW" 永不成立（SrsEngine 新词 state 是 LEARNING），导致「新学词 0」。
+            //   移到公共位置：答对/答错第一次见的词都算「本次新学」。
+            if (res.optBoolean("is_new_word", false)
+                    && !act.runNewWords.contains(quiz.optString("word"))) {
+                act.runNewWords.add(quiz.optString("word"));
+            }
 
             if (ok) {
                 combo++;
@@ -1646,13 +1673,15 @@ public class BattleView extends FrameLayout {
                 // V7.0 心流：连击≥5 进入全屏青色光晕 +「心 流」横幅；P0-1 档位化：≥5/+1，≥8/+2，≥12/+3
                 if (combo >= GameConfig.FLOW_BASE_COMBO) {
                     if (!flowOn) { flowOn = true; flowTier = 1; triggerFlow(); }
-                    if (!"quick".equals(mode)) { act.souls += flowSoulPerAnswer(combo); updateHud(); }
+                    if (!"quick".equals(mode)) {
+                        int flowGain = flowSoulPerAnswer(combo);
+                        act.souls += flowGain;
+                        act.soulsGained += flowGain;   // V14.0.1 心流奖励计入本局获得
+                        updateHud();
+                    }
                     maybeEscalateFlow(combo);
                 }
-                // 新学词收集（结算页 chip）
-                if ("NEW".equals(res.optString("state", "")) && !act.runNewWords.contains(quiz.optString("word"))) {
-                    act.runNewWords.add(quiz.optString("word"));
-                }
+                // V14.0.1 新学词收集已移到 submit 公共位置（对错都算），此处删除旧 state=="NEW" 条件
                 // V7.0 成就解锁金色 toast（后端 new_ach 数组）；R3：key 经 MainActivity.achName 集中映射为中文名，不再直弹英文 key
                 JSONArray na = res.optJSONArray("new_ach");
                 if (na != null && na.length() > 0) {
