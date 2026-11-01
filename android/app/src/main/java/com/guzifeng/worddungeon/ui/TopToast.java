@@ -99,10 +99,14 @@ public final class TopToast {
                 lp.gravity = Gravity.TOP | Gravity.LEFT;
                 lp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
                 lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                // 迭代4：显式 measure 取真实宽高再折算中心偏移——首次弹出时 bar 尚未布局，
+                //   getWidth() 为 0 会导致 toast 左缘对齐目标点（偏移半个卡片宽）。
+                bar.measure(View.MeasureSpec.makeMeasureSpec(cw, View.MeasureSpec.AT_MOST),
+                        View.MeasureSpec.makeMeasureSpec(ch, View.MeasureSpec.AT_MOST));
                 int px = Math.round(cw * xPct / 100f);
                 int py = Math.round(ch * yPct / 100f);
-                lp.leftMargin = px - bar.getWidth() / 2;
-                lp.topMargin = py - bar.getHeight() / 2;
+                lp.leftMargin = px - bar.getMeasuredWidth() / 2;
+                lp.topMargin = py - bar.getMeasuredHeight() / 2;
                 bar.setLayoutParams(lp);
             } catch (Throwable ignore) {}
         });

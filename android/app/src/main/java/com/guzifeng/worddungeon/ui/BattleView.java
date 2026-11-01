@@ -1264,10 +1264,14 @@ public class BattleView extends FrameLayout {
                             if (ch >= 'A' && ch <= 'Z') { hasUpper = true; break; }
                         }
                         if (hasUpper) {
+                            // 迭代1：转小写时保持原光标位置（clamp 到安全范围），不再强制弹到末尾，
+                            //   避免用户在中间插入/删除字母时焦点丢失。
+                            int sel = spellInput.getSelectionStart();
+                            if (sel < 0) sel = s.length();
                             String lower = s.toLowerCase(java.util.Locale.ROOT);
                             spellInput.removeTextChangedListener(this);
                             spellInput.setText(lower);
-                            spellInput.setSelection(lower.length());
+                            spellInput.setSelection(Math.min(sel, lower.length()));
                             spellInput.addTextChangedListener(this);
                             s = lower;
                         }
@@ -1416,7 +1420,7 @@ public class BattleView extends FrameLayout {
             TextView tile = tileViews.get(i);
             if (i < t.length()) {
                 char c = t.charAt(i);
-                tile.setText(String.valueOf(c).toUpperCase());
+                tile.setText(String.valueOf(c));   // 迭代2：字母格随输入显示小写（此前 toUpperCase 仍呈现"自动大写"观感）
                 tile.setTextColor(Ui.GOLD);
                 tile.setBackground(Ui.card(8, Ui.CARD2, 1, Ui.GOLD));
             } else {
