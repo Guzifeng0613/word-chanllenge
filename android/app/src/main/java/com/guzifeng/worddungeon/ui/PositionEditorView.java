@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -358,7 +357,7 @@ public class PositionEditorView extends LinearLayout {
             LinearLayout top = new LinearLayout(c);
             top.setOrientation(LinearLayout.HORIZONTAL);
             top.setGravity(Gravity.CENTER_VERTICAL);
-            top.addView(Ui.text(c, quick ? "快刷" : "第 1 层 · 词境", 16, Ui.CYAN, true),
+            top.addView(Ui.text(c, "第 1 层 · 词境", 16, Ui.CYAN, true),   // 快刷左侧标题与真机一致（BattleView topTxt）
                     new LinearLayout.LayoutParams(0, -2, 1f));
             if (quick) {
                 top.addView(Ui.text(c, "‹ 退出快刷", 14, Ui.CYAN, true));

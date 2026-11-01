@@ -1,3 +1,11 @@
+## V15.0 · 走查修复：位置编辑器快刷顶栏标题与真机一致（2026-11-01）
+- 对 V14.6/14.7/14.8/14.9 连续四版做全面代码级走查（PositionEditorView SceneBackground 全链路、Positions 键归一化与默认值、Ui.vibrate 开关、WrongbookView 振动、BattleView/TopToast 调用方）。
+- 修复：位置编辑器快刷场景预览背景顶栏左侧此前写「快刷」，与真机不一致——真机快刷顶栏左侧仍为「第 1 层 · 词境」（16sp CYAN 加粗，BattleView topTxt），右侧才是「‹ 退出快刷 + 已刷 N 词」。已改为完全一致。
+- 清理：移除 V14.6 重写后遗留的未使用 import（android.graphics.Path）。
+- 走查确认无问题的部分：SceneBackground 整体等比缩放（min(W/DW,H/DH) clamp 0.2~1.5、中心 pivot、居中）、三场景布局参数与真机同 dp/字号/颜色/结构、hpBar 从左侧填充、远征/快刷弹性上下 weight 分配、Positions 键归一化全链路（编辑器 Tab/拖动/恢复默认/运行期读取均落到同一套）、默认值=用户远征调校套、V14.9 振动沿用 Ui.vibrate 且受「震动触感」开关控制。
+- 验证方式：云主机无 KVM（模拟器无法开机），本次为代码级走查 + `compileReleaseJavaWithJavac` 编译通过；构建由 `assembleRelease/assembleDebug` 完成，aapt 核验双 APK 版本一致；真机截图是权威验收依据。
+- 版本号 versionCode 102 / versionName 15.0。
+
 ## V14.9 · 错词复习按钮点击振动反馈（2026-11-01）
 - 用户要求：错词复习页「✓ 记住了 / ✗ 再复习」按钮点击后也要有振动反馈。
 - WrongbookView.reviewWord() 两个按钮统一走此处，点击即振：记住了=清脆一击 22ms（与战斗答对同款振感）、再复习=轻双段提示（30/20/40ms）。
