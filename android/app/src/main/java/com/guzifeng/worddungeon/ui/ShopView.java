@@ -30,9 +30,14 @@ public class ShopView extends FrameLayout {
         }
     }
 
+    /** 异步操作结果回调：success=true 表示后端确认成功。 */
+    public interface Result {
+        void done(boolean success);
+    }
+
     public interface OnShop {
-        void onBuy(String kind, int price, JSONObject card);
-        void onReroll();
+        void onBuy(String kind, int price, JSONObject card, Result r);
+        void onReroll(Result r);
         void onLeave();
     }
 
@@ -98,8 +103,17 @@ public class ShopView extends FrameLayout {
                         android.widget.Toast.LENGTH_SHORT).show();
                 return;
             }
-            souls -= rerollCost;
-            cb.onReroll();
+            // V15.9 M5：不再先乐观扣减。临时禁用防连点，等后端结果；成功才扣减，失败恢复且余额不变
+            reroll.setEnabled(false);
+            cb.onReroll(success -> post(() -> {
+                if (success) {
+                    souls -= rerollCost;
+                    refreshSouls();
+                } else {
+                    reroll.setEnabled(true);
+                    refreshSouls();
+                }
+            }));
         });
         col.addView(reroll);
         col.addView(spacer(14));
@@ -150,11 +164,23 @@ public class ShopView extends FrameLayout {
                         android.widget.Toast.LENGTH_SHORT).show();
                 return;
             }
-            souls -= it.price;
-            cb.onBuy(it.kind, it.price, it.card);
-            refreshSouls();
+            // V15.9 M4：不再先乐观扣减+永久置灰。临时禁用防连点，等后端结果；
+            //   成功才扣减并置灰，失败恢复按钮、余额不变，可重试
             buy.setEnabled(false);
-            buy.setAlpha(0.5f);
+            buy.setAlpha(0.6f);
+            final int price = it.price;
+            cb.onBuy(it.kind, it.price, it.card, success -> post(() -> {
+                if (success) {
+                    souls -= price;
+                    refreshSouls();
+                    buy.setEnabled(false);
+                    buy.setAlpha(0.5f);
+                } else {
+                    buy.setEnabled(true);
+                    buy.setAlpha(1f);
+                    refreshSouls();
+                }
+            }));
         });
         row.addView(buy);
         row.setTag(buy);

@@ -756,7 +756,10 @@ public class BattleView extends FrameLayout {
                 if (ambient != null) ambient.setLayer(layer);
             }
             enemyName.setText(e.optString("name", "词魔"));
-            enemyEmoji.setText(EMOJI.getOrDefault(e.optJSONObject("tpl").optString("id", ""), "👹"));
+            // V15.9 M3：tpl 判空，与 L1008 同口径；缺 tpl 键时回退默认图标，避免 NPE 中断 spawnEnemy 后半段
+            JSONObject tplObj = e.optJSONObject("tpl");
+            String tplId = tplObj != null ? tplObj.optString("id", "") : "";
+            enemyEmoji.setText(EMOJI.getOrDefault(tplId, "👹"));
             // R1-7/R2-3：先瞬时复位上一轮击杀消散残留（scale 归位，绝不残留消散态），
             // 再做 R2 新怪入场：从透明 + 下方 10dp 上浮淡入（230ms），结束后交回 idleFloat 待机浮动。
             enemyEmoji.animate().cancel();
@@ -2325,7 +2328,7 @@ public class BattleView extends FrameLayout {
         final ShopView[] holder = new ShopView[1];
         java.util.List<ShopView.Item> items = buildShopItems();
         ShopView sv = new ShopView(getContext(), act.souls, items, rerollCost(), new ShopView.OnShop() {
-            @Override public void onBuy(String kind, int price, JSONObject card) {
+            @Override public void onBuy(String kind, int price, JSONObject card, ShopView.Result result) {
                 // GAP-01 + V12.8.3：真实扣词魂走后端 /shop/buy（item/potion|bless|card），必须携带 souls 与前端价格
                 final String item;
                 final int rarity;
@@ -2350,6 +2353,7 @@ public class BattleView extends FrameLayout {
                     final JSONObject buy = res;
                     final boolean bought = ok;
                     main.post(() -> {
+                        result.done(bought);                 // V15.9 M4：先通知 ShopView 按结果更新本地扣减/置灰
                         if (!bought) {
                             showFeed("词魂不足或购买失败", Ui.RED);
                             return;
@@ -2380,8 +2384,8 @@ public class BattleView extends FrameLayout {
                     });
                 }).start();
             }
-            @Override public void onReroll() {
-                rerollShop(holder);
+            @Override public void onReroll(ShopView.Result result) {
+                rerollShop(holder, result);
             }
             @Override public void onLeave() {
                 overlayView = null;
@@ -2423,7 +2427,7 @@ public class BattleView extends FrameLayout {
     }
 
     /** V12.9 商店刷新：扣刷新费（无尽随层数涨）成功后重建商店浮层，重抽商品。 */
-    private void rerollShop(ShopView[] holder) {
+    private void rerollShop(ShopView[] holder, ShopView.Result result) {
         final int cost = rerollCost();
         new Thread(() -> {
             JSONObject res = null;
@@ -2437,6 +2441,7 @@ public class BattleView extends FrameLayout {
             final JSONObject buyRes = res;
             final boolean bought = res != null && res.optBoolean("ok", false);
             main.post(() -> {
+                result.done(bought);                 // V15.9 M5：先通知 ShopView 按结果更新本地扣减/恢复
                 if (!bought) {
                     showFeed("词魂不足，无法刷新", Ui.RED);
                     return;

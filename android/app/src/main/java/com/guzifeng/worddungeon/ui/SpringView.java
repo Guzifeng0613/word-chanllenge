@@ -86,9 +86,8 @@ public class SpringView extends FrameLayout {
         String[] keys = words.keySet().toArray(new String[0]);
         // GAP-11：按本层出错次数降序（≈顽固>易错>生疏）
         java.util.Arrays.sort(keys, (a, b) -> {
-            String[] pa = words.get(a), pb = words.get(b);
-            int ca = pa != null && pa.length > 2 ? Integer.parseInt(pa[2]) : 1;
-            int cb = pb != null && pb.length > 2 ? Integer.parseInt(pb[2]) : 1;
+            int ca = parseCount(words.get(a));
+            int cb = parseCount(words.get(b));
             return cb - ca;
         });
         if (idx >= keys.length) {
@@ -158,6 +157,16 @@ public class SpringView extends FrameLayout {
 
     private void done() {
         try { cb.onDone(); } catch (Throwable ignore) {}
+    }
+
+    /** V15.9 M6：安全读取本层出错次数；缺字段或非数字时回退 1，避免比较器抛 NumberFormatException 中断排序。 */
+    private static int parseCount(String[] p) {
+        if (p == null || p.length <= 2) return 1;
+        try {
+            return Integer.parseInt(p[2]);
+        } catch (Throwable t) {
+            return 1;
+        }
     }
 
     private int dp(float v) { return Ui.dp(getContext(), v); }

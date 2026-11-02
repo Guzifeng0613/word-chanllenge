@@ -135,6 +135,16 @@ public class QuickEngine {
         return qt;
     }
 
+    /**
+     * V15.9 M1：该词是否正处于 V15.7 新词调度的「重投等待中」（sc[2] 为未来到期计数）。
+     * 这类词只能由路径 0 到期抽出，路径 1/3 需跳过，避免提前出现时答案提交因 sc[2]≠-1
+     * 被整段跳过、连对/曾错状态漏记，导致实际答错的词走「干净 2 对」毕业通道。
+     */
+    private static boolean isScheduled(RunState runState, String w) {
+        int[] sc = runState.quickSch.get(w);
+        return sc != null && sc[2] > 0;
+    }
+
     public Quiz draw(Map<String, WordRec> progress, String book, RunState runState, long now) {
         if (progress == null) progress = new java.util.HashMap<>();
         if (runState == null) runState = new RunState();
@@ -176,11 +186,23 @@ public class QuickEngine {
         // ── 路径 1：局内进阶队列（同一局内 识→认→写→拼 走完阶梯，题型多样）──
         double r = rnd.nextDouble();
         if (!runState.advQueue.isEmpty() && r < GameConfig.QUICK_ADV_PICK[idx]) {
-            String w = runState.advQueue.remove(0);
-            WordRec rec = progress.get(w);
-            if (rec != null && bank.byWord.containsKey(w) && runState.cap(w)) {
-                String qt = normQType(QuizEngine.guardSpell(runState, SrsEngine.typeForWord(rec), w));
-                return build(qt, w, rec, runState, book);
+            // V15.9 M1：跳过「重投等待中」的词（留给路径 0 到期抽出），只取可用的进阶词，
+            //   不再无脑 remove(0) 后可能抽到调度词而绕过状态机。
+            String pick = null;
+            for (String w : runState.advQueue) {
+                if (isScheduled(runState, w)) continue;
+                WordRec cand = progress.get(w);
+                if (cand != null && bank.byWord.containsKey(w) && runState.cap(w)) {
+                    pick = w;
+                    break;
+                }
+            }
+            if (pick != null) {
+                runState.advQueue.remove(pick);
+                WordRec rec = progress.get(pick);
+                String qt = normQType(QuizEngine.guardSpell(
+                        runState, SrsEngine.typeForWord(rec), pick));
+                return build(qt, pick, rec, runState, book);
             }
         }
 
@@ -231,14 +253,21 @@ public class QuickEngine {
             List<Double> ws = new ArrayList<>();
             for (WordEntry e : effectivePool) {
                 String w = e.w;
-                if (!runState.cap(w)) continue;
+                if (!runState.cap(w) || isScheduled(runState, w)) continue;   // V15.9 M1：调度等待词留给路径0
                 double wt = quickWeight(w, progress.get(w));
                 if (wt > 0) { words.add(w); ws.add(wt); }
             }
             if (words.isEmpty()) {
+                // V15.9 M1：兜底也优先非调度词；仅当非调度词全不可用时才放行调度词防崩
                 for (WordEntry e : effectivePool) {
                     String w = e.w;
-                    if (runState.cap(w)) { words.add(w); ws.add(1.0); }
+                    if (runState.cap(w) && !isScheduled(runState, w)) { words.add(w); ws.add(1.0); }
+                }
+                if (words.isEmpty()) {
+                    for (WordEntry e : effectivePool) {
+                        String w = e.w;
+                        if (runState.cap(w)) { words.add(w); ws.add(1.0); }
+                    }
                 }
             }
             // V12.1：冷却滤除本局已答对词（词池未耗尽时）

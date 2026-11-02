@@ -120,8 +120,9 @@ public class EnemyModel {
                 Tpl t = boss.get((layer - 1) % boss.size());
                 double champMul = champion ? GameConfig.ENDLESS_CHAMPION_HP : 1.0;
                 int champAtk = champion ? GameConfig.ENDLESS_CHAMPION_ATK : 0;
-                int hp = (int) Math.round(boss.get(0).hp[0] * sc[0] * champMul);
-                int atk = (int) Math.round(boss.get(0).atk[0] * sc[1]) + champAtk;
+                // V15.9 M2：数值随轮换模板 t 走，旧版硬编码 boss.get(0) 致 boss2/3 模板标注的 HP/ATK 不生效
+                int hp = (int) Math.round(t.hp[0] * sc[0] * champMul);
+                int atk = (int) Math.round(t.atk[0] * sc[1]) + champAtk;
                 return envelope(t, champion ? "冠军·" + t.name : t.name, hp, atk,
                         true, false, champion, false);
             }
