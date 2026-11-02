@@ -370,16 +370,23 @@ public class ResultView extends FrameLayout {
     }
 
     /** V7.0 词 pill chips：一排圆角描边小胶囊，空则显示「无」。 */
-    private LinearLayout chipsRow(java.util.List<String> words, int color, String overflowLabel) {
+    private View chipsRow(java.util.List<String> words, int color, String overflowLabel) {
+        // V15.8：横向滚动容器，每个词保持自然宽度不被挤压；窄屏可横滑查看全部，
+        //   修复旧版「仅平铺前4个+等N个」在窄屏把「等N个」挤成无文字竖条、与顶部数字对不上的问题。
+        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(getContext());
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         LinearLayout wrap = new LinearLayout(getContext());
         wrap.setOrientation(HORIZONTAL);
+        wrap.setGravity(Gravity.CENTER_VERTICAL);
         wrap.setPadding(0, dp(5), 0, dp(2));
         if (words == null || words.isEmpty()) {
             wrap.addView(Ui.text(getContext(), "无", 12, Ui.MUT, false));
-            return wrap;
+            scroll.addView(wrap);
+            return scroll;
         }
-        int shown = Math.min(words.size(), 4);
-        for (int i = 0; i < shown; i++) {
+        for (int i = 0; i < words.size(); i++) {
             final String w = words.get(i);
             TextView chip = Ui.text(getContext(), w, 12, color, true);
             chip.setSingleLine(true);
@@ -395,14 +402,8 @@ public class ResultView extends FrameLayout {
             wrap.addView(chip);
             wrap.addView(Ui.spacer(getContext(), 6));
         }
-        if (words.size() > 4) {
-            int rest = words.size() - 4;
-            TextView more = Ui.text(getContext(), "等 " + rest + " " + overflowLabel, 12, Ui.MUT, false);
-            more.setPadding(dp(10), dp(4), dp(10), dp(4));
-            more.setBackground(Ui.pill(Ui.BG_PILL, Ui.MUT));
-            wrap.addView(more);
-        }
-        return wrap;
+        scroll.addView(wrap);
+        return scroll;
     }
 
     /** V14.0.1 词 chip 点击：深色地下城风提示框，显示单词+词性+正确释义。
