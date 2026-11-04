@@ -578,13 +578,13 @@ public class BattleView extends FrameLayout {
     /** UI-iteration-12：玩家血量数字闪红后恢复常规色（方法引用作 Runnable，避免前向引用）。 */
     private void hpLabReset() { if (hpLab != null) hpLab.setTextColor(Ui.TXT); }
 
-    /** V16.0：答题反馈框自定义显示时长（wd_ui/feedback_hold_ms，默认 1000ms），设置页四档可调。 */
+    /** V16.1：答题反馈框自定义显示时长（wd_ui/feedback_hold_ms，默认 1000ms），设置页 0.5–3 秒滑块无极可调。 */
     private int feedbackHoldMs() {
         try {
             SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
             int ms = sp.getInt("feedback_hold_ms", 1000);
-            // 合法区间兜底（300–8000ms），防异常值
-            return Math.max(300, Math.min(8000, ms));
+            // 合法区间兜底（500–3000ms），与滑块范围一致，防异常值
+            return Math.max(500, Math.min(3000, ms));
         } catch (Throwable t) {
             return 1000;
         }
