@@ -4,6 +4,7 @@ import android.animation.ObjectAnimator;
 import android.animation.AnimatorSet;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputFilter;
@@ -576,6 +577,18 @@ public class BattleView extends FrameLayout {
 
     /** UI-iteration-12：玩家血量数字闪红后恢复常规色（方法引用作 Runnable，避免前向引用）。 */
     private void hpLabReset() { if (hpLab != null) hpLab.setTextColor(Ui.TXT); }
+
+    /** V16.0：答题反馈框自定义显示时长（wd_ui/feedback_hold_ms，默认 1000ms），设置页四档可调。 */
+    private int feedbackHoldMs() {
+        try {
+            SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+            int ms = sp.getInt("feedback_hold_ms", 1000);
+            // 合法区间兜底（300–8000ms），防异常值
+            return Math.max(300, Math.min(8000, ms));
+        } catch (Throwable t) {
+            return 1000;
+        }
+    }
 
     /** 答题反馈条：浮在屏幕正中，先高不透明度停留约 1 秒后快速淡出。 */
     private void showAnswerResult(boolean ok, String text, int holdMs) {
@@ -1737,7 +1750,7 @@ public class BattleView extends FrameLayout {
                         || "en2en".equals(quiz.optString("qtype"))
                         || "sense".equals(quiz.optString("qtype"));
                 String jmOk = judgeWrongOk ? res.optString("correct_mean", "") : "";
-                int okHold = 600;
+                int okHold = feedbackHoldMs();
                 String okTxt = "伤害 +" + damage + (combo > 1 ? " · 连击 ×" + combo : "");
                 if (judgeWrongOk && !jmOk.isEmpty()) {
                     okTxt += "\n正确释义：" + jmOk;
@@ -1769,7 +1782,7 @@ public class BattleView extends FrameLayout {
                     if (big) Ui.vibrate(getContext(), new long[]{0, 40, 30, 55});
                     else Ui.vibrate(getContext(), 20);
                     Sfx.play(getContext(), big ? Sfx.CRIT : Sfx.HIT);
-                    main.postDelayed(this::nextQuiz, meanHold ? 1450 : 300);   // V12.7.11 judge-错答对释义可读延时
+                    main.postDelayed(this::nextQuiz, meanHold ? Math.max(1450, feedbackHoldMs()) : feedbackHoldMs());   // V16.0 切题跟随反馈时长；meanHold 释义可读兜底
                 } else {
                     hitEnemy(damage, crit, wrongCnt > 0 || focusRevengeHit);
                 }
@@ -1820,8 +1833,8 @@ public class BattleView extends FrameLayout {
                 // 并停留约 1s 再进下一题；选项题保持原 1.1s 停留。
                 boolean spellWrong = "spell".equals(quiz.optString("qtype")) && spellInput != null;
                 if (spellWrong) {
-                    // V13.16：答错反馈停留 800ms
-                    showAnswerResult(false, hurtPre + "正确答案：" + correctAnswer, 800);
+                    // V16.0：答错反馈停留自定义时长
+                    showAnswerResult(false, hurtPre + "正确答案：" + correctAnswer, feedbackHoldMs());
                     // V11.5：字母格红抖 + 逐个揭晓正确答案（金色）
                     spellTilesWrong(correctAnswer);
                     try {
@@ -1849,8 +1862,8 @@ public class BattleView extends FrameLayout {
                     } else {
                         display = correctAnswer;
                     }
-                    // V13.16：答错反馈停留 800ms
-                    showAnswerResult(false, hurtPre + "正确答案：" + display, 800);
+                    // V16.0：答错反馈停留自定义时长
+                    showAnswerResult(false, hurtPre + "正确答案：" + display, feedbackHoldMs());
                     // V11.5 选项题答错：选中项红抖 + 正确答案绿框高亮
                     highlightOptions(answer, correctAnswer);
                 }
@@ -1873,7 +1886,7 @@ public class BattleView extends FrameLayout {
             boolean big = crit || revenge;
             flyProjectile(damage, big, crit, revenge, left);
         } catch (Throwable ignore) {
-            main.postDelayed(this::nextQuiz, 350);
+            main.postDelayed(this::nextQuiz, feedbackHoldMs());
         }
     }
 
@@ -1947,10 +1960,10 @@ public class BattleView extends FrameLayout {
             if (left <= 0) {
                 onKill();
             } else {
-                main.postDelayed(this::nextQuiz, meanHold ? 1450 : 260);   // V12.7.7 答对：240ms 飞行 + 260ms ≈ 0.5s 切下一题；V12.7.11 judge-错释义可读延时
+                main.postDelayed(this::nextQuiz, meanHold ? Math.max(1450, feedbackHoldMs()) : feedbackHoldMs());   // V16.0 切题跟随反馈时长
             }
         } catch (Throwable ignore) {
-            main.postDelayed(this::nextQuiz, meanHold ? 1450 : 260);
+            main.postDelayed(this::nextQuiz, meanHold ? Math.max(1450, feedbackHoldMs()) : feedbackHoldMs());
         }
     }
     private void hitPlayer(int atk) {
@@ -2585,11 +2598,11 @@ public class BattleView extends FrameLayout {
                 act.result().onFinish(false, mode, layer, wrongInRun, combo,
                         questionsInRun, correctInRun, maxCombo, killsInRun);
                 act.show(MainActivity.Screen.RESULT);
-            }, 900);
+            }, Math.max(900, feedbackHoldMs()));
             return;
         }
-        // V13.16：答错反馈停留 800ms 后切下一题
-        main.postDelayed(this::nextQuiz, 800);
+        // V16.0：答错反馈停留自定义时长后切下一题
+        main.postDelayed(this::nextQuiz, feedbackHoldMs());
     }
 
     /** V7.0 返回键：战斗内浮层（翻牌/泉/商店）打开时先关浮层并推进流程，再弹「放弃本层战斗？」二次确认。 */

@@ -57,6 +57,7 @@ public class SettingsView extends LinearLayout {
         buildExamCard(body);
         buildEn2EnCard(body);
         buildTimeLimitCard(body);
+        buildFeedbackCard(body);
         buildDailyGoalCard(body);
         buildDataCard(body);
         buildBackupCard(body);
@@ -390,6 +391,52 @@ public class SettingsView extends LinearLayout {
             sp.edit().putBoolean("time_limit_on", next).apply();
             Ui.applySwitch((LinearLayout) sw, next);
         });
+        card.addView(row);
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
+    /** V16.0 答题反馈时长：四档单选（0.5/1/2/3 秒）。持久化 wd_ui/feedback_hold_ms。
+     *  控制答对/答错后屏幕中央「✓答对/✗答错」反馈框的停留时间，切题会同步等待，确保设的时长真实生效。 */
+    private void buildFeedbackCard(LinearLayout body) {
+        final SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("答题反馈时长 ⓘ", "答对或答错后，屏幕中央反馈框停留多久，就多久进入下一题；需要读释义时会自动延长。"));
+
+        int cur = sp.getInt("feedback_hold_ms", 1000);
+        final int[] presets = {500, 1000, 2000, 3000};
+        final String[] names = {"0.5秒", "1秒", "2秒", "3秒"};
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        for (int i = 0; i < presets.length; i++) {
+            final int ms = presets[i];
+            LinearLayout btn = new LinearLayout(getContext());
+            btn.setOrientation(VERTICAL);
+            btn.setGravity(Gravity.CENTER);
+            btn.setPadding(dp(6), dp(10), dp(6), dp(10));
+            boolean active = (cur == ms);
+            btn.setBackground(Ui.card(12, active ? 0xFF14304D : Ui.CARD2, active ? 2 : 1, active ? Ui.CYAN : Ui.LINE));
+            TextView t1 = Ui.text(getContext(), names[i], 12.5f, active ? Ui.CYAN : Ui.TXT, true);
+            btn.addView(t1);
+            final int idx = i;
+            Ui.pressable(btn);
+            btn.setOnClickListener(v -> {
+                sp.edit().putInt("feedback_hold_ms", ms).apply();
+                for (int j = 0; j < ((LinearLayout) row).getChildCount(); j++) {
+                    LinearLayout b = (LinearLayout) ((LinearLayout) row).getChildAt(j);
+                    boolean on = (j == idx);
+                    b.setBackground(Ui.card(12, on ? 0xFF14304D : Ui.CARD2, on ? 2 : 1, on ? Ui.CYAN : Ui.LINE));
+                    ((TextView) b.getChildAt(0)).setTextColor(on ? Ui.CYAN : Ui.TXT);
+                }
+            });
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -2, 1f);
+            if (i > 0) bp.leftMargin = dp(7);
+            row.addView(btn, bp);
+        }
         card.addView(row);
         body.addView(card);
         body.addView(spacer(10));
