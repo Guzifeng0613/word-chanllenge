@@ -1,6 +1,7 @@
 package com.guzifeng.worddungeon.server;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import com.guzifeng.worddungeon.core.CardCatalog;
 import com.guzifeng.worddungeon.core.DamageCalc;
@@ -132,6 +133,10 @@ public class BackendRouter {
             // V13.5 英英模式：从 Settings 持久化开关读取（默认关）；关闭时永不产生 en2en 题
             a.en2en = ctx.getSharedPreferences("wd_ui", android.content.Context.MODE_PRIVATE)
                     .getBoolean("en2en_on", false);
+            // V16.2 每日复习配额与今日已完成（仅远征/无尽；快刷走独立 QuickEngine，不经过此分支）
+            SharedPreferences rp = prefs();
+            a.reviewQuota = reviewQuota(rp);
+            a.reviewDone = reviewDone(rp);
             q = quizEngine.draw(a);
         }
         return q.toJson();
@@ -235,6 +240,8 @@ public class BackendRouter {
         // V13.2 毕业跃迁检测：schedule 会原地修改 newRec（==oldRec），必须在调度前捕获旧毕业状态，
         // 才能区分「本次刚毕业」与「早已毕业」（仅返回 graduated 不足以区分）。
         boolean wasGraduated = oldRec != null && oldRec.graduated;
+        // V16.2 捕获答题前是否已到期（schedule 会原地改 due），用于每日复习配额计数
+        boolean wasDue = oldRec != null && oldRec.due <= nowMs;
         SrsEngine.schedule(newRec, isCorrect, fast, nowMs);
 
         if ("quick".equals(mode) && quickLevel != null) {
@@ -287,6 +294,9 @@ public class BackendRouter {
         progress.put(word, newRec);
         store.upsertRec(word, newRec, nowSec);
         store.insertAnswer(word, qtype, isCorrect, dmg, nowSec);
+        // V16.2 每日复习配额计数：历史到期词（非本局错词 replay）完成一次，递增当日复习计数。
+        // 本局错词的穿插巩固（runState.wrong 中）走 WRONG_REVIEW_GAP，不占每日配额。
+        if (wasDue && !runState.wrong.containsKey(word)) bumpReviewDone(prefs());
 
         // XP 与成就（meta 已在伤害计算前读取，含祭坛等级）
         boolean isNewWord = oldRec == null;
@@ -405,6 +415,30 @@ public class BackendRouter {
         rec.due = nowMs + (long) GameConfig.SRS_LADDER[0] * 60_000L;
     }
 
+    // ── V16.2 每日复习配额（SharedPreferences wd_ui，按 UTC 自然日计数）──
+    private SharedPreferences prefs() {
+        return ctx.getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+    }
+
+    /** 每日复习配额（0=不限制），默认 GameConfig.REVIEW_QUOTA_DEFAULT。 */
+    private static int reviewQuota(SharedPreferences sp) {
+        return Math.max(0, sp.getInt("review_quota", GameConfig.REVIEW_QUOTA_DEFAULT));
+    }
+
+    /** 今日已完成的历史到期复习题数；存储日期非今天（UTC 天）则视为 0（自然日重置）。 */
+    private static int reviewDone(SharedPreferences sp) {
+        int todayDay = (int) (System.currentTimeMillis() / 86400000L);
+        if (sp.getInt("review_done_day", -1) != todayDay) return 0;
+        return Math.max(0, sp.getInt("review_done", 0));
+    }
+
+    /** 完成一道历史到期复习题：跨天则重置为 1，否则 +1。 */
+    private static void bumpReviewDone(SharedPreferences sp) {
+        int todayDay = (int) (System.currentTimeMillis() / 86400000L);
+        int done = sp.getInt("review_done_day", -1) == todayDay ? sp.getInt("review_done", 0) : 0;
+        sp.edit().putInt("review_done_day", todayDay).putInt("review_done", done + 1).apply();
+    }
+
     private JSONObject reviewDue(String book) throws Exception {
         Map<String, WordRec> progress = store.loadProgress();
         long nowMs = System.currentTimeMillis();
@@ -421,6 +455,12 @@ public class BackendRouter {
         out.put("theta", store.getTheta());
         out.put("new_cap", 20);
         out.put("target_rate", 0.85);
+        // V16.2 每日复习配额与进度（quota=0 不限制；remaining=-1 表示不限）
+        SharedPreferences rp = prefs();
+        int quota = reviewQuota(rp), done = reviewDone(rp);
+        out.put("review_quota", quota);
+        out.put("review_done", done);
+        out.put("review_remaining", quota == 0 ? -1 : Math.max(0, quota - done));
         return out;
     }
 

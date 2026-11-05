@@ -59,6 +59,7 @@ public class SettingsView extends LinearLayout {
         buildTimeLimitCard(body);
         buildFeedbackCard(body);
         buildDailyGoalCard(body);
+        buildReviewQuotaCard(body);
         buildDataCard(body);
         buildBackupCard(body);
         buildStatsCard(body);
@@ -491,6 +492,55 @@ public class SettingsView extends LinearLayout {
                 // 刷新按钮高亮
                 for (int j = 0; j < ((LinearLayout) row).getChildCount(); j++) {
                     LinearLayout b = (LinearLayout) ((LinearLayout) row).getChildAt(j);
+                    boolean on = (j == idx);
+                    b.setBackground(Ui.card(12, on ? 0xFF14304D : Ui.CARD2, on ? 2 : 1, on ? Ui.CYAN : Ui.LINE));
+                    ((TextView) b.getChildAt(0)).setTextColor(on ? Ui.CYAN : Ui.TXT);
+                }
+            });
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -2, 1f);
+            if (i > 0) bp.leftMargin = dp(8);
+            row.addView(btn, bp);
+        }
+        card.addView(row);
+        body.addView(card);
+        body.addView(spacer(10));
+    }
+
+    /** V16.2 每日复习配额：四档单选（不限 0 / 30 / 50 / 80），默认 50。持久化 wd_ui/review_quota。
+     *  仅限制远征/无尽的历史到期复习量，超出自动顺延；不影响新词、快刷、单局错词巩固。 */
+    private void buildReviewQuotaCard(LinearLayout body) {
+        final SharedPreferences sp = getContext().getSharedPreferences("wd_ui", Context.MODE_PRIVATE);
+        LinearLayout card = new LinearLayout(getContext());
+        card.setOrientation(VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(Ui.card(14, Ui.CARD, 1, Ui.LINE));
+        card.addView(tipTitle("每日复习配额 ⓘ",
+                "远征/无尽每天最多复习多少个到期词，超出的词自动顺延到后续日期，避免几天不玩后一上来全是复习。不影响新词、快刷和单局错词巩固。"));
+
+        int cur = sp.getInt("review_quota", GameConfig.REVIEW_QUOTA_DEFAULT);
+        final int[] vals = {0, 30, 50, 80};
+        final String[] names = {"不限", "30", "50", "80"};
+        final String[] subs = {"不限制", "30 词", "50 词", "80 词"};
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        for (int i = 0; i < vals.length; i++) {
+            final int val = vals[i];
+            LinearLayout btn = new LinearLayout(getContext());
+            btn.setOrientation(VERTICAL);
+            btn.setGravity(Gravity.CENTER);
+            btn.setPadding(dp(6), dp(10), dp(6), dp(10));
+            boolean active = (cur == val);
+            btn.setBackground(Ui.card(12, active ? 0xFF14304D : Ui.CARD2, active ? 2 : 1, active ? Ui.CYAN : Ui.LINE));
+            TextView t1 = Ui.text(getContext(), names[i], 13, active ? Ui.CYAN : Ui.TXT, true);
+            TextView t2 = Ui.text(getContext(), subs[i], 10f, Ui.MUT, false);
+            btn.addView(t1); btn.addView(t2);
+            final int idx = i;
+            Ui.pressable(btn);
+            btn.setOnClickListener(v -> {
+                sp.edit().putInt("review_quota", val).apply();
+                for (int j = 0; j < row.getChildCount(); j++) {
+                    LinearLayout b = (LinearLayout) row.getChildAt(j);
                     boolean on = (j == idx);
                     b.setBackground(Ui.card(12, on ? 0xFF14304D : Ui.CARD2, on ? 2 : 1, on ? Ui.CYAN : Ui.LINE));
                     ((TextView) b.getChildAt(0)).setTextColor(on ? Ui.CYAN : Ui.TXT);

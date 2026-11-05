@@ -83,6 +83,11 @@ public final class GameConfig {
     // 每日新词上限
     public static final int NEW_CAP = 150;
 
+    // V16.2 每日复习配额：远征/无尽每天最多从「历史到期队列」抽取的复习题数；
+    // 达配额后当天剩余到期词不改 due、自动顺延到后续日期，防止断档后堰塞湖集中爆发。
+    // 0 = 不限制。仅作用于历史到期词，不影响新词、快刷与单局错词巩固。
+    public static final int REVIEW_QUOTA_DEFAULT = 50;
+
     // 无尽
     public static final double ENDLESS_HP_STEP = 0.15;
     public static final double ENDLESS_ATK_STEP = 0.10;

@@ -32,6 +32,9 @@ public class QuizEngine {
         public boolean confuse = false;
         /** V13.5 英英模式开关（来自 Settings 持久化）：开启后才可能偶发 en2en 题。 */
         public boolean en2en = false;
+        /** V16.2 每日复习配额（0=不限制）与今日已完成的历史到期复习题数。 */
+        public int reviewQuota = 0;
+        public int reviewDone = 0;
     }
 
     private final WordBank bank;
@@ -78,17 +81,28 @@ public class QuizEngine {
 
         // 到期队列（V12.1：冷过滤队列与含冷却队列分开构建）
         // dl/dg：本局未答对过的到期词（非冷却）；dlAll/dgAll：含冷却的到期词，仅最终兜底启用。
+        // V16.2 每日复习配额：今日已完成历史到期复习达配额时，冻结全部到期词（今天不抽、保留 due 顺延明日）。
+        boolean reviewCapped = a.reviewQuota > 0 && a.reviewDone >= a.reviewQuota;
+        Set<String> frozenDue = new HashSet<>();
+        if (reviewCapped) {
+            for (Map.Entry<String, WordRec> e : progress.entrySet()) {
+                WordRec r = e.getValue();
+                if (r != null && r.due <= now && bookSet.contains(e.getKey())) frozenDue.add(e.getKey());
+            }
+        }
         List<String> dl = new ArrayList<>();
         List<String> dg = new ArrayList<>();
         List<String> dlAll = new ArrayList<>();
         List<String> dgAll = new ArrayList<>();
         for (String w : SrsEngine.dueLearning(progress, now)) {
             if (!bookSet.contains(w) || !runState.cap(w)) continue;
+            if (frozenDue.contains(w)) continue;
             dlAll.add(w);
             if (!cold(runState, w)) dl.add(w);
         }
         for (String w : SrsEngine.dueGraduated(progress, now)) {
             if (!bookSet.contains(w) || !runState.cap(w)) continue;
+            if (frozenDue.contains(w)) continue;
             dgAll.add(w);
             if (!cold(runState, w)) dg.add(w);
         }
@@ -150,7 +164,8 @@ public class QuizEngine {
             List<String> learning = new ArrayList<>();
             for (String w : progress.keySet()) {
                 WordRec r = progress.get(w);
-                if (!r.graduated && bookSet.contains(w) && runState.cap(w) && !cold(runState, w)) learning.add(w);
+                if (!r.graduated && bookSet.contains(w) && runState.cap(w) && !cold(runState, w)
+                        && !frozenDue.contains(w)) learning.add(w);
             }
             Collections.sort(learning, new Comparator<String>() {
                 public int compare(String x, String y) {
@@ -179,7 +194,7 @@ public class QuizEngine {
             pool.addAll(dlAll); pool.addAll(dgAll);
             if (pool.isEmpty()) {
                 for (String w : progress.keySet()) {
-                    if (bookSet.contains(w) && runState.cap(w)) pool.add(w);
+                    if (bookSet.contains(w) && runState.cap(w) && !frozenDue.contains(w)) pool.add(w);
                 }
             }
             if (pool.isEmpty()) pool = new ArrayList<>(bookWords);

@@ -472,9 +472,9 @@ public class HomeView extends LinearLayout {
                 if (goalPulse != null) { goalPulse.cancel(); goalPulse = null; }
             }
 
-            // V13.9：今日复习建议——纯只读消费 /review/due。
-            // 口径：dueNow = learning_count（到期未毕业）+ review_count（到期已毕业），即此刻真正到期该复习的词。
-            // 阈值常量 REVIEW_HEAVY_THRESHOLD=60：超过则提示分批；不编造精确数字，只给量级建议。
+            // V16.2：今日复习节奏——消费 /review/due 的到期数 + 配额/已完成（review_quota/review_done）。
+            // 口径：dueNow = 此刻仍到期（未复习掉）的词；done/quota = 今日已完成 / 每日配额。
+            // 达配额后引擎当天不再抽历史到期词，剩余 dueNow 顺延明日，文案明确提示。
             try {
                 JSONObject dueBody = new JSONObject();
                 dueBody.put("book", act.book);
@@ -482,12 +482,19 @@ public class HomeView extends LinearLayout {
                 int learning = due.optInt("learning_count", 0);
                 int graduated = due.optInt("review_count", 0);
                 int dueNow = learning + graduated;
+                int quota = due.optInt("review_quota", 0);
+                int done = due.optInt("review_done", 0);
                 if (dueNow > 0) {
-                    StringBuilder sb = new StringBuilder("📖 今日建议先复习 ")
-                            .append(dueNow).append(" 词（到期未学 ").append(learning)
-                            .append(" · 已毕业复习 ").append(graduated).append("）");
-                    if (dueNow > REVIEW_HEAVY_THRESHOLD) sb.append("，量较大，可分 2–3 批完成");
-                    reviewTxt.setText(sb.toString());
+                    String txt;
+                    if (quota > 0 && done >= quota) {
+                        txt = "📖 今日复习已满 " + quota + " · 剩余 " + dueNow + " 词顺延明日";
+                    } else if (quota > 0) {
+                        txt = "📖 今日复习 " + done + "/" + quota + " · 到期 " + dueNow + " 词"
+                                + (dueNow > REVIEW_HEAVY_THRESHOLD ? "（可分批）" : "");
+                    } else {
+                        txt = "📖 今日复习 " + done + " · 到期 " + dueNow + " 词";
+                    }
+                    reviewTxt.setText(txt);
                     reviewTxt.setVisibility(VISIBLE);
                     reviewTxt.setOnClickListener(v -> act.show(MainActivity.Screen.WRONGBOOK));   // V13.34
                 } else {
