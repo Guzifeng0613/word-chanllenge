@@ -1,7 +1,5 @@
 package com.guzifeng.worddungeon;
 
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -37,7 +35,6 @@ import org.json.JSONObject;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "WordDungeon";
-    public static MainActivity instance;
 
     private FrameLayout root;
     private BackendRouter router;
@@ -83,7 +80,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        instance = this;
         registerSaflaunchers();
         try {
             createApp();

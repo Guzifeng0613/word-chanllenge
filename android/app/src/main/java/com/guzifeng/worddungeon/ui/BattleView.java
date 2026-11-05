@@ -118,7 +118,7 @@ public class BattleView extends FrameLayout {
     private boolean ttsReady = false;
 
     // UI
-    private TextView topTxt, enemyName, enemyEmoji, playerEmoji, playerName;
+    private TextView topTxt, enemyName, enemyEmoji, playerEmoji;
     private TextView enemyTag, warnTxt, hpNumTxt, comboLab, comboNum, comboSub;
     private LinearLayout topRight;
     private TextView comboTag;   // V12.7 顶栏连击数（手绘框架：顶部圆形徽+连击数）
@@ -1220,7 +1220,6 @@ public class BattleView extends FrameLayout {
                     t.setLayoutParams(new LinearLayout.LayoutParams(ts, ts));
                     t.setBackground(Ui.card(8, Ui.BG0, 1, Ui.LINE));
                     // V7.0：点格子/点提示自动聚焦拼写输入框（隐藏 input 等效处理）
-                    final TextView ft = t;
                     t.setClickable(true);
                     Ui.pressable(t);   // V12.6 格子点击按压反馈
                     t.setOnClickListener(v -> focusSpell());
@@ -1358,13 +1357,11 @@ public class BattleView extends FrameLayout {
         if (options == null) return;
         try {
             char[] keys = {'1', '2', '3', '4'};
-            int rowIdx = 0;
             for (int i = 0; i < options.length(); i += 2) {
                 LinearLayout row = new LinearLayout(getContext());
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 for (int j = i; j < Math.min(i + 2, options.length()); j++) {
                     final String opt = options.getString(j);
-                    final int optNo = j;
                     LinearLayout b = new LinearLayout(getContext());
                     b.setOrientation(LinearLayout.HORIZONTAL);
                     b.setGravity(Gravity.CENTER_VERTICAL);

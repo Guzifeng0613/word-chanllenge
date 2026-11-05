@@ -16,7 +16,6 @@ public final class GameConfig {
     public static final String[] TITLE_NAMES = {"词灵使", "词灵行者", "词灵领主", "词灵圣者"};
     /** 火花各阶所需连续打卡天数（0-based）：灰烬/星火/烈火/圣焰 */
     public static final int[] SPARK_STREAK = {0, 3, 7, 30};
-    public static final String[] SPARK_NAMES = {"灰烬", "星火", "烈火", "圣焰"};
 
     /** 称号阶段（0-based）：末阶 Lv10 门槛跨度为前阶 2.5 倍，中两阶前移易拿 */
     public static int titleStage(int level) {

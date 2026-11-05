@@ -27,7 +27,7 @@ public class ResultView extends FrameLayout {
 
     private final MainActivity act;
     private LinearLayout body;
-    private TextView bigTitle, bigSub, bestTxt;
+    private TextView bigTitle, bigSub;
     private LinearLayout wordCardHost;
     private TextView againBtn;
     // V13.30：本局收获卡异步字段

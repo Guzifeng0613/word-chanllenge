@@ -1,3 +1,13 @@
+## V16.3 · 死代码清理（2026-11-05）
+- 目标：在 V15.5 之后对全项目 33 个 Java 文件再做一次静态扫描，清理经逐项引用链确认的死代码，不改变任何功能、对外行为与公共口径。
+- 清理内容（7 个文件）：
+  1. 未使用 import：MainActivity 的 android.content.Intent / android.net.Uri；ProgressStore 的 java.util.HashSet / java.util.Set；HomeView 的 android.widget.ScrollView；WrongbookView 的 android.graphics.Typeface；
+  2. 死字段：MainActivity 的 public static instance（含 onCreate 赋值，全局无读取）；GameConfig 的 SPARK_NAMES（火花实际只显示「🔥 N 天」与样式，名称数组无引用）；BattleView 的 playerName、ResultView 的 bestTxt（声明后从未赋值/读取）；
+  3. 死局部变量：BattleView 拼写格子的 ft、选项构建的 rowIdx 与 optNo（声明后均未被使用）。
+- 复核排除（非死代码，保留）：AmbientBackground.getOpacity（extends Drawable 的抽象方法实现）、ProgressStore.onUpgrade（extends SQLiteOpenHelper 的抽象方法实现），均为框架回调；33 个顶层类全部有外部引用，无废弃类。
+- 验证方式：云主机无 KVM，清理后复扫脚本零候选 + compileReleaseJavaWithJavac 通过 + assembleRelease/assembleDebug 构建 + aapt 核验双 APK 版本一致；真机截图为权威验收依据。
+- 版本号 versionCode 115 / versionName 16.3。
+
 ## V16.2 · 今日复习节奏：待复习入口 + 每日配额与到期平滑（2026-11-05）
 - 背景：单词复习方向优化，先解决两个玩家可感知痛点——① 复习「隐形」，玩家不知道今天该复习什么、还剩多少；② 断档后「到期堰塞湖」，到期词无配额、堆积集中爆发，劝退回归玩家。
 - 方向 1（主页今日复习入口与进度）：
