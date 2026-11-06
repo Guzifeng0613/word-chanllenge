@@ -407,7 +407,7 @@ public class ResultView extends FrameLayout {
     }
 
     /** V14.0.1 词 chip 点击：深色地下城风提示框，显示单词+词性+正确释义。
-     *  V15.6：易读配色（卡片底提亮+金色边框加粗+亮金标题+近白正文），无「关闭」按钮，点击空白处关闭。 */
+     *  V16.5：标题与正文统一纯白（0xFFFFFFFF），避免琥珀金在深卡片上对比不足、不好读；无「关闭」按钮，点击空白处关闭。 */
     private void showWordDialog(String word) {
         try {
             WordEntry e = WordBank.get().entry(word);
@@ -426,9 +426,9 @@ public class ResultView extends FrameLayout {
             d.setCanceledOnTouchOutside(true);   // 点击弹窗外部空白处关闭
             d.show();
             TextView tt = d.findViewById(android.R.id.title);
-            if (tt != null) { tt.setTextColor(0xFFFFD54F); tt.setTextSize(19); }
+            if (tt != null) { tt.setTextColor(0xFFFFFFFF); tt.setTextSize(19); }
             TextView mt = d.findViewById(android.R.id.message);
-            if (mt != null) { mt.setTextColor(0xFFF8FAFC); mt.setTextSize(16); }
+            if (mt != null) { mt.setTextColor(0xFFFFFFFF); mt.setTextSize(16); }
         } catch (Throwable ignore) {}
     }
 
